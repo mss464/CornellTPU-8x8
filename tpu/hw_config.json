@@ -1,0 +1,14 @@
+{
+    "bitstream": "minitpu.bit",
+    "handoff": "minitpu.hwh",
+    "tpu_names": [
+        "tpu_0",
+        "tpu_top_0",
+        "tpu"
+    ],
+    "dma_names": [
+        "axi_dma_0",
+        "axi_dma",
+        "dma"
+    ]
+}

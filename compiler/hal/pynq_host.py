@@ -6,6 +6,8 @@ with the Mini-TPU on PYNQ-based FPGA boards.
 """
 
 import time
+import os
+import json
 import numpy as np
 
 try:
@@ -37,50 +39,79 @@ class TpuMode:
 class TpuDriver:
     """Driver class for Mini-TPU hardware interface."""
 
-    def __init__(self, bitstream_path: str, tpu_name: str = None, dma_name: str = None):
+    def __init__(self, bitstream: str = None, tpu_name: str = None, dma_name: str = None, program: bool = False):
         """
-        Initialize TPU driver with the specified bitstream.
-
-        Args:
-            bitstream_path: Path to .bit file (expects .hwh in same directory)
-            tpu_name: Name of TPU IP block (auto-detect if None)
-            dma_name: Name of DMA IP block (auto-detect if None)
+        Initialize TPU driver. Assumes hardware is already programmed by default.
         """
         if Overlay is None:
             raise RuntimeError("pynq library not available - must run on PYNQ board")
 
-        self.overlay = Overlay(bitstream_path)
-        self.overlay.download()
+        # 1. Load contracts from hw_config.json if available
+        config = {
+            "bitstream": "minitpu.bit",
+            "handoff": "minitpu.hwh",
+            "tpu_names": ["tpu_0", "tpu_top_0", "tpu"],
+            "dma_names": ["axi_dma_0", "axi_dma", "dma"]
+        }
+        
+        for p in ["hw_config.json", "/home/xilinx/tpu_deploy/hw_config.json"]:
+            if os.path.exists(p):
+                with open(p, 'r') as f:
+                    config.update(json.load(f))
+                break
 
-        # Auto-detect or use provided names
+        # 2. Resolve bitstream path
+        if bitstream is None:
+            bitstream = config["bitstream"]
+            if not os.path.exists(bitstream) and os.path.exists("/home/xilinx/tpu_deploy/" + bitstream):
+                bitstream = "/home/xilinx/tpu_deploy/" + bitstream
+
+        # Verify HWH matching
+        hwh_path = os.path.splitext(bitstream)[0] + ".hwh"
+        if not os.path.exists(hwh_path):
+            # Try to see if it was provided under a different name in config
+            alt_hwh = os.path.join(os.path.dirname(bitstream), config["handoff"])
+            if os.path.exists(alt_hwh) and alt_hwh != hwh_path:
+                print(f"Warning: HWH file found as {alt_hwh} but Overlay expects {hwh_path}. Renaming...")
+                os.rename(alt_hwh, hwh_path)
+
+        self.overlay = Overlay(bitstream, download=program)
+        if program:
+            print(f"FPGA programmed with {bitstream}")
+
+        # 3. Auto-detect IPs
         if dma_name is None:
-            # Try common DMA names
-            for name in ['axi_dma_0', 'axi_dma']:
+            for name in config["dma_names"]:
                 if hasattr(self.overlay, name):
                     dma_name = name
                     break
-            if dma_name is None:
-                raise RuntimeError(f"Could not find DMA. Available IPs: {list(self.overlay.ip_dict.keys())}")
-
+        
         if tpu_name is None:
-            # Try common TPU names
-            for name in ['tpu_0', 'tpu_top_0', 'tpu']:
+            for name in config["tpu_names"]:
                 if hasattr(self.overlay, name):
                     tpu_name = name
                     break
-            if tpu_name is None:
-                raise RuntimeError(f"Could not find TPU. Available IPs: {list(self.overlay.ip_dict.keys())}")
+
+        if dma_name is None or not hasattr(self.overlay, dma_name):
+            raise RuntimeError(f"DMA not found. Available: {list(self.overlay.ip_dict.keys())}")
+        if tpu_name is None or not hasattr(self.overlay, tpu_name):
+            raise RuntimeError(f"TPU not found. Available: {list(self.overlay.ip_dict.keys())}")
 
         self.dma = getattr(self.overlay, dma_name)
         self.ctrl = getattr(self.overlay, tpu_name)
         self.mmio = self.ctrl.mmio
 
-        print(f"TPU Driver initialized: DMA={dma_name}, TPU={tpu_name}")
+        print(f"TPU HW ready (DMA={dma_name}, TPU={tpu_name})")
     
-    def wait_for_flag(self, name: str, expected: int = 1, poll_delay: float = 0.001):
+    def wait_for_flag(self, name: str, expected: int = 1, poll_delay: float = 0.001, timeout: float = 5.0):
         """Wait for a TPU status flag to reach expected value."""
         offset = REG_ADDR[name]
+        start_time = time.time()
         while self.mmio.read(offset) != expected:
+            if time.time() - start_time > timeout:
+                 # Read all registers for debug
+                 regs = {k: self.mmio.read(v) for k, v in REG_ADDR.items()}
+                 raise TimeoutError(f"Timeout waiting for {name}={expected}. Registers: {regs}")
             time.sleep(poll_delay)
     
     def write_bram(self, addr: int, values: np.ndarray):
@@ -92,8 +123,7 @@ class TpuDriver:
             values: numpy array of float32 values to write
         """
         values = np.asarray(values, dtype=np.float32).reshape(-1)
-        in_buf = allocate(shape=values.shape, dtype=np.int64)
-        value_bits = values.view(np.uint32)
+        in_buf = allocate(shape=values.shape, dtype=np.float32)
         
         self.wait_for_flag("instr_ready", 1)
         self.mmio.write(REG_ADDR["addr_ram"], addr)
@@ -101,7 +131,7 @@ class TpuDriver:
         self.mmio.write(REG_ADDR["tpu_mode"], TpuMode.WRITE_BRAM)
         
         self.wait_for_flag("stream_ready", 1)
-        in_buf[:] = value_bits.astype(np.uint64)
+        in_buf[:] = values
         self.dma.sendchannel.transfer(in_buf)
         self.dma.sendchannel.wait()
         self.wait_for_flag("instr_ready", 1)
@@ -150,7 +180,8 @@ class TpuDriver:
         
         self.wait_for_flag("instr_ready", 1)
         self.mmio.write(REG_ADDR["addr_ram"], base_addr)
-        self.mmio.write(REG_ADDR["length"], len(instructions))
+        # Each 64-bit instruction takes 2 32-bit DMA beats
+        self.mmio.write(REG_ADDR["length"], 2 * len(instructions))
         self.mmio.write(REG_ADDR["tpu_mode"], TpuMode.WRITE_IRAM)
         
         self.wait_for_flag("stream_ready", 1)

@@ -1,0 +1,80 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Module Name: compute_tile
+// Description: Wrapper for tensorcore (logic) and scratchpad (data memory).
+//////////////////////////////////////////////////////////////////////////////////
+
+module compute_tile #(
+    parameter ADDR_WIDTH = 13,
+    parameter DATA_WIDTH = 32
+)(
+    input  logic clk,
+    input  logic rst_n,
+
+    // High-level control
+    input  logic start,
+    output logic done,
+
+    // DMA Instruction Interface
+    input  logic        instr_write_en,
+    input  logic [7:0]  iram_addr,
+    input  logic [63:0] dma_iram_din,
+
+    // DMA Data Interface
+    input  logic [ADDR_WIDTH-1:0] base_addr,
+    input  logic                  dma_wr_en,
+    input  logic [DATA_WIDTH-1:0] dma_wr_data,
+    input  logic [15:0]           dma_write_pointer,
+    input  logic                  dma_rd_en,
+    output logic [DATA_WIDTH-1:0] dma_rd_data,
+    input  logic [15:0]           dma_read_pointer
+);
+
+    // Internal BRAM connection
+    logic [ADDR_WIDTH-1:0] pc_addr_b;
+    logic [DATA_WIDTH-1:0] pc_din_b;
+    logic [DATA_WIDTH-1:0] pc_dout_b;
+    logic                  pc_en_b;
+    logic                  pc_we_b;
+
+    // Instantiate TensorCore
+    tensorcore #(
+        .ADDR_WIDTH(ADDR_WIDTH),
+        .DATA_WIDTH(DATA_WIDTH)
+    ) u_tensorcore (
+        .clk(clk),
+        .rst_n(rst_n),
+        .start(start),
+        .done(done),
+        .instr_write_en(instr_write_en),
+        .iram_addr(iram_addr),
+        .dma_iram_din(dma_iram_din),
+        .bram_addr_b(pc_addr_b),
+        .bram_din_b(pc_din_b),
+        .bram_dout_b(pc_dout_b),
+        .bram_en_b(pc_en_b),
+        .bram_we_b(pc_we_b)
+    );
+
+    // Instantiate Scratchpad
+    scratchpad #(
+        .ADDR_WIDTH(ADDR_WIDTH),
+        .DATA_WIDTH(DATA_WIDTH)
+    ) u_scratchpad (
+        .clk(clk),
+        .rst_n(rst_n),
+        .base_addr(base_addr),
+        .dma_wr_en(dma_wr_en),
+        .dma_wr_data(dma_wr_data),
+        .dma_write_pointer(dma_write_pointer),
+        .dma_rd_en(dma_rd_en),
+        .dma_rd_data(dma_rd_data),
+        .dma_read_pointer(dma_read_pointer),
+        .dma_comp_addr_b(pc_addr_b),
+        .dma_comp_din_b(pc_din_b),
+        .dma_comp_dout_b(pc_dout_b),
+        .dma_comp_en_b(pc_en_b),
+        .dma_comp_we_b(pc_we_b)
+    );
+
+endmodule

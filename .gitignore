@@ -1,14 +1,12 @@
 # Symlinked agent config (source of truth is AGENTS.md)
 CLAUDE.md
 
-# FPGA build artifacts
-fpga/ip_repo/
-fpga/output/
-fpga/pkg_*_proj/
-fpga/.Xil/
-fpga/*.log
-fpga/*.jou
-fpga/build.log
+# Build artifacts
+tpu/ip_repo*
+tpu/*.Xil*
+tpu/build
+tpu/build/*
+tpu/vivado*
 
 *.txt
 *.xml
@@ -16,4 +14,5 @@ fpga/build.log
 *.zip
 .DS_Store
 
-*__pycache__*
+*cache*
+pytest.ini

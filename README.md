@@ -2,6 +2,8 @@
 
 A compact ML stack built by Cornell students, taking a bottom-up approach from a Tensor Processing Unit implementation featuring a systolic array architecture, supporting FPGA prototyping and ASIC tapeout workflows.
 
+See workflow/ for quickstart instructions.
+
 ## Project Structure
 ```text
 mini-tpu/

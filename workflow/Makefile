@@ -117,6 +117,71 @@ tpu_go_brrr:
 #==============================================================================
 
 clean: ## Remove generated binaries and temporary files
-	rm -rf binaries/*.npz
+	rm -rf binaries/*.npz binaries/*.tpu_bin tuda_result.txt
 	@echo "Cleaned."
+
+#==============================================================================
+# Verification / Automated Make Routines
+#==============================================================================
+.PHONY: tuda-compile-dummy tuda-compile-mlp tuda-deploy-dummy tuda-deploy-mlp tuda-test-dummy tuda-test-mlp
+
+tuda-compile-dummy: ## Compile pure device binaries for dummy test
+	@mkdir -p binaries
+	@echo "Compiling TUDA dummy kernels offline..."
+	@PYTHONPATH=$(PROJECT_ROOT) python3 ../compiler/compile.py kernels/dummy.tu -o binaries/dummy.tpu_bin
+
+tuda-compile-mlp: ## Compile pure device binaries for MLP
+	@mkdir -p binaries
+	@echo "Compiling TUDA MLP kernels offline..."
+	@PYTHONPATH=$(PROJECT_ROOT) python3 ../compiler/compile.py kernels/gemm.tu -o binaries/gemm.tpu_bin
+	@PYTHONPATH=$(PROJECT_ROOT) python3 ../compiler/compile.py kernels/relu.tu -o binaries/relu.tpu_bin
+
+tuda-deploy-dummy: tuda-compile-dummy
+	@set -euo pipefail; \
+	require() { command -v "$$1" >/dev/null 2>&1 || { echo "Missing required tool: $$1" >&2; exit 1; }; }; \
+	require ssh; require scp; require sshpass; \
+	SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"; \
+	DEPLOY_TMP="$$(mktemp -d /tmp/tpu_deploy.XXXXXX)"; \
+	trap 'rm -rf "$$DEPLOY_TMP"' EXIT; \
+	mkdir -p "$$DEPLOY_TMP/runtime" "$$DEPLOY_TMP/binaries"; \
+	cp -r "$(PROJECT_ROOT)/runtime/"* "$$DEPLOY_TMP/runtime/"; \
+	cp "binaries/dummy.tpu_bin" "$$DEPLOY_TMP/binaries/"; \
+	cp "programs/dummy_test.tu" "$$DEPLOY_TMP/"; \
+	if [[ -f "$(ROOT)/hw_config.json" ]]; then cp "$(ROOT)/hw_config.json" "$$DEPLOY_TMP/"; fi; \
+	echo -e "$(GREEN)== Deploying TUDA Dummy to board ($(BOARD_IP)) ==$(RESET)"; \
+	sshpass -p "$(BOARD_PASS)" ssh $$SSH_OPTS "$(BOARD_USER)@$(BOARD_IP)" "mkdir -p $(DEPLOY_DIR)"; \
+	sshpass -p "$(BOARD_PASS)" scp -r $$SSH_OPTS "$$DEPLOY_TMP"/* "$(BOARD_USER)@$(BOARD_IP):$(DEPLOY_DIR)/"
+
+tuda-deploy-mlp: tuda-compile-mlp
+	@set -euo pipefail; \
+	require() { command -v "$$1" >/dev/null 2>&1 || { echo "Missing required tool: $$1" >&2; exit 1; }; }; \
+	require ssh; require scp; require sshpass; \
+	SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"; \
+	DEPLOY_TMP="$$(mktemp -d /tmp/tpu_deploy.XXXXXX)"; \
+	trap 'rm -rf "$$DEPLOY_TMP"' EXIT; \
+	mkdir -p "$$DEPLOY_TMP/runtime" "$$DEPLOY_TMP/binaries"; \
+	cp -r "$(PROJECT_ROOT)/runtime/"* "$$DEPLOY_TMP/runtime/"; \
+	cp "binaries/gemm.tpu_bin" "$$DEPLOY_TMP/binaries/"; \
+	cp "binaries/relu.tpu_bin" "$$DEPLOY_TMP/binaries/"; \
+	cp "programs/mlp.tu" "$$DEPLOY_TMP/"; \
+	if [[ -f "$(ROOT)/hw_config.json" ]]; then cp "$(ROOT)/hw_config.json" "$$DEPLOY_TMP/"; fi; \
+	echo -e "$(GREEN)== Deploying TUDA MLP to board ($(BOARD_IP)) ==$(RESET)"; \
+	sshpass -p "$(BOARD_PASS)" ssh $$SSH_OPTS "$(BOARD_USER)@$(BOARD_IP)" "mkdir -p $(DEPLOY_DIR)"; \
+	sshpass -p "$(BOARD_PASS)" scp -r $$SSH_OPTS "$$DEPLOY_TMP"/* "$(BOARD_USER)@$(BOARD_IP):$(DEPLOY_DIR)/"
+
+tuda-test-dummy: tuda-deploy-dummy ## Execute minimal hardware dummy test
+	@echo -e "$(GREEN)== Executing dummy_test.tu on board ==$(RESET)"
+	@sshpass -p "$(BOARD_PASS)" ssh -t -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$(BOARD_USER)@$(BOARD_IP)" \
+	"cd $(DEPLOY_DIR) && echo $(BOARD_PASS) | sudo -S env PYTHONPATH=. python3 dummy_test.tu"
+	@echo -e "$(GREEN)== Fetching Verification Result ==$(RESET)"
+	@sshpass -p "$(BOARD_PASS)" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$(BOARD_USER)@$(BOARD_IP):$(DEPLOY_DIR)/tuda_result.txt" .
+	@cat tuda_result.txt
+
+tuda-test-mlp: tuda-deploy-mlp ## Compile, deploy, and verify TUDA MLP execution
+	@echo -e "$(GREEN)== Executing mlp.tu on board ==$(RESET)"; \
+	sshpass -p "$(BOARD_PASS)" ssh -t -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$(BOARD_USER)@$(BOARD_IP)" \
+	"cd $(DEPLOY_DIR) && echo $(BOARD_PASS) | sudo -S env PYTHONPATH=. python3 mlp.tu"
+	@echo -e "$(GREEN)== Fetching Verification Result ==$(RESET)"
+	@sshpass -p "$(BOARD_PASS)" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$(BOARD_USER)@$(BOARD_IP):$(DEPLOY_DIR)/tuda_result.txt" .
+	@cat tuda_result.txt
 

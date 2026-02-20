@@ -149,6 +149,32 @@ The packaged TPU IP exposes:
 
 ---
 
+---
+
+## Verification
+
+The Mini-TPU uses a multi-level verification strategy combining SystemVerilog unit tests and cycle-accurate Cocotb integration tests.
+
+### 1. Unit Testing (Compute Tile)
+Portable unit tests for the core logic (MXU, SIMD, Scratchpad).
+```bash
+make -C tpu/verification/compute_tile all
+```
+
+### 2. System-Level Simulation (RTL)
+Integration tests that verify AXI-Lite control and AXI-Stream DMA paths using **Icarus Verilog** and **Cocotb**.
+```bash
+make -C tpu/verification/system test_data_integrity_rtl
+```
+
+**Current Verification Status:**
+- ✅ **Compute Tile Unit Tests**: Passing.
+- ⏳ **System RTL Simulation**: Functional, but under investigation.
+  - *Known Issue*: A 1-element data shift persists in DMA read-back.
+  - *Mitigation*: Simulation currently uses a behavioral BRAM model with 3-cycle read latency to match hardware assumptions.
+
+---
+
 ## Hardware Targets
 
 | Target | Status | Notes |

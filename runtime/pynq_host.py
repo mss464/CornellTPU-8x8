@@ -120,7 +120,13 @@ class TpuDriver:
         self.ctrl = getattr(self.overlay, tpu_name)
         self.mmio = self.ctrl.mmio
 
+        self.reset()
         print(f"TPU HW ready (DMA={dma_name}, TPU={tpu_name})")
+
+    def reset(self):
+        """Force TPU back to a clean state and clear hanging transactions."""
+        self.mmio.write(REG_ADDR["tpu_mode"], TpuMode.IDLE)
+        time.sleep(0.01)
     
     def wait_for_flag(self, name: str, expected: int = 1, poll_delay: float = 0.001, timeout: float = 5.0):
         """Wait for a TPU status flag to reach expected value."""

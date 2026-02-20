@@ -94,6 +94,10 @@
     wire [15:0] write_pointer;
     wire [15:0] read_pointer;
     
+    wire [31:0] dma_dram_din;
+    wire [63:0] dma_iram_din;
+    wire [31:0] dma_dout;
+
 // Instantiation of Axi Bus Interface S00_AXI
 	tpu_slave_axi_lite # (
 		.C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH),
@@ -172,10 +176,6 @@
 		.read_pointer_stream(read_pointer)
 	);
 
-	//DMA to bram wires
-	wire [12:0] dma_addr;
-	wire [31:0] dma_dram_din, dma_dout;
-	wire [63:0] dma_iram_din;
 	
     // for loading to IRAM
     reg [7:0] iram_addr;

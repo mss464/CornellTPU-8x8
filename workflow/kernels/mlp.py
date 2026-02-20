@@ -94,6 +94,7 @@ def build():
     squared_addr = mem.alloc("sqaured", 16)
     sum_addr = mem.alloc("sum", 16)
     loss_addr = mem.alloc("loss", 1)
+    relu_deriv_addr = mem.alloc("relu_deriv", 16)
     c0625 = mem.alloc("c0625", 1)
     c125 = mem.alloc("c125", 1)
     c025 = mem.alloc("c025", 1)
@@ -103,7 +104,7 @@ def build():
     b = np.random.randn(4, 1).astype(np.float32) 
     Y_prime = np.random.randn(4, 4).astype(np.float32)
 
-    forward_pass(W, X, b, X_addr, W_addr, Z_addr, b_addr, Y_addr, ZERO_addr, A_addr)
-    loss(None, None, Y_addr, Y_prime_addr, diff_addr, squared_addr, sum_addr, c0625, loss_addr, c125, dA_addr)
-    backward_pass(W, X, b, None, None, Y_addr, ZERO_addr, None, dA_addr, dZ_addr, X_addr, dW_addr, c025, db_addr, W_addr, W_addr_transposed, dX_addr)
+    Y, A = forward_pass(W, X, b, X_addr, W_addr, Z_addr, b_addr, Y_addr, ZERO_addr, A_addr)
+    _, dA = loss(Y, Y_prime, Y_addr, Y_prime_addr, diff_addr, squared_addr, sum_addr, c0625, loss_addr, c125, dA_addr)
+    backward_pass(W, X, b, Y, dA, Y_addr, ZERO_addr, relu_deriv_addr, dA_addr, dZ_addr, X_addr, dW_addr, c025, db_addr, W_addr, W_addr_transposed, dX_addr)
     print("Success: MLP Trace Generated.")

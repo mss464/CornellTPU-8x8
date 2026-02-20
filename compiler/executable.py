@@ -65,7 +65,8 @@ class TPUExecutable:
         for k, v in self.outputs.items():
             save_dict[f"out_{k}"] = v
 
-        np.savez(path, **save_dict)
+        with open(path, "wb") as f:
+            np.savez(f, **save_dict)
         
         if verbose:
             print(f"Serialized TPU executable to: {path.name}")
@@ -107,3 +108,46 @@ class TPUExecutable:
             outputs=outputs,
             metadata=metadata
         )
+
+@dataclass
+class TPUDeviceBinary:
+    """
+    A pure TPU device binary archive (.tpu_bin).
+    
+    Fields:
+        instructions: 64-bit hardware instruction words.
+        memory_map: mapping of buffer names to {addr, size}.
+    """
+    instructions: np.ndarray
+    memory_map: Dict[str, Dict[str, int]]
+
+    def save(self, path: Union[str, Path], verbose: bool = False):
+        """Serialize the binary to a compressed archive."""
+        path = Path(path)
+        path.parent.mkdir(exist_ok=True, parents=True)
+
+        with open(path, "wb") as f:
+            np.savez(f,
+                     instructions=self.instructions.astype(np.uint64),
+                     memory_map=json.dumps(self.memory_map))
+        
+        if verbose:
+            print(f"Serialized TPU device binary to: {path.name}")
+            print(f"  Size: {len(self.instructions)} words")
+
+    @classmethod
+    def load(cls, path: Union[str, Path]) -> "TPUDeviceBinary":
+        """Deserialize a TPUDeviceBinary from a file."""
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Binary not found: {path}")
+            
+        data = np.load(path, allow_pickle=True)
+
+        if 'instructions' not in data or 'memory_map' not in data:
+            raise ValueError(f"File {path} is not a valid Mini-TPU device binary.")
+
+        instructions = data['instructions']
+        memory_map = json.loads(str(data['memory_map']))
+        
+        return cls(instructions=instructions, memory_map=memory_map)

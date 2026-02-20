@@ -3,15 +3,15 @@
 ## 🚀 Current Architecture: Consolidated 4-File Core
 The compiler has been streamlined into a minimal, high-performance core:
 1. **`instructions.py`**: ISA and IR definition.
-2. **`compile.py`**: Kernel tracing, program scheduling, and bit-level encoding.
-3. **`executable.py`**: `.npz` binary serialization and packaging.
-4. **`main.py`**: CLI for trace generation.
+2. **`compile.py`**: Kernel tracing, program scheduling, bit-level encoding, and CLI for `.tu` to `.tpu_bin` compilation.
+3. **`executable.py`**: `.tpu_bin` binary serialization and packaging.
+4. **`main.py`**: CLI for trace generation (legacy).
 
 ## 🛠 Workflow & Layering
 We follow a 4-stage software stack:
-**Kernel** (`@kernel`) $\to$ **Program** (`Program`) $\to$ **Hardware Binary** (`ndarray`) $\to$ **Executable** (`TPUExecutable`)
+**Kernel** (`@kernel`) $\to$ **Program** (`Program`) $\to$ **Hardware Binary** (`ndarray`) $\to$ **Executable** (`TPUDeviceBinary`)
 
-- **`workflow/kernels/`**: Reusable kernel library (SIMD-first).
+- **`workflow/kernels/`**: Reusable kernel definitions (`.tu` files with `@kernel`).
 - **`workflow/programs/`**: Composition scripts for testing and applications.
 - **`runtime/`**: Hardware abstraction and execution orchestration.
 

@@ -116,6 +116,11 @@ class Param:
         self.name = name
         self.offset = offset
 
+    def __repr__(self):
+        if self.offset == 0: return f"Param('{self.name}')"
+        sign = "+" if self.offset > 0 else "-"
+        return f"Param('{self.name}') {sign} {abs(self.offset)}"
+
     def __add__(self, other: int) -> Param:
         return Param(self.name, self.offset + other)
 
@@ -126,9 +131,11 @@ class Param:
         return Param(self.name, self.offset - other)
 
     def resolve(self, bindings: Dict[str, int]) -> int:
+        if self.name not in bindings:
+            raise ValueError(f"Param '{self.name}' not bound to an address")
         addr = bindings[self.name] + self.offset
         if not (0 <= addr <= ADDR_MAX):
-            raise ValueError(f"Address {addr} (for {self.name}+{self.offset}) out of bounds")
+            raise ValueError(f"Address {addr} (for {self.name}+{self.offset}) out of range")
         return addr
 
 @dataclass
@@ -154,9 +161,11 @@ class SymbolicInstruction:
 
 class InstructionCapture:
     """Context manager for tracing IR function calls into SymbolicInstructions."""
-    def __init__(self):
+    def __init__(self, fn_to_patch=None):
         self.captured: List[SymbolicInstruction] = []
         self._originals = {}
+        self._fn_to_patch = fn_to_patch
+        self._patched_globals = {}
 
     def __enter__(self):
         import compiler.instructions as ir
@@ -164,12 +173,21 @@ class InstructionCapture:
         for op in ops:
             self._originals[op] = getattr(ir, op)
             setattr(ir, op, self._wrap(op))
+            
+            if self._fn_to_patch and op in self._fn_to_patch.__globals__:
+                self._patched_globals[op] = self._fn_to_patch.__globals__[op]
+                self._fn_to_patch.__globals__[op] = getattr(ir, op)
+
         return self
 
     def __exit__(self, t, v, tb):
         import compiler.instructions as ir
         for op, fn in self._originals.items():
             setattr(ir, op, fn)
+            
+        if self._fn_to_patch:
+            for op, fn in self._patched_globals.items():
+                self._fn_to_patch.__globals__[op] = fn
 
     def _wrap(self, op: str):
         def fn(*args, **kwargs):
@@ -189,6 +207,9 @@ class CompiledKernel:
     instructions: List[SymbolicInstruction] = field(default_factory=list)
 
     def resolve(self, bindings: Dict[str, int]) -> np.ndarray:
+        missing = [p for p in self.params if p not in bindings]
+        if missing:
+            raise ValueError(f"Missing bindings for parameters: {missing}")
         return np.array([i.resolve(bindings) for i in self.instructions], dtype=np.uint64)
 
 class KernelFunction:
@@ -199,7 +220,7 @@ class KernelFunction:
     def compile(self) -> CompiledKernel:
         sig = inspect.signature(self._fn)
         names = [n for n, p in sig.parameters.items() if p.annotation == Param or p.default is inspect.Parameter.empty]
-        with InstructionCapture() as capture:
+        with InstructionCapture(self._fn) as capture:
             self._fn(**{n: Param(n) for n in names})
         return CompiledKernel(self._fn.__name__, names, capture.captured)
 
@@ -251,8 +272,65 @@ class KernelLauncher:
         self.driver.write_instructions(np.concatenate([k.resolve(bindings), [encode_halt()]]))
         self.driver.compute()
 
+    def launch_batch(self, batch: List[tuple]):
+        """Launch multiple (kernel, bindings) pairs in a single driver session."""
+        all_instr = []
+        for k, bindings in batch:
+            all_instr.append(k.resolve(bindings))
+        full_stream = np.concatenate(all_instr + [np.array([encode_halt()], dtype=np.uint64)])
+        self.driver.write_instructions(full_stream)
+        self.driver.compute()
+        return sum(len(k.instructions) for k, _ in batch)
+
 def load_program(path: Union[str, Path]) -> np.ndarray:
     """Load a compiled instruction stream (.npy or .hex)."""
     p = Path(path)
     if p.suffix == '.npy': return np.load(p)
     return np.array([int(line, 16) for line in open(p) if line.strip() and not line.startswith('#')], dtype=np.uint64)
+
+if __name__ == "__main__":
+    import sys
+    import argparse
+    import importlib.util
+    from compiler.executable import TPUDeviceBinary
+
+    parser = argparse.ArgumentParser(description="Mini-TPU Device Binary Compiler")
+    parser.add_argument("program_py", help="Path to the kernel definition script (.tu or .py)")
+    parser.add_argument("-o", "--output", help="Output path for the generated binary (.tpu_bin)")
+    args = parser.parse_args()
+
+    program_path = Path(args.program_py).resolve()
+    if not program_path.exists():
+        print(f"Error: Script not found: {program_path}")
+        sys.exit(1)
+
+    # Add project root and script path to sys.path
+    project_root = program_path.parent.parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+    if str(program_path.parent) not in sys.path:
+        sys.path.insert(0, str(program_path.parent))
+
+    from importlib.machinery import SourceFileLoader
+    loader = SourceFileLoader("program_module", str(program_path))
+    module = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+    loader.exec_module(module)
+
+    if hasattr(module, 'define_program'):
+        result = module.define_program()
+        # Handle both old (prog, inputs, outputs) and new (prog) formats safely
+        prog = result[0] if isinstance(result, tuple) else result
+        
+        if args.output:
+            out_path = Path(args.output)
+            if out_path.suffix != '.tpu_bin':
+                out_path = out_path / f"{program_path.stem}.tpu_bin"
+        else:
+            out_path = Path("workflow/binaries") / f"{program_path.stem}.tpu_bin"
+            
+        memory_map = prog.get_memory_map()
+        binary = TPUDeviceBinary(instructions=prog.compile(), memory_map=memory_map)
+        binary.save(out_path, verbose=True)
+    else:
+        print(f"Error: Script {program_path.name} must define 'define_program()'")
+        sys.exit(1)

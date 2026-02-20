@@ -16,19 +16,29 @@ module blk_mem_gen_0 (
     output reg [31:0] doutb
 );
     reg [31:0] mem [0:8191];
+    reg [31:0] q1_a, q2_a;
+    reg [31:0] q1_b, q2_b;
+    integer i;
+    initial begin
+        for (i = 0; i < 8192; i = i + 1) mem[i] = 0;
+    end
 
     always @(posedge clka) begin
         if (ena) begin
             if (wea) mem[addra] <= dina;
-            douta <= mem[addra];
+            q1_a <= mem[addra];
         end
+        q2_a <= q1_a;
+        douta <= q2_a;
     end
 
     always @(posedge clkb) begin
         if (enb) begin
             if (web) mem[addrb] <= dinb;
-            doutb <= mem[addrb];
+            q1_b <= mem[addrb];
         end
+        q2_b <= q1_b;
+        doutb <= q2_b;
     end
 endmodule
 
@@ -48,18 +58,28 @@ module blk_mem_gen_1 (
     output reg [63:0] doutb
 );
     reg [63:0] mem [0:255];
+    reg [63:0] q1_a, q2_a;
+    reg [63:0] q1_b, q2_b;
+    integer i;
+    initial begin
+        for (i = 0; i < 256; i = i + 1) mem[i] = 0;
+    end
 
     always @(posedge clka) begin
         if (ena) begin
             if (wea) mem[addra] <= dina;
-            douta <= mem[addra];
+            q1_a <= mem[addra];
         end
+        q2_a <= q1_a;
+        douta <= q2_a;
     end
 
     always @(posedge clkb) begin
         if (enb) begin
             if (web) mem[addrb] <= dinb;
-            doutb <= mem[addrb];
+            q1_b <= mem[addrb];
         end
+        q2_b <= q1_b;
+        doutb <= q2_b;
     end
 endmodule

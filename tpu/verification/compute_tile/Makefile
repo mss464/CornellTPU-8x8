@@ -11,7 +11,7 @@ VVP = vvp
 COCOTB_LIBS = $(shell python3 -c "import cocotb; import os; print(os.path.join(os.path.dirname(cocotb.__file__), 'libs'))")
 
 # Directories
-TPU_DIR = ../../tpu/tensorcore/
+TPU_DIR = ../../src/compute_tile
 SIM_BUILD = sim_build
 WAVEFORMS = waveforms
 WRAPPERS = wrappers
@@ -50,7 +50,7 @@ VERILATOR_ROOT ?= /home/lan64/verilator
 # Core arithmetic
 SRC_FP32 = $(TPU_DIR)/fp32_add.sv $(TPU_DIR)/fp32_mul.sv
 # Control and memory
-SRC_FIFO = ../../tpu/ultra96-v2/rtl/fifo4.sv
+SRC_FIFO = ../../src/system/fifo4.sv
 SRC_PC = $(TPU_DIR)/pc.sv
 SRC_DECODER = $(TPU_DIR)/decoder.sv
 SRC_BRAM = $(TPU_DIR)/scratchpad.sv $(WRAPPERS)/blk_mem_models.sv

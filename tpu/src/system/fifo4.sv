@@ -22,6 +22,9 @@ module fifo4 #(
     // Storage (8 entries)
     //-----------------------------
     logic [WIDTH-1:0] mem [0:7];
+    initial begin
+        for (int i = 0; i < 8; i++) mem[i] = '0;
+    end
 
     //-----------------------------
     // Pointers (2-bit index + wrap)

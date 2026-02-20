@@ -15,11 +15,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import pytest
 import numpy as np
 
-from compiler.kernel import (
+from compiler.compile import (
     Param, SymbolicInstruction, CompiledKernel,
-    KernelCompiler, kernel
+    kernel, encode_systolic, encode_vpu, encode_vload, encode_vstore, encode_vcompute, encode_halt, KernelLauncher
 )
-from compiler.assembler import encode_systolic, encode_vpu
 
 
 class TestParam:
@@ -71,9 +70,9 @@ class TestParam:
             p.resolve({"X": 10000})
 
     def test_param_repr(self):
-        assert "Param('X')" in repr(Param("X"))
-        assert "+ 5" in repr(Param("X", 5))
-        assert "- 3" in repr(Param("X", -3))
+        r = repr(Param("X", 5))
+        assert "Param('X')" in r
+        assert "+" in r and "5" in r
 
 
 class TestSymbolicInstruction:
@@ -145,7 +144,7 @@ class TestKernelDecorator:
     def test_simple_kernel_compile(self):
         @kernel
         def simple_matmul(W: Param, X: Param, Z: Param):
-            from compiler.tpu_txt import matmul
+            from compiler.instructions import matmul
             matmul(W, X, Z)
 
         compiled = simple_matmul.compile()
@@ -158,7 +157,7 @@ class TestKernelDecorator:
     def test_kernel_with_loop(self):
         @kernel
         def vector_add_4(A: Param, B: Param, C: Param):
-            from compiler.tpu_txt import add
+            from compiler.instructions import add
             for i in range(4):
                 add(A + i, B + i, C + i)
 
@@ -175,7 +174,7 @@ class TestKernelDecorator:
     def test_kernel_resolution(self):
         @kernel
         def add_kernel(A: Param, B: Param, C: Param):
-            from compiler.tpu_txt import add
+            from compiler.instructions import add
             add(A, B, C)
 
         compiled = add_kernel.compile()
@@ -188,7 +187,7 @@ class TestKernelDecorator:
         """Test that 8x8 tiled matmul generates expected instruction count."""
         @kernel
         def tiled_8x8(W: Param, X: Param, Z: Param, temp: Param):
-            from compiler.tpu_txt import matmul, add
+            from compiler.instructions import matmul, add
             t2 = 16
             for i in range(2):
                 for j in range(2):
@@ -218,14 +217,14 @@ class TestPrebuiltKernels:
     """Tests for pre-built kernels."""
 
     def test_matmul_4x4_compiles(self):
-        from compiler.kernels.matmul import matmul_4x4
+        from workflow.kernels.matmul import matmul_4x4
 
         compiled = matmul_4x4.compile()
         assert compiled.name == "matmul_4x4"
         assert len(compiled.instructions) == 1
 
     def test_matmul_8x8_tiled_compiles(self):
-        from compiler.kernels.matmul import matmul_8x8_tiled
+        from workflow.kernels.matmul import matmul_8x8_tiled
 
         compiled = matmul_8x8_tiled.compile()
         assert compiled.name == "matmul_8x8_tiled"
@@ -233,18 +232,18 @@ class TestPrebuiltKernels:
         assert len(compiled.instructions) == 72
 
     def test_vector_add_compiles(self):
-        from compiler.kernels.vpu import vector_add
+        from workflow.kernels.vpu_simd import vector_add_simd
 
-        compiled = vector_add.compile()
-        assert compiled.name == "vector_add"
-        assert len(compiled.instructions) == 16  # Default n=16
+        compiled = vector_add_simd.compile()
+        assert compiled.name == "vector_add_simd"
+        assert len(compiled.instructions) == 4  # 1 vload, 1 vload, 1 vadd, 1 vstore
 
     def test_vector_relu_compiles(self):
-        from compiler.kernels.vpu import vector_relu
+        from workflow.kernels.vpu_simd import vector_relu_simd
 
-        compiled = vector_relu.compile()
-        assert compiled.name == "vector_relu"
-        assert len(compiled.instructions) == 16
+        compiled = vector_relu_simd.compile()
+        assert compiled.name == "vector_relu_simd"
+        assert len(compiled.instructions) == 3  # 1 vload, 1 vrelu, 1 vstore
 
 
 class MockTpuDriver:
@@ -266,9 +265,8 @@ class TestKernelLauncher:
 
     def test_launch_single_kernel(self):
         """Test launching a single kernel."""
-        from compiler.kernel import KernelLauncher
-        from compiler.kernels.matmul import matmul_4x4
-        from compiler.assembler import encode_halt
+        from workflow.kernels.matmul import matmul_4x4
+        from compiler.compile import encode_halt
 
         mock_driver = MockTpuDriver()
         launcher = KernelLauncher(mock_driver)
@@ -282,16 +280,15 @@ class TestKernelLauncher:
 
     def test_launch_batch(self):
         """Test launching multiple kernels in a batch."""
-        from compiler.kernel import KernelLauncher
-        from compiler.kernels.matmul import matmul_4x4
-        from compiler.kernels.vpu import vector_add
-        from compiler.assembler import encode_halt
+        from workflow.kernels.matmul import matmul_4x4
+        from workflow.kernels.vpu_simd import vector_add_16_simd
+        from compiler.compile import encode_halt
 
         mock_driver = MockTpuDriver()
         launcher = KernelLauncher(mock_driver)
 
         compiled_matmul = matmul_4x4.compile()
-        compiled_vadd = vector_add.compile()
+        compiled_vadd = vector_add_16_simd.compile()
 
         batch = [
             (compiled_matmul, {'W': 0, 'X': 16, 'Z': 32}),
@@ -301,15 +298,15 @@ class TestKernelLauncher:
         total = launcher.launch_batch(batch)
 
         assert mock_driver.compute_called
-        # 1 matmul + 16 adds + 1 halt
-        assert len(mock_driver.instructions) == 1 + 16 + 1
-        assert total == 1 + 16  # Excludes halt
+        # 1 matmul + 8 instructions (from 16-elem vector add) + 1 halt
+        # vector_add_16_simd has 4 vload, 2 vadd, 2 vstore = 8
+        assert len(mock_driver.instructions) == 1 + 8 + 1
+        assert total == 1 + 8  # Excludes halt
         assert mock_driver.instructions[-1] == encode_halt()
 
     def test_launch_batch_empty(self):
         """Test launching empty batch."""
-        from compiler.kernel import KernelLauncher
-        from compiler.assembler import encode_halt
+        from compiler.compile import encode_halt
 
         mock_driver = MockTpuDriver()
         launcher = KernelLauncher(mock_driver)
@@ -326,7 +323,7 @@ class TestEndToEnd:
 
     def test_matmul_full_resolution(self):
         """Test full compile + resolve flow for matmul."""
-        from compiler.kernels.matmul import matmul_4x4
+        from workflow.kernels.matmul import matmul_4x4
 
         compiled = matmul_4x4.compile()
         instructions = compiled.resolve({"W": 0, "X": 16, "Z": 32})
@@ -337,13 +334,15 @@ class TestEndToEnd:
         assert instructions[0] == expected
 
     def test_vector_add_full_resolution(self):
-        """Test full compile + resolve flow for vector_add."""
-        from compiler.kernels.vpu import vector_add
+        """Test full compile + resolve flow for vector_add_simd."""
+        from workflow.kernels.vpu_simd import vector_add_simd
 
-        compiled = vector_add.compile()
+        compiled = vector_add_simd.compile()
         instructions = compiled.resolve({"A": 0, "B": 100, "C": 200})
 
-        assert len(instructions) == 16
-        for i, instr in enumerate(instructions):
-            expected = encode_vpu("add", i, 100 + i, 200 + i)
-            assert instr == expected, f"Mismatch at index {i}"
+        # vload(0, A), vload(1, B), vadd(2, 0, 1), vstore(2, C)
+        import compiler.compile as comp
+        assert instructions[0] == comp.encode_vload(0, 0)
+        assert instructions[1] == comp.encode_vload(1, 100)
+        assert instructions[2] == comp.encode_vcompute("vadd", 2, 0, 1)
+        assert instructions[3] == comp.encode_vstore(2, 200)

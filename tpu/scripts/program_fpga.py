@@ -6,7 +6,7 @@ Used to separate FPGA programming from software tests.
 
 import argparse
 import sys
-from compiler.hal.pynq_host import TpuDriver
+from runtime.pynq_host import TpuDriver
 
 def main():
     parser = argparse.ArgumentParser(description="Program FPGA with bitstream")

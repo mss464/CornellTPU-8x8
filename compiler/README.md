@@ -1,32 +1,54 @@
-# Compiler
+# Mini-TPU Compiler
 
-TPU instruction encoding and module generation.
+Instruction encoding, IR generation, and kernel development library.
 
-## Contents
+## Software Layering
+The Mini-TPU software stack follows a clear 4-stage transformation:
+1. **Kernel** (`@kernel`): Python symbolic logic capturing hardware intent.
+2. **Sequencing** (`Program`): The logical schedule that defines memory layout and kernel ordering.
+3. **Binary** (`ndarray`): Raw 64-bit hardware instruction stream.
+4. **Executable** (`TPUExecutable`): A packaged `.npz` archive containing instructions, test data, and memory maps.
 
-| File | Description |
-|------|-------------|
-| `assembler.py` | Instruction encoder (generates hex from assembly) |
-| `tpu_txt.py` | High-level IR emission (load, store, matmul, etc.) |
-| `module.py` | [PLANNED] TPUModule packaging for AOT compilation |
+## Component Map
+| File | Layer | Description |
+|------|-------|-------------|
+| `instructions.py`| ISA | Symbolic operations and Low-level IR emission. |
+| `compile.py` | Transform | Kernel tracing, Program composition, and Bit-encoding. |
+| `executable.py` | Distribution | `TPUExecutable` (.npz) packaging and serialization. |
+| `main.py` | CLI | Trace generator for model inspection. |
+
+## Verification
+
+Comprehensive smoke tests and CLI integration tests are located in `compiler/verification/`.
+To run the verification suite:
+
+```bash
+cd compiler/verification
+make all
+```
 
 ## Usage
 
+### 1. Library API
+Build programs programmatically using the builder and instruction set:
+
 ```python
-from compiler.tpu_txt import matmul, load, store, get_instruction_log
-from compiler.assembler import assemble_file
+from compiler import Program, kernel, Param
+from compiler.instructions import matmul, add, mem
 
-# Emit instructions
-load(0, my_weights)
-matmul(0, 16, 32)
-store(32, 16, "output")
+@kernel
+def my_op(W: Param, X: Param, Z: Param):
+    matmul(W, X, Z)
 
-# Assemble to hex
-assemble_file("instructions.txt", "instructions.hex")
+prog = Program()
+w_addr = prog.alloc("weights", 16)
+prog.call(my_op, W=w_addr, ...)
+prog.compile()
 ```
 
-## Architecture
+### 2. Compiler CLI
+Compile an existing model file to a symbolic trace:
 
-```
-tpu_txt.py (IR)  →  assembler.py (encoder)  →  .hex / TPUModule
+```bash
+python3 compiler/main.py compiler/kernels/mlp.py -o trace.txt
 ```

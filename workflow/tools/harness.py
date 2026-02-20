@@ -17,7 +17,8 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
-from compiler.program import Program
+from compiler.compile import Program
+from compiler.executable import TPUExecutable
 
 def to_tile_major(mat, tile_size=4):
     """Convert row-major matrix to tile-major layout."""
@@ -30,50 +31,21 @@ def to_tile_major(mat, tile_size=4):
     return np.array(result, dtype=np.float32)
 
 def save_executable(prog: Program, inputs: dict, outputs: dict, output_path: Path, verbose: bool = True):
-    """
-    Save program instructions and test data to a .npz executable.
-    
-    Args:
-        prog: Compiled Program instance
-        inputs: Dictionary of input arrays {name: np.array}
-        outputs: Dictionary of expected output arrays {name: np.array}
-        output_path: Path to the output .npz file
-        verbose: Whether to print summary info
-    """
-    output_path.parent.mkdir(exist_ok=True, parents=True)
-
-    # Compile instructions
-    instructions = np.array(prog.compile(), dtype=np.uint64)
-    
-    # Get memory map
+    """Save program instructions and test data using TPUExecutable."""
+    # Get memory map from program
     memory_map = {k: {"addr": v[0], "size": v[1]}
                   for k, v in prog.get_memory_map().items()}
-
-    # Build save dictionary with individual arrays
-    save_dict = {
-        'instructions': instructions,
-        'memory_map': json.dumps(memory_map),
-        'manifest': json.dumps({
-            'inputs': list(inputs.keys()),
-            'outputs': list(outputs.keys())
-        })
-    }
     
-    # Add prefixed arrays
-    for k, v in inputs.items():
-        save_dict[f"in_{k}"] = v
-    for k, v in outputs.items():
-        save_dict[f"out_{k}"] = v
-
+    # Create executable object
+    exe = TPUExecutable(
+        instructions=prog.compile(),
+        memory_map=memory_map,
+        inputs=inputs,
+        outputs=outputs
+    )
+    
     # Save
-    np.savez(output_path, **save_dict)
-
-    if verbose:
-        print(f"Generated test executable: {output_path}")
-        print(f"  Instructions: {len(instructions)}")
-        print(f"  Inputs: {list(inputs.keys())}")
-        print(f"  Outputs: {list(outputs.keys())}")
-
+    exe.save(output_path, verbose=verbose)
     return output_path
 
 def main():

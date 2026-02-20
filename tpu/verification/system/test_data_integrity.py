@@ -16,13 +16,16 @@ import os
 import numpy as np
 
 try:
-    from compiler.hal.pynq_host import TpuDriver
+    from runtime.pynq_host import TpuDriver
 except ImportError:
     try:
         from hal.pynq_host import TpuDriver
     except ImportError:
-        print("ERROR: Could not import TpuDriver")
-        sys.exit(1)
+        try:
+             from pynq_host import TpuDriver
+        except ImportError:
+            print("ERROR: Could not import TpuDriver")
+            sys.exit(1)
 
 
 def test_sequential_pattern(tpu, base_addr, size):

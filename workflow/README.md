@@ -1,8 +1,7 @@
-# TPU Tests
+# Mini TPU Usage
 
-This directory contains validation tests for the Mini-TPU on the Ultra96-v2 FPGA.
-
-## Running Tests on Ultra96-v2
+This directory contains tools and example TPU programs to use the Mini TPU.
+It assumes you already have the hardware prepared as described in tpu/.
 
 We use a unified test launcher that executes self-contained test executables (`.npz`).
 
@@ -67,8 +66,16 @@ make tpu_go_brrr EXE=workflow/binaries/simd_edge_cases.npz
    python3 tools/test_launcher.py binaries/your_test.npz
    ```
 
+## System Infrastructure
+
+The `workflow/` directory serves as the integration and verification layer. While the `compiler/` package provides the tools to build instructions, `workflow/` provides the harness to validate them on-device.
+
+### Responsibilities vs. Compiler
+- **`workflow/tools/harness.py`**: Acts as the *Packaging Bridge*. It uses the `compiler.program.Program` object to generate raw instructions but also bundles them with **static memory maps** and **expected data** into a self-contained `.npz` executable. 
+- **`workflow/tools/test_launcher.py`**: The *Hardware Runner*. Unlike the JIT-style `compiler.kernel.KernelLauncher`, this is designed for **Ahead-Of-Time (AOT)** verification of binaries. It handles DMA transfers of inputs, instruction loading, and automated numerical verification.
+
 ## Files
-- `tools/harness.py`: The program compiler and packaging tool.
-- `tools/test_launcher.py`: The universal test runner.
-- `programs/`: Scripts to generate test executables.
-- `binaries/`: Output directory for `.npz` executables.
+- `tools/harness.py`: Integration bridge that packages `Program` output into test executables.
+- `tools/test_launcher.py`: AOT hardware test runner for `.npz` binaries.
+- `programs/`: Source programs (generators) used for validation.
+- `binaries/`: Compiled test artifacts ready for deployment.

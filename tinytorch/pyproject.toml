@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=64.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name="tinytorch"
+version = "0.1.9"
+description = "Build ML Systems from Scratch - Educational Deep Learning Framework"
+readme = "README.md"
+requires-python=">=3.8"
+authors = [
+    {name = "Vijay Janapa Reddi", email = "vj@eecs.harvard.edu"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Education",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Education",
+]
+dependencies = [
+    "numpy>=1.24.0,<3.0.0",
+    "rich>=13.0.0",
+    "PyYAML>=6.0",
+    "certifi>=2023.0.0",
+]
+
+[project.scripts]
+tito = "tito.main:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "jupytext>=1.16.0",
+    "nbformat>=5.10.0",
+    "jupyter>=1.1.0",
+    "jupyterlab>=4.2.0",
+    "ipykernel>=6.29.0",
+    "nbdev>=2.3.0",
+]
+visualization = [
+    "matplotlib>=3.9.0",  # For plotting in Modules 17, 19, 20
+]
+docs = [
+    "jupyter-book>=1.0.0,<2.0.0",
+    "sphinxcontrib-mermaid>=0.9.2",
+    "matplotlib>=3.5.0",
+    "ipykernel>=6.0.0",
+    "ipywidgets>=8.0.0",
+]
+
+[project.urls]
+Homepage = "https://mlsysbook.ai/tinytorch"
+Repository = "https://github.com/harvard-edge/cs249r_book"
+Documentation = "https://mlsysbook.ai/tinytorch"
+Issues = "https://github.com/harvard-edge/cs249r_book/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tinytorch*", "tito*"]
+exclude = ["tests*", "modules*", "site*", "docs*", "milestones*", "assignments*"]
+
+# TinyTorch-specific pytest configuration (overrides parent pyproject.toml)
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "quick: marks tests as quick",
+]
+# No coverage in TinyTorch tests - we don't need coverage for educational code
+addopts = ["--strict-markers"]

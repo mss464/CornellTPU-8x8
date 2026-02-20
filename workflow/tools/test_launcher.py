@@ -28,34 +28,17 @@ project_root = str(Path(__file__).parent.parent.parent)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from compiler.hal.pynq_host import TpuDriver
+from runtime.pynq_host import TpuDriver
+from compiler.executable import TPUExecutable
 
 def run_test(executable_path, bitstream=None):
     print(f"Loading test executable: {executable_path}")
     try:
-        data = np.load(executable_path, allow_pickle=True)
-        # Verify required keys present
-        if 'instructions' not in data or 'memory_map' not in data:
-            print(f"Error: {executable_path} is missing required keys 'instructions' or 'memory_map'")
-            return False
-        
-        if 'manifest' not in data and ('inputs' not in data or 'outputs' not in data):
-            print(f"Error: {executable_path} is missing data keys (needs 'manifest' OR 'inputs'/'outputs')")
-            return False
-            
-        instructions = data['instructions']
-        memory_map = json.loads(str(data['memory_map']))
-
-        if 'manifest' in data:
-            # New flattened format (no pickle)
-            manifest = json.loads(str(data['manifest']))
-            inputs = {k: data[f"in_{k}"] for k in manifest['inputs']}
-            outputs = {k: data[f"out_{k}"] for k in manifest['outputs']}
-        else:
-             # Legacy pickle format (fallback)
-            inputs = data['inputs'].item()
-            outputs = data['outputs'].item()
-
+        exe = TPUExecutable.load(executable_path)
+        instructions = exe.instructions
+        memory_map = exe.memory_map
+        inputs = exe.inputs
+        outputs = exe.outputs
     except Exception as e:
         print(f"Failed to load executable: {e}")
         return False

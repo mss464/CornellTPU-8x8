@@ -207,9 +207,9 @@ board-test:
 	SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"; \
 	DEPLOY_TMP="$$(mktemp -d /tmp/tpu_deploy.XXXXXX)"; \
 	trap 'rm -rf "$$DEPLOY_TMP"' EXIT; \
-	mkdir -p "$$DEPLOY_TMP/compiler/hal"; \
-	cp compiler/hal/pynq_host.py "$$DEPLOY_TMP/compiler/hal/"; \
-	touch "$$DEPLOY_TMP/compiler/__init__.py" "$$DEPLOY_TMP/compiler/hal/__init__.py"; \
+	mkdir -p "$$DEPLOY_TMP/runtime"; \
+	cp runtime/pynq_host.py "$$DEPLOY_TMP/runtime/"; \
+	touch "$$DEPLOY_TMP/runtime/__init__.py"; \
 	cp "$$PROGRAM_PATH" "$$DEPLOY_TMP/"; \
 	if [[ -f "$(ROOT)/hw_config.json" ]]; then cp "$(ROOT)/hw_config.json" "$$DEPLOY_TMP/"; fi; \
 	for extra in $(EXTRA_FILES); do \

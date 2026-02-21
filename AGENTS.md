@@ -1,10 +1,10 @@
-# AGENTS.md - Mini-TPU Project Guidelines
 
-This workflow is being refactored. Keep changes minimal and local.
-
-## Scope Rule (WIP)
-
-- `tpu/` hardware design. tensorcore + interconnect/interface/memory per target fpga/asic.
-- `tests/` testbenches for validating workflow in a modular way
-- `compiler/` TPU compiler from PyTorch-like to TPU program
-- `docs/` documentation
+### Status
+Current MVP: Offload TinyTorch Transformer's matmul operations to TPU.
+- [ ] Debug the TPU hardware
+    - [ ] Fix the Host interface
+    - [ ] Verify the instruction memory capacity
+        - [ ] Implement branch/loop/complex instructions
+    - [ ] Verify the data memory capacity
+    - [ ] Implement address generation (preferrably with just scalar operations)
+- [ ] Create TPU program equivalent to @systolic_tiled_matmul.py

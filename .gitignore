@@ -14,5 +14,7 @@ tpu/vivado*
 *.zip
 .DS_Store
 
+*.vvp
+
 *cache*
 pytest.ini

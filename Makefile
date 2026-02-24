@@ -1,6 +1,6 @@
 # Mini-TPU Project Makefile
 
-.PHONY: help gpt2 gpt2-tpusim gpt2-tpu gemm setup
+.PHONY: help gpt2 gpt2-tpusim gpt2-tpu gemm setup gpt2-clean
 
 help:
 	@echo "Available targets:"
@@ -9,6 +9,7 @@ help:
 	@echo "  gpt2-tpu        : (TODO) Run the Transformer model offloaded to hardware TPU"
 	@echo "  gemm            : Run Matrix Multiplication performance sweep (NumPy vs TPU Sim)"
 	@echo "  setup           : Download GPT-2 weights and prepare environment"
+	@echo "  gpt2-clean      : Remove GPT-2 weights and assets"
 	@echo ""
 	@echo "Options:"
 	@echo "  DEBUG=1         : Enable TPU simulation debug (for gpt2 target)"
@@ -66,3 +67,7 @@ gpt2-tpu:
 gemm:
 	export PYTHONPATH="$$(pwd)/tinytorch:$$PYTHONPATH" && \
 	./tinytorch/.venv/bin/python3 "workflow/gemm_sweep.py"
+
+gpt2-clean:
+	@echo "Cleaning GPT-2 weights and assets..."
+	rm -f $(GPT2_DIR)/gpt2_weights.npz $(GPT2_DIR)/config.json $(GPT2_DIR)/vocab.json $(GPT2_DIR)/merges.txt

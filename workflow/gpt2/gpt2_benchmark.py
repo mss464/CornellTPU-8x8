@@ -21,7 +21,6 @@ args, unknown = parser.parse_known_args()
 
 if args.kernel_debug:
     os.environ["MINI_TPU_KERNEL_DEBUG"] = "1"
-
 from tinytorch import Tensor, GPT, CharTokenizer, AdamW, CrossEntropyLoss
 from tinytorch.core.tokenization import BPETokenizer
 

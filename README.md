@@ -30,13 +30,13 @@ make setup
   ```
 
 ## 🧱 Repository Structure
-- `tinytorch/`: Small ML framework from Harvard.
+- `tinytorch/`: Our custom ML framework built from scratch.
 - `workflow/`: End-to-end applications and performance demos.
   - `gpt2/`: GPT-2 124M specific inference scripts and weights.
   - `kernels/`: Hand-optimized and simulated hardware kernels.
 - `runtime/`: Driver and HAL logic for TPU interaction.
 - `compiler/`: High-level compiler for TPU assembly.
-- `tpu/`: RTL on FPGA implementation of the Mini-TPU architecture.
+- `tpu/`: RTL implementation of the systolic array (FPGA/ASIC).
 
 ## License
 

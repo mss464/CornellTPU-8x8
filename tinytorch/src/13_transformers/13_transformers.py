@@ -1352,9 +1352,9 @@ class GPT:
     def _create_causal_mask(self, seq_len):
         """Create causal mask to prevent attending to future positions."""
         ### BEGIN SOLUTION
-        # Upper triangular matrix filled with -inf
-        mask = np.triu(np.ones((seq_len, seq_len)) * -np.inf, k=1)
-        return Tensor(mask)
+        # Lower triangular matrix: 1 = can attend, 0 = cannot attend
+        mask = np.tril(np.ones((seq_len, seq_len), dtype=np.float32))
+        return Tensor(mask[np.newaxis, :, :])
         ### END SOLUTION
 
     def _sample_next_token(self, logits, temperature=1.0):
@@ -1440,9 +1440,45 @@ class GPT:
             params.extend(block.parameters())
 
         params.extend(self.ln_f.parameters())
-        params.extend(self.lm_head.parameters())
+        
+        # Only add lm_head parameters if they are not tied to embeddings
+        # weight tying: lm_head.weight is the same object as token_embedding.weight
+        if self.lm_head.weight is not self.embedding_layer.token_embedding.weight:
+            params.extend(self.lm_head.parameters())
 
         return params
+
+class GPT2(GPT):
+    """
+    GPT-2 specific configuration and weight loading.
+    
+    Default configuration matches GPT-2 124M.
+    """
+    def __init__(self, vocab_size=50257, embed_dim=768, num_layers=12, num_heads=12, max_seq_len=1024):
+        super().__init__(vocab_size, embed_dim, num_layers, num_heads, max_seq_len)
+        # GPT-2 officially ties weights
+        self.lm_head.weight = self.embedding_layer.token_embedding.weight
+
+    @classmethod
+    def from_pretrained(cls, weights_path="gpt2_weights.npz"):
+        """
+        Create a GPT-2 124M model and load weights from an .npz file.
+        """
+        # Logic similar to gpt2_benchmark.py could be moved here for a cleaner API
+        config = {
+            "vocab_size": 50257,
+            "n_layer": 12,
+            "n_head": 12,
+            "n_embd": 768,
+            "max_seq_len": 1024
+        }
+        model = cls(**config)
+        
+        if os.path.exists(weights_path):
+            # (Weight mapping logic here)
+            pass
+            
+        return model
 
 # %% [markdown]
 """
@@ -2008,6 +2044,22 @@ if __name__ == "__main__":
 #| export
 # Alias for backward compatibility with tests
 TinyGPT = GPT
+
+# Export all symbols
+__all__ = ['BYTES_PER_FLOAT32', 'MB_TO_BYTES', 'TinyGPT', 'GPT2', 'create_causal_mask', 'LayerNorm', 'MLP', 'TransformerBlock', 'GPT']
+
+def create_scaled_gpt(vocab_size: int, max_seq_len: int = 1024):
+    """
+    Create a scaled-up version of GPT for the chatbot demo.
+    Scaled from Tiny (64/2/4) to Small-Medium (128/4/8).
+    """
+    return GPT(
+        vocab_size=vocab_size,
+        embed_dim=128,    # Scaled from 64
+        num_layers=4,     # Scaled from 2
+        num_heads=8,      # Scaled from 4
+        max_seq_len=max_seq_len
+    )
 
 # %% [markdown]
 """

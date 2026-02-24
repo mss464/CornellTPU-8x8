@@ -8,7 +8,13 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Import the self-contained simulator
-import systolic_tiled_matmul
+# Link to the workflow programs directory
+sys.path.append(os.path.join(project_root, "workflow", "kernels"))
+try:
+    import systolic_tiled_matmul
+except ImportError:
+    # Final fallback if still in root or elsewhere
+    import systolic_tiled_matmul
 
 def tiled_gemm(x1, x2):
     """
@@ -60,10 +66,14 @@ def tiled_gemm(x1, x2):
 def custom_gemm(x1, x2, out=None, **kwargs):
     """
     Custom GEMM interception for NumPy.
-    Redirects to tiled_gemm for hardware simulation.
+    Redirects to tiled_gemm for hardware simulation ONLY IF DEBUG is enabled.
     """
-    s1 = getattr(x1, 'shape', '?')
-    s2 = getattr(x2, 'shape', '?')
-    
-    print(f"DEBUG: [Standalone Systolic Simulation] MatMul: {s1} @ {s2}")
-    return tiled_gemm(x1, x2)
+    if os.environ.get("MINI_TPU_DEBUG") == "1":
+        s1 = getattr(x1, 'shape', '?')
+        s2 = getattr(x2, 'shape', '?')
+        print(f"[TPU Simulator] MatMul: {s1} @ {s2}")
+        return tiled_gemm(x1, x2)
+    else:
+        # Import original matmul to avoid recursion
+        from . import _core
+        return _core.matmul(x1, x2, out=out, **kwargs)

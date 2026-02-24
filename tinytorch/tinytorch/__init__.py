@@ -114,9 +114,9 @@ except ImportError:
 
 # Module 13: Transformers
 try:
-    from .core.transformers import LayerNorm, MLP, TransformerBlock, GPT, TinyGPT, create_causal_mask
+    from .core.transformers import LayerNorm, MLP, TransformerBlock, GPT, GPT2, TinyGPT, create_causal_mask
 except ImportError:
-    LayerNorm = MLP = TransformerBlock = GPT = TinyGPT = create_causal_mask = None
+    LayerNorm = MLP = TransformerBlock = GPT = GPT2 = TinyGPT = create_causal_mask = None
 
 # Module 14: Profiling
 try:
@@ -170,7 +170,7 @@ __all__ = [
     'Embedding', 'PositionalEncoding', 'EmbeddingLayer',
     # Attention & Transformers
     'MultiHeadAttention', 'scaled_dot_product_attention',
-    'LayerNorm', 'MLP', 'TransformerBlock', 'GPT', 'create_causal_mask',
+    'LayerNorm', 'MLP', 'TransformerBlock', 'GPT', 'GPT2', 'create_causal_mask',
     # Performance & Competition
     'benchmarking',
     'olympics',

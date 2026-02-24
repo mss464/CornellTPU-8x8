@@ -1,18 +1,43 @@
 # Mini-TPU
 
-A compact ML stack built by Cornell students, taking a bottom-up approach from a Tensor Processing Unit implementation featuring a systolic array architecture, supporting FPGA prototyping and ASIC tapeout workflows.
+A compact ML stack built from the bottom-up, from a Tensor Processing Unit implementation featuring a systolic array architecture, supporting FPGA prototyping and ASIC tapeout workflows.
 
-See workflow/ for quickstart instructions.
+## Quickstart 1. 🚀 Hardware Kernel Demo: GEMM
+Benchmark the core of the TPU—the **32x32 Systolic Array**—against highly optimized CPU BLAS (NumPy).
 
-## Stack
+```bash
+make gemm
+```
+This performs a performance sweep across various matrix sizes.
 
-- TinyTorch
-- TUDA Kernels | TUDA Runtime
-- TPU Binaries
-- TPU Hardware (on FPGA; future: ASIC, simulation)
+## Quickstart 2. 🧠 End-to-End Application: GPT-2 124M
+Run a full GPT-2 model using our handcrafted autograd engine. We support both high-speed CPU inference and bit-accurate hardware simulation.
 
-Visit READMEs in each subfolder for more details.
+### 🛠 1. Setup
+First, download the model weights and assets (tokenizers, configs). This targets the HuggingFace repository and handles the PyTorch-to-NumPy conversion automatically.
+```bash
+make setup
+```
+
+### 🏃 2. Running Inference
+- **Standard (NumPy)**: Fast CPU inference.
+  ```bash
+  make gpt2
+  ```
+- **TPU-Simulated**: Hardware-fidelity 32x32 systolic array execution.
+  ```bash
+  make gpt2-tpusim
+  ```
+
+## 🧱 Repository Structure
+- `tinytorch/`: Small ML framework from Harvard.
+- `workflow/`: End-to-end applications and performance demos.
+  - `gpt2/`: GPT-2 124M specific inference scripts and weights.
+  - `kernels/`: Hand-optimized and simulated hardware kernels.
+- `runtime/`: Driver and HAL logic for TPU interaction.
+- `compiler/`: High-level compiler for TPU assembly.
+- `tpu/`: RTL on FPGA implementation of the Mini-TPU architecture.
 
 ## License
 
-[Add license information]
+MIT License

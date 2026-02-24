@@ -172,8 +172,18 @@ else:
     )
 
     # Intercept matmul with our custom implementation
-    from .custom_kernels import custom_gemm
+    from .custom_kernels import custom_gemm, wrap_numpy_op
     globals()['matmul'] = custom_gemm
+
+    # Wrap other core computations for logging
+    ops_to_wrap = [
+        'add', 'subtract', 'multiply', 'divide', 'power', 'negative',
+        'exp', 'log', 'sqrt', 'sum', 'mean', 'max', 'min', 'dot',
+        'tanh', 'sin', 'cos', 'abs', 'absolute'
+    ]
+    for op_name in ops_to_wrap:
+        if op_name in globals():
+            globals()[op_name] = wrap_numpy_op(op_name.capitalize(), globals()[op_name])
 
     # NOTE: It's still under discussion whether these aliases 
     # should be removed.

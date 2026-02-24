@@ -8,7 +8,41 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Import the self-contained simulator
-import systolic_tiled_matmul
+# Link to the workflow programs directory
+sys.path.append(os.path.join(project_root, "workflow", "kernels"))
+try:
+    import systolic_tiled_matmul
+except ImportError:
+    # Final fallback if still in root or elsewhere
+    import systolic_tiled_matmul
+
+def wrap_numpy_op(name, op):
+    """
+    Wraps a NumPy operation to print its signature if KERNEL_DEBUG is enabled.
+    """
+    def wrapper(*args, **kwargs):
+        kernel_debug = os.environ.get("MINI_TPU_KERNEL_DEBUG") == "1"
+        if kernel_debug:
+            shapes = []
+            for arg in args:
+                if hasattr(arg, 'shape'):
+                    shapes.append(str(arg.shape))
+                elif isinstance(arg, (list, tuple)):
+                    shapes.append(f"list/tuple(len={len(arg)})")
+                else:
+                    shapes.append(str(type(arg).__name__))
+            
+            shapes_str = ", ".join(shapes)
+            print(f"    [CPU Numpy] {name}: {shapes_str}")
+        
+        return op(*args, **kwargs)
+    
+    # Proxy ufunc methods to avoid breaking internal NumPy reductions (like np.prod using multiply.reduce)
+    for attr in ['reduce', 'accumulate', 'outer', 'at', 'reduceat']:
+        if hasattr(op, attr):
+            setattr(wrapper, attr, getattr(op, attr))
+            
+    return wrapper
 
 def tiled_gemm(x1, x2):
     """
@@ -60,10 +94,22 @@ def tiled_gemm(x1, x2):
 def custom_gemm(x1, x2, out=None, **kwargs):
     """
     Custom GEMM interception for NumPy.
-    Redirects to tiled_gemm for hardware simulation.
+    Redirects to tiled_gemm for hardware simulation ONLY IF DEBUG is enabled.
     """
     s1 = getattr(x1, 'shape', '?')
     s2 = getattr(x2, 'shape', '?')
-    
-    print(f"DEBUG: [Standalone Systolic Simulation] MatMul: {s1} @ {s2}")
-    return tiled_gemm(x1, x2)
+    kernel_debug = os.environ.get("MINI_TPU_KERNEL_DEBUG") == "1"
+
+    if os.environ.get("MINI_TPU_DEBUG") == "1":
+        if kernel_debug:
+            print(f"    [TPU Simulator] MatMul: {s1} @ {s2}")
+        elif not kernel_debug and not os.environ.get("MINI_TPU_DEBUG_SILENT"):
+            # Original behavior for DEBUG=1
+            print(f"[TPU Simulator] MatMul: {s1} @ {s2}")
+        return tiled_gemm(x1, x2)
+    else:
+        if kernel_debug:
+            print(f"    [CPU Numpy] MatMul: {s1} @ {s2}")
+        # Import original matmul to avoid recursion
+        from . import _core
+        return _core.matmul(x1, x2, out=out, **kwargs)

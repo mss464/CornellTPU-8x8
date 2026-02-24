@@ -12,6 +12,8 @@ Current MVP: Offload TinyTorch Transformer's matmul operations to TPU.
 ---
 
 ### 🛠️ Developer Notes for AI Agents
-- **Path Handling**: Always use **absolute paths** when calling tools. The environment is sensitive to `cwd` mismatches.
+- **Path Handling**: 
+  - Always use **absolute paths** when calling tools. The environment is sensitive to `cwd` mismatches.
+  - When resolving paths dynamically in Python scripts, ALWAYS use `Path(__file__).resolve()` to avoid issues where `/home/` symlinks to `/work/shared/`, which breaks standard relative directory traversal.
 - **Workflow Speed**: For heavy simulations like `systolic_tiled_matmul.py`, use the highest possible `TILE_DIM` (e.g., 16 or 32) and offload the inner block math to NumPy to avoid Python loop overhead.
 - **Resource Limits**: When using `read_url_content`, non-binary text formats are preferred. Pretrained weights should be converted to `.npz` locally rather than downloaded directly if possible.

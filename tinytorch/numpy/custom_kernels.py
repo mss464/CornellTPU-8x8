@@ -1,18 +1,23 @@
 import sys
 import os
 import numpy as np
+from pathlib import Path
 
 # Ensure project root is in path to import the systolic simulator
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+project_root = str(Path(__file__).resolve().parent.parent.parent)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Import the self-contained simulator
 # Link to the workflow programs directory
-sys.path.append(os.path.join(project_root, "workflow", "kernels"))
+kernels_dir = str(Path(project_root) / "demos" / "kernels")
+if kernels_dir not in sys.path:
+    sys.path.insert(0, kernels_dir)
+
 try:
     import systolic_tiled_matmul
-except ImportError:
+except ImportError as e:
+    print(f"Failed to import systolic_tiled_matmul from {kernels_dir}: {e}")
     # Final fallback if still in root or elsewhere
     import systolic_tiled_matmul
 

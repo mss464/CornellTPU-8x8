@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 # Add project root to path so we can import tinytorch
-# Script is in workflow/gpt2/
+# Script is in demos/gpt2/
 script_dir = Path(__file__).parent.absolute()
 project_root = script_dir.parent.parent.absolute()
 if str(project_root) not in sys.path:

@@ -11,8 +11,8 @@ The compiler has been streamlined into a minimal, high-performance core:
 We follow a 4-stage software stack:
 **Kernel** (`@kernel`) $\to$ **Program** (`Program`) $\to$ **Hardware Binary** (`ndarray`) $\to$ **Executable** (`TPUDeviceBinary`)
 
-- **`workflow/kernels/`**: Reusable kernel definitions (`.tu` files with `@kernel`).
-- **`workflow/programs/`**: Composition scripts for testing and applications.
+- **`demos/kernels/`**: Reusable kernel definitions (`.tu` files with `@kernel`).
+- **`demos/programs/`**: Composition scripts for testing and applications.
 - **`runtime/`**: Hardware abstraction and execution orchestration.
 
 ## ✅ Verification

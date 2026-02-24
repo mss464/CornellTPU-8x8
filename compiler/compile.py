@@ -326,7 +326,7 @@ if __name__ == "__main__":
             if out_path.suffix != '.tpu_bin':
                 out_path = out_path / f"{program_path.stem}.tpu_bin"
         else:
-            out_path = Path("workflow/binaries") / f"{program_path.stem}.tpu_bin"
+            out_path = Path("demos/binaries") / f"{program_path.stem}.tpu_bin"
             
         memory_map = prog.get_memory_map()
         binary = TPUDeviceBinary(instructions=prog.compile(), memory_map=memory_map)

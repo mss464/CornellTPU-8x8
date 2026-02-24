@@ -217,14 +217,14 @@ class TestPrebuiltKernels:
     """Tests for pre-built kernels."""
 
     def test_matmul_4x4_compiles(self):
-        from workflow.kernels.matmul import matmul_4x4
+        from demos.kernels.matmul import matmul_4x4
 
         compiled = matmul_4x4.compile()
         assert compiled.name == "matmul_4x4"
         assert len(compiled.instructions) == 1
 
     def test_matmul_8x8_tiled_compiles(self):
-        from workflow.kernels.matmul import matmul_8x8_tiled
+        from demos.kernels.matmul import matmul_8x8_tiled
 
         compiled = matmul_8x8_tiled.compile()
         assert compiled.name == "matmul_8x8_tiled"
@@ -232,14 +232,14 @@ class TestPrebuiltKernels:
         assert len(compiled.instructions) == 72
 
     def test_vector_add_compiles(self):
-        from workflow.kernels.vpu_simd import vector_add_simd
+        from demos.kernels.vpu_simd import vector_add_simd
 
         compiled = vector_add_simd.compile()
         assert compiled.name == "vector_add_simd"
         assert len(compiled.instructions) == 4  # 1 vload, 1 vload, 1 vadd, 1 vstore
 
     def test_vector_relu_compiles(self):
-        from workflow.kernels.vpu_simd import vector_relu_simd
+        from demos.kernels.vpu_simd import vector_relu_simd
 
         compiled = vector_relu_simd.compile()
         assert compiled.name == "vector_relu_simd"
@@ -265,7 +265,7 @@ class TestKernelLauncher:
 
     def test_launch_single_kernel(self):
         """Test launching a single kernel."""
-        from workflow.kernels.matmul import matmul_4x4
+        from demos.kernels.matmul import matmul_4x4
         from compiler.compile import encode_halt
 
         mock_driver = MockTpuDriver()
@@ -280,8 +280,8 @@ class TestKernelLauncher:
 
     def test_launch_batch(self):
         """Test launching multiple kernels in a batch."""
-        from workflow.kernels.matmul import matmul_4x4
-        from workflow.kernels.vpu_simd import vector_add_16_simd
+        from demos.kernels.matmul import matmul_4x4
+        from demos.kernels.vpu_simd import vector_add_16_simd
         from compiler.compile import encode_halt
 
         mock_driver = MockTpuDriver()
@@ -323,7 +323,7 @@ class TestEndToEnd:
 
     def test_matmul_full_resolution(self):
         """Test full compile + resolve flow for matmul."""
-        from workflow.kernels.matmul import matmul_4x4
+        from demos.kernels.matmul import matmul_4x4
 
         compiled = matmul_4x4.compile()
         instructions = compiled.resolve({"W": 0, "X": 16, "Z": 32})
@@ -335,7 +335,7 @@ class TestEndToEnd:
 
     def test_vector_add_full_resolution(self):
         """Test full compile + resolve flow for vector_add_simd."""
-        from workflow.kernels.vpu_simd import vector_add_simd
+        from demos.kernels.vpu_simd import vector_add_simd
 
         compiled = vector_add_simd.compile()
         instructions = compiled.resolve({"A": 0, "B": 100, "C": 200})

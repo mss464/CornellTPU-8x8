@@ -59,5 +59,5 @@ prog.compile()
 Compile a `.tu` file to a `.tpu_bin` device binary:
 
 ```bash
-python3 compiler/compile.py workflow/kernels/gemm.tu
+python3 compiler/compile.py demos/kernels/gemm.tu
 ```

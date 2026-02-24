@@ -31,7 +31,7 @@ Transitions happen from high-level `tinytorch` Tensor logic into NumPy's C-exten
 
 ## 🚀 Requirement Analysis: Future TPU Operators
 
-To port the full Transformer to a Mini TPU program (like [mlp.tu](file:///home/sk3463/main/projects/mini-tpu/workflow/programs/mlp.tu)), we must bridge the gap between current [ISA](file:///home/sk3463/main/projects/mini-tpu/compiler/instructions.py) and needed mathematics.
+To port the full Transformer to a Mini TPU program (like [mlp.tu](file:///home/sk3463/main/projects/mini-tpu/demos/programs/mlp.tu)), we must bridge the gap between current [ISA](file:///home/sk3463/main/projects/mini-tpu/compiler/instructions.py) and needed mathematics.
 
 ### 1. Reduction Engine (Sum/Mean)
 - **Math**: $\sum_{i=1}^{D} x_i$ and $\frac{1}{D} \sum_{i=1}^{D} x_i$ (Normalization).

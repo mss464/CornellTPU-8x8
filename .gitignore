@@ -19,11 +19,11 @@ tpu/vivado*
 # Model Weights
 *.npz
 *.bin
-workflow/gpt2/gpt2_weights.npz
-workflow/gpt2/pytorch_model.bin
-workflow/gpt2/vocab.json
-workflow/gpt2/merges.txt
-workflow/gpt2/config.json
+demos/gpt2/gpt2_weights.npz
+demos/gpt2/pytorch_model.bin
+demos/gpt2/vocab.json
+demos/gpt2/merges.txt
+demos/gpt2/config.json
 
 *cache*
 

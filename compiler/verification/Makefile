@@ -6,7 +6,7 @@ SMOKE_TEST = test_workflow.py
 DEVICE_TEST = test_device_binary.py
 ISA_TEST = test_isa.py
 KERNEL_TEST = test_kernel.py
-MLP_KERNEL = ../../workflow/kernels/mlp.py
+MLP_KERNEL = ../../demos/kernels/mlp.py
 WORKSPACE_ROOT = ../..
 
 .PHONY: all smoke-test device-test isa-test kernel-test cli-test clean

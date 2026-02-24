@@ -16,6 +16,7 @@ except ImportError:
     TpuDriver = None
 
 from runtime.allocator import allocator
+from runtime import get_tpu_driver
 
 def host(fn):
     """Decorator to logically demarcate host-side API and orchestration functions."""
@@ -23,9 +24,7 @@ def host(fn):
 
 class TUDADevice:
     def __init__(self, bitstream: Optional[str] = None, program_fpga: bool = True):
-        if TpuDriver is None:
-            raise RuntimeError("TUDA requires TpuDriver on a PYNQ board.")
-        self.driver = TpuDriver(bitstream=bitstream, program=program_fpga)
+        self.driver = get_tpu_driver(bitstream=bitstream, program=program_fpga)
         self.allocator = allocator
     
     @host

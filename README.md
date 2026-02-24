@@ -31,7 +31,7 @@ make setup
 
 ## 🧱 Repository Structure
 - `tinytorch/`: Our custom ML framework built from scratch.
-- `workflow/`: End-to-end applications and performance demos.
+- `demos/`: End-to-end applications and performance demos.
   - `gpt2/`: GPT-2 124M specific inference scripts and weights.
   - `kernels/`: Hand-optimized and simulated hardware kernels.
 - `runtime/`: Driver and HAL logic for TPU interaction.

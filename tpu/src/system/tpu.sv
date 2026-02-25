@@ -80,6 +80,7 @@
     reg         instr_ready;        // set while idle
     reg         stream_ready;       // BRAM DMA handshake ready
     wire [12:0] addr_ram    = slv_reg3_bus[12:0];
+    wire [15:0] addr_devmem = slv_reg4_bus[15:0];
     wire [31:0] dma_len       = slv_reg6_bus;
     
     wire [2:0] tpu_mode = slv_reg0_bus[2:0];
@@ -285,6 +286,36 @@
     end
     
     //  Instantiate submodules
+
+    // Device Memory — host DMA target for modes 1/2
+    wire [31:0] devmem_rd_data;
+    device_mem #(
+        .ADDR_WIDTH(16),
+        .DATA_WIDTH(32)
+    ) u_device_mem (
+        .clk(s00_axi_aclk),
+        .rst_n(s00_axi_aresetn),
+
+        // Host DMA — Port A
+        .base_addr(addr_devmem),
+        .dma_wr_en(data_write_en),
+        .dma_wr_data(dma_dram_din),
+        .dma_write_pointer(write_pointer),
+        .dma_rd_en(read_en),
+        .dma_rd_data(devmem_rd_data),
+        .dma_read_pointer(read_pointer),
+
+        // L2 tile — Port B (stubbed for P1.2)
+        .l2_addr_b(16'b0),
+        .l2_din_b(32'b0),
+        .l2_dout_b(),
+        .l2_en_b(1'b0),
+        .l2_we_b(1'b0)
+    );
+
+    assign dma_dout = devmem_rd_data;
+
+    // Compute tile — L1 DMA ports tied off (data path now goes through device_mem)
     compute_tile #(
         .ADDR_WIDTH(13),
         .DATA_WIDTH(32)
@@ -296,19 +327,19 @@
         .start(start_compute_tile),
         .done(compute_tile_done),
 
-        // DMA Instruction
+        // DMA Instruction (still active — IRAM loads bypass device_mem)
         .instr_write_en(instr_write_en && write_pointer[0]),
         .iram_addr(iram_addr),
         .dma_iram_din(dma_iram_din),
 
-        // DMA Data
-        .base_addr(addr_ram),
-        .dma_wr_en(data_write_en),
-        .dma_wr_data(dma_dram_din),
-        .dma_write_pointer(write_pointer),
-        .dma_rd_en(read_en),
-        .dma_rd_data(dma_dout),
-        .dma_read_pointer(read_pointer)
+        // DMA Data — tied off (no direct host→L1 path)
+        .base_addr(13'b0),
+        .dma_wr_en(1'b0),
+        .dma_wr_data(32'b0),
+        .dma_write_pointer(16'b0),
+        .dma_rd_en(1'b0),
+        .dma_rd_data(),
+        .dma_read_pointer(16'b0)
     );
     
 	// User logic ends

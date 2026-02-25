@@ -104,9 +104,9 @@ class TpuRtlDriver:
 
     async def write_bram(self, addr, values):
         await self.wait_for_flag(0x04, 1) # instr_ready
-        await self.write_axi_lite(0x0C, addr)
+        await self.write_axi_lite(0x10, addr)  # addr_devmem (slv_reg4)
         await self.write_axi_lite(0x18, len(values))
-        await self.write_axi_lite(0x00, 1) # WRITE_BRAM
+        await self.write_axi_lite(0x00, 1) # WRITE_DEVMEM
         
         await self.wait_for_flag(0x08, 1) # stream_ready
         
@@ -131,9 +131,9 @@ class TpuRtlDriver:
 
     async def read_bram(self, addr, length):
         await self.wait_for_flag(0x04, 1) # instr_ready
-        await self.write_axi_lite(0x0C, addr)
+        await self.write_axi_lite(0x10, addr)  # addr_devmem (slv_reg4)
         await self.write_axi_lite(0x18, length)
-        await self.write_axi_lite(0x00, 2) # READ_BRAM
+        await self.write_axi_lite(0x00, 2) # READ_DEVMEM
         
         out_values = []
         self.dut.m00_axis_tready.value = 1

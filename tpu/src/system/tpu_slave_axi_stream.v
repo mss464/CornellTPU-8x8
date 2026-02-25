@@ -120,6 +120,7 @@
 	          if (S_AXIS_TVALID && write_en)
 	            begin
 	              mst_exec_state <= WRITE_FIFO;
+	              reset <= 1'b0;  // override reset; last NBA wins — ensures first WRITE_FIFO cycle is productive
 	            end
 	          else
 	            begin

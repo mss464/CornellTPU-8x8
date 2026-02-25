@@ -53,6 +53,12 @@
 	  end                                                                                
 	endfunction                                                                          
 	                                                                                     
+	// BRAM read latency in clock cycles.
+	// Xilinx Block RAM in registered-output mode = 1 cycle (address captured at posedge,
+	// data valid at next posedge). This must match blk_mem_models.sv behavior.
+	// If using output-registered BRAM (2 pipeline stages), set to 2.
+	localparam integer BRAM_READ_LATENCY = 1;
+	                                                                                     
 	// WAIT_COUNT_BITS is the width of the wait counter.                                 
 	localparam integer WAIT_COUNT_BITS = clogb2(C_M_START_COUNT-1);                      
 	                                                                                     
@@ -104,23 +110,11 @@
 
 	reg valid_d1;
 
-	reg valid_data_d1, valid_data_d2, valid_data_d3;
     always @(posedge M_AXIS_ACLK) begin
         if (!M_AXIS_ARESETN) begin
-            valid_d1 <= 0;   
-         
-            
-            valid_data_d1 <= 1'b0;
-            valid_data_d2 <= 1'b0;
-            valid_data_d3 <= 1'b0;
- 
+            valid_d1 <= 0;
         end else begin
             valid_d1 <= axis_tvalid;
- 
-            valid_data_d1 <= valid_data;
-            valid_data_d2 <= valid_data_d1;
-            valid_data_d3 <= valid_data_d2;
- 
         end
     end
 
@@ -161,7 +155,7 @@
         .one_item_remaining(fifo_one_left)
     );
     
-    assign fifo_wr_en   = !fifo_full && (valid_data_d3 || init_fill_valid);
+    assign fifo_wr_en   = !fifo_full && (valid_data || init_fill_valid);
     assign fifo_wr_data = data_to_ddr;
     assign M_AXIS_TDATA  = fifo_rd_data;
     assign fifo_rd_en    = axis_tvalid && M_AXIS_TREADY && !fifo_empty;
@@ -256,8 +250,8 @@
 	    end                                                                          
 	  else
 	  if (mst_exec_state == SEND_STREAM) begin                                                                           
-	    if (read_pointer_stream < NUMBER_OF_OUTPUT_WORDS-1)                                
-	      begin                                                                      
+	    if (read_pointer_stream < NUMBER_OF_OUTPUT_WORDS)
+	      begin
 	        if (fifo_rd_en)                                                               
 	          // read pointer is incremented after every read from the FIFO          
 	          // when FIFO read signal is enabled.                                   
@@ -280,10 +274,12 @@
             end                                                       
 	      end 
 	    end else if (mst_exec_state == INIT_COUNTER) begin
-	       if ((count < 8) && (count < NUMBER_OF_OUTPUT_WORDS)) begin
+	       // count<=8 (not <8) because Block 1 sees count=1 on its first
+	       // INIT_COUNTER cycle (the IDLE->INIT_COUNTER transition edge has
+	       // reset=1, which stalls Block 1 for one cycle while Block 2's
+	       // counter advances). This ensures 8 prefetch words are loaded.
+	       if ((count <= 8) && (count <= NUMBER_OF_OUTPUT_WORDS)) begin
 	               read_pointer_stream <= read_pointer_stream + 1;
-	            end
-	       if ((count > 2) && (count < 11) && (count < (NUMBER_OF_OUTPUT_WORDS + 3))) begin
 	               init_fill_valid <= 1'b1;
 	            end
 	    end                                                                      

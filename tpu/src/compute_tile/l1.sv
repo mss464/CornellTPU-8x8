@@ -1,10 +1,10 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// scratchpad.sv
+// l1.sv
 //
-// scratchpad is the top-level memory module that instantiates a true dual-port 
-// BRAM and manages address generation for DMA-side and compute-side accesses. 
-// The memory subsystem provides a clean interface between external memory 
+// l1 is the per-tile L1 data memory. It instantiates a true dual-port BRAM
+// and manages address generation for DMA-side and compute-side accesses.
+// The memory subsystem provides a clean interface between external memory
 // transfers and accelerator compute.
 //
 // Interface
@@ -19,7 +19,7 @@
 // - rst_n: Active-low reset signal
 //
 // To/from DMA / Memory (Port A):
-// Used for loading data from external memory into BRAM and storing results 
+// Used for loading data from external memory into BRAM and storing results
 // back to memory.
 // - base_addr [ADDR_WIDTH-1:0]: Base address in BRAM for the current buffer.
 // - dma_wr_en: Write enable. Asserted when DMA write data is valid.
@@ -39,12 +39,12 @@
 // - dma_comp_dout_b [DATA_WIDTH-1:0]: Data read by compute
 // - dma_comp_en_b: Compute-side BRAM enable
 // - dma_comp_we_b: Compute-side write enable
-// 
-// Port B provides single-cycle, random-access reads and writes and operates 
+//
+// Port B provides single-cycle, random-access reads and writes and operates
 // independently of DMA traffic.
 //////////////////////////////////////////////////////////////////////////////////
 
-module scratchpad #(
+module l1 #(
     parameter ADDR_WIDTH = 13,
     parameter DATA_WIDTH = 32
 )(

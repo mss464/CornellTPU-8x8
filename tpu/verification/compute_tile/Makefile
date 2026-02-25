@@ -53,7 +53,7 @@ SRC_FP32 = $(TPU_DIR)/fp32_add.sv $(TPU_DIR)/fp32_mul.sv
 SRC_FIFO = ../../src/system/fifo4.sv
 SRC_PC = $(TPU_DIR)/pc.sv
 SRC_DECODER = $(TPU_DIR)/decoder.sv
-SRC_BRAM = $(TPU_DIR)/scratchpad.sv $(WRAPPERS)/blk_mem_models.sv
+SRC_BRAM = $(TPU_DIR)/l1.sv $(WRAPPERS)/blk_mem_models.sv
 
 # Processing elements
 SRC_PE = $(TPU_DIR)/pe.sv $(SRC_FP32)

@@ -1,6 +1,3 @@
-# Symlinked agent config (source of truth is AGENTS.md)
-CLAUDE.md
-
 # Build artifacts
 tpu/ip_repo*
 tpu/*.Xil*

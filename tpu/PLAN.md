@@ -71,12 +71,12 @@ See `PROGRESS.md` for current status and `CLAUDE.md` for agent working notes.
 
 ---
 
-## P0.5 — Housekeeping: Rename scratchpad → L1
+## P0.5 — Housekeeping: Rename scratchpad → L1 (RESOLVED 2026-02-25)
 
-### Rename `scratchpad.sv` → `l1.sv`, module `scratchpad` → `l1`
+### Rename `l1.sv` → `l1.sv`, module `scratchpad` → `l1`
 - **Goal:** Align naming with the architecture vision. L1 is the per-tile data memory.
 - **RTL:**
-  - Rename `src/compute_tile/scratchpad.sv` → `src/compute_tile/l1.sv`
+  - Rename `src/compute_tile/l1.sv` → `src/compute_tile/l1.sv`
   - Change `module scratchpad` → `module l1` inside the file
   - Update `src/compute_tile/compute_tile.sv` — instantiation `scratchpad` → `l1`
 - **Build:**

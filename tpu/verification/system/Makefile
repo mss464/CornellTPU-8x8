@@ -19,7 +19,7 @@ SRC_TPU = ../../src/system/tpu.sv \
           ../../src/system/fifo4.sv
 SRC_COMPUTE_TILE = ../../src/compute_tile/compute_tile.sv \
                    ../../src/compute_tile/tensorcore.sv \
-                   ../../src/compute_tile/scratchpad.sv \
+                   ../../src/compute_tile/l1.sv \
                    ../../src/compute_tile/mxu.sv \
                    ../../src/compute_tile/systolic.sv \
                    ../../src/compute_tile/pe.sv \

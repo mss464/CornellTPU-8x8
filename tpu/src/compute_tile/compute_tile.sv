@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
 // Module Name: compute_tile
-// Description: Wrapper for tensorcore (logic) and scratchpad (data memory).
+// Description: Wrapper for tensorcore (logic) and l1 (data memory).
 //////////////////////////////////////////////////////////////////////////////////
 
 module compute_tile #(
@@ -56,11 +56,11 @@ module compute_tile #(
         .bram_we_b(pc_we_b)
     );
 
-    // Instantiate Scratchpad
-    scratchpad #(
+    // Instantiate L1
+    l1 #(
         .ADDR_WIDTH(ADDR_WIDTH),
         .DATA_WIDTH(DATA_WIDTH)
-    ) u_scratchpad (
+    ) u_l1 (
         .clk(clk),
         .rst_n(rst_n),
         .base_addr(base_addr),

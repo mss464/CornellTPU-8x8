@@ -5,6 +5,26 @@ See `PLAN.md` for goals and `CLAUDE.md` for agent working notes / hardware quirk
 
 ---
 
+## 2026-02-25 — P0.5 Housekeeping: Rename scratchpad → l1 (Complete)
+
+**Status: Complete**
+
+Renamed the per-tile data memory module to align with architecture naming.
+
+Changes:
+- `src/compute_tile/scratchpad.sv` → `src/compute_tile/l1.sv`; module `scratchpad` → `l1`
+- `src/compute_tile/compute_tile.sv`: instantiation `scratchpad` → `l1`, `u_scratchpad` → `u_l1`
+- `verification/compute_tile/Makefile`: SRC_BRAM path `scratchpad.sv` → `l1.sv`
+- `verification/system/Makefile`: source list `scratchpad.sv` → `l1.sv`
+- `scripts/package_tpu_ip.tcl`: comment updated
+- `CLAUDE.md`: directory structure and module map updated
+- `PLAN.md`: all `scratchpad.sv` references updated
+- `.gitignore`: removed `CLAUDE.md` exclusion (was stale symlink comment from when AGENTS.md existed)
+
+Test result: `make test_data_integrity_rtl` → **TESTS=1 PASS=1 FAIL=0** ✓
+
+---
+
 ## 2026-02-25 — Architecture Pivot: Tensix-Inspired Multi-Tile
 
 **Status: Complete (planning phase)**

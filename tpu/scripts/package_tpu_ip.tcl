@@ -162,7 +162,7 @@ foreach f $sv_files {
 ################################################################################
 puts "\n>>> Step 3: Creating BRAM IPs..."
 
-# --- blk_mem_gen_0: Data BRAM used in scratchpad.sv ---
+# --- blk_mem_gen_0: Data BRAM used in l1.sv ---
 # 32-bit wide, 8192 deep (13-bit address), True Dual Port RAM
 puts "  Creating blk_mem_gen_0 (Data BRAM - 32-bit x 8192)..."
 

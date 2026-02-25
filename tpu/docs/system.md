@@ -26,11 +26,11 @@ The TPU exposes a memory-mapped AXI4-Lite control interface used by the host to 
 
 | Offset | Name          | Access | Description |
 |--------|---------------|--------|-------------|
-| 0x00   | tpu_mode      | R/W    | tpu mode (write_iram, read_bram, write_bram, compute) |
+| 0x00   | tpu_mode      | R/W    | tpu mode (write_iram, read_devmem, write_devmem, compute) |
 | 0x04   | instr_ready   | R      | Status register for configuring mode (busy, done) |
 | 0x08   | stream_ready  | R      | Status register for streaming data (busy, done) |
 | 0x0C   | addr_ram      | R/W    | Base address for bram or iram reads/writes |
-| 0x10   | RESERVED      | —      | Reserved |
+| 0x10   | addr_devmem   | R/W    | Base address for device memory reads/writes (16-bit) |
 | 0x14   | RESERVED      | —      | Reserved |
 | 0x18   | dma_len       | R/W    | Number of data words to stream |
 | 0x1C   | RESERVED      | —      | Reserved |
@@ -51,8 +51,8 @@ This register configures the tpu's operating mode. Only bits **[2:0]** are used,
 | Value | Mode        | Description |
 |-------|-------------|-------------|
 | 0x0   | IDLE        | TPU idle state (no operation) |
-| 0x1   | WRITE_BRAM  | Stream data into BRAM |
-| 0x2   | READ_BRAM   | Stream data out of BRAM |
+| 0x1   | WRITE_DEVMEM | Stream data into device memory |
+| 0x2   | READ_DEVMEM  | Stream data out of device memory |
 | 0x3   | COMPUTE     | Execute instructions from IRAM |
 | 0x4   | WRITE_IRAM  | Stream intructions into IRAM |
 
@@ -98,6 +98,14 @@ During memory read or write modes, data transfers begin at the address specified
 
 ---
 
+#### addr_devmem (0x10)
+
+This register specifies the base address within device memory from which data is read or to which data is written during modes 1 (WRITE_DEVMEM) and 2 (READ_DEVMEM). Bits [15:0] are used (64K word address space), upper bits reserved.
+
+During device memory read or write modes, data transfers begin at the address specified by `addr_devmem`. The DMA write/read pointer is added to this base address to form the final device memory address.
+
+---
+
 #### dma_len (0x18)
 
 This register specifies the number of data words to be transferred over the AXI-Stream interface during BRAM read/write or IRAM write operations. All 32 bits are used, however, currently host must ensure they dont send more than 256 instructions or 8192 words.
@@ -135,7 +143,7 @@ A typical TPU program execution proceeds as follows:
 
 1. Prepare host buffers by allocating DDR buffers for: Input data, Output data, Instruction stream
 
-2. Load data into BRAM
+2. Load data into device memory
 
 3. Load instructions into IRAM
 
@@ -143,4 +151,4 @@ A typical TPU program execution proceeds as follows:
 
 5. Wait for completion
 
-6. Read data (results) from BRAM
+6. Read data (results) from device memory

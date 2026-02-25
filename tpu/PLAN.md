@@ -96,13 +96,14 @@ See `PROGRESS.md` for current status and `CLAUDE.md` for agent working notes.
 
 Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instruction decoding, IRAM, L1.
 
-### P1.1: Device Memory Emulation Layer
+### P1.1: Device Memory Emulation Layer (RESOLVED 2026-02-25)
+- **Resolution:** Host DMA modes 1/2 retargeted to device_mem.sv (65536×32 BRAM). Test suite: test_data_integrity + test_device_mem all pass.
 - **Goal:** Add an off-chip device memory concept to the TPU.
 - **What:** The current design has no notion of device memory — the host DMA writes directly to L1 BRAM. This is a design mistake. Add a device memory interface so L2↔DevMem can be prototyped.
 - **Approach (Zynq UltraScale+):** Partition the PS DDR address space — one region for host, one for device. The TPU accesses "device memory" through AXI-S (reuse existing stream infrastructure as a simple prototype) or AXI-MM.
 - **Approach (Alveo U280):** HBM IP provides natural device memory; access via AXI-MM.
 - **Prototype first:** Use AXI-S just like the existing host↔TPU interface. AXI-MM for HBM is a later optimization.
-- **RTL (new):** `src/system/device_mem_ctrl.sv` — device memory controller/interface
+- **RTL (new):** `src/system/device_mem.sv` — device memory BRAM wrapper
 - **RTL (modify):** `src/system/tpu.sv` — address space partitioning, new port wiring
 - **Verification (new):** `verification/system/test_device_mem.py` — device memory read/write tests
 - **Verification (modify):** `verification/system/Makefile` — add new test target

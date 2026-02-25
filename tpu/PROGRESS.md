@@ -5,6 +5,27 @@ See `PLAN.md` for goals and `CLAUDE.md` for agent working notes / hardware quirk
 
 ---
 
+## 2026-02-25 — P1.1: Device Memory Emulation Layer (Complete)
+
+**Status: Complete**
+
+Redirected host DMA (modes 1/2) from L1 BRAM to a new device memory module. This separates the host↔device and device→L1 data paths, enabling the future L2 tile (P1.2) to mediate between device memory and L1.
+
+Changes:
+- `verification/compute_tile/wrappers/blk_mem_models.sv`: added `blk_mem_gen_2` (65536×32 dual-port behavioral SRAM, 16-bit address)
+- `src/system/device_mem.sv` (new): device memory BRAM wrapper with Port A (host DMA) and Port B (L2 stub)
+- `src/system/tpu.sv`: instantiate `device_mem`, route DMA write/read to it, tie off compute_tile L1 DMA ports, add `addr_devmem` from `slv_reg4_bus[15:0]` (register 0x10)
+- `verification/system/test_tpu.py`: retarget base address register from 0x0C to 0x10
+- `verification/system/test_device_mem.py` (new): write/read integrity, multiple sizes (16/64/256), base address offset tests
+- `verification/system/Makefile`: add `device_mem.sv` to sources, add `test_device_mem` target
+
+Test result: `make test_data_integrity_rtl` → **TESTS=1 PASS=1 FAIL=0** ✓
+Test result: `make test_device_mem` → **TESTS=3 PASS=3 FAIL=0** ✓
+
+**What breaks (expected):** Any test that writes data via mode 1 then computes (mode 3) — data now goes to devmem, not L1. Restored when P1.2 (L2 tile) + P1.3 (L1↔L2 comm instruction) provide the devmem→L2→L1 path.
+
+---
+
 ## 2026-02-25 — P0.5 Housekeeping: Rename scratchpad → l1 (Complete)
 
 **Status: Complete**

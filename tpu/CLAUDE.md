@@ -81,7 +81,8 @@ tpu/
 │   │   ├── tpu_slave_axi_lite.v      AXI-Lite register slave (host → ctrl regs)
 │   │   ├── tpu_slave_axi_stream.v    AXI-Stream sink (DMA write path)
 │   │   ├── tpu_master_axi_stream.v   AXI-Stream source (DMA read path)
-│   │   └── fifo4.sv                  4-entry shallow FIFO (used by master stream)
+│   │   ├── fifo4.sv                  4-entry shallow FIFO (used by master stream)
+│   │   └── device_mem.sv             Device memory BRAM (host DMA target, L2 stub)
 │   │
 │   └── compute_tile/      ← The accelerator core
 │       ├── compute_tile.sv           Top of compute tile; glues all units
@@ -137,6 +138,7 @@ tpu/
 | `tpu_slave_axi_lite` | `system/tpu_slave_axi_lite.v` | Host register access |
 | `tpu_slave_axi_stream` | `system/tpu_slave_axi_stream.v` | DMA write to BRAM |
 | `tpu_master_axi_stream` | `system/tpu_master_axi_stream.v` | DMA read from BRAM |
+| `device_mem` | `system/device_mem.sv` | Device memory (host DMA target) |
 | `compute_tile` | `compute_tile/compute_tile.sv` | Accelerator top |
 | `tensorcore` | `compute_tile/tensorcore.sv` | Fetch + dispatch |
 | `l1` | `compute_tile/l1.sv` | L1 data BRAM |
@@ -150,10 +152,11 @@ tpu/
 
 | Offset | Register | Description |
 |---|---|---|
-| `0x00` | `tpu_mode` | 0=IDLE, 1=WRITE_BRAM, 2=READ_BRAM, 3=COMPUTE, 4=WRITE_IRAM |
+| `0x00` | `tpu_mode` | 0=IDLE, 1=WRITE_DEVMEM, 2=READ_DEVMEM, 3=COMPUTE, 4=WRITE_IRAM |
 | `0x04` | `instr_ready` | 1 when TPU is ready for next command |
 | `0x08` | `stream_ready` | 1 when DMA stream path is ready |
-| `0x0C` | `addr_ram` | Base BRAM address (13-bit) |
+| `0x0C` | `addr_ram` | Base BRAM/IRAM address (13-bit, used for IRAM writes) |
+| `0x10` | `addr_devmem` | Base device memory address (16-bit) |
 | `0x18` | `length` | Transfer length in elements |
 
 ---
@@ -164,6 +167,7 @@ tpu/
 |------------|-------|-----------------|
 | Data BRAM size | 8192 × 32-bit words | blk_mem_gen_0 in l1.sv / blk_mem_models.sv |
 | Instr BRAM size | 256 × 64-bit words | blk_mem_gen_1 in blk_mem_models.sv |
+| Device memory size | 65536 × 32-bit words | blk_mem_gen_2 in device_mem.sv / blk_mem_models.sv |
 | BRAM read latency | **1 cycle** (registered output) | blk_mem_models.sv `always@(posedge clka)` |
 | FIFO depth | 8 entries | fifo4.sv |
 | INIT_COUNTER prefetch | 8 words | C_M_START_COUNT=32, count<=8 |
@@ -249,7 +253,8 @@ make test_<module>     # e.g. make test_mxu, make test_systolic_array
 
 # System integration test
 cd tpu/verification/system
-make test_data_integrity_rtl
+make test_data_integrity_rtl              # System integration integrity test
+make test_device_mem              # Device memory read/write integrity
 ```
 
 Tests use **cocotb** + **Icarus Verilog**. Results appear in `results.xml`.
@@ -288,7 +293,7 @@ Data movement across this hierarchy is TPU-initiated via instructions, NOT host-
 - **L2 ↔ Device Memory:** TMA instruction (address generation, coalescing)
 - **Host ↔ Device Memory:** Async memcpy (existing AXI-S or DMA)
 
-**Current state:** Single compute tile with L1 only. No L2 tile, no device memory concept.
+**Current state:** Single compute tile with L1. Device memory exists (host DMA target). No L2 tile yet.
 
 **MVP target:** 2×2 mesh of compute tiles + L2 tile underneath, connected via AXI NoC.
 Control tile distributes host signals over NoC. All scheduling is static.

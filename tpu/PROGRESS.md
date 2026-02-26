@@ -5,6 +5,29 @@ See `PLAN.md` for goals and `CLAUDE.md` for agent working notes / hardware quirk
 
 ---
 
+## 2026-02-25 — P1.2 + P1.3: L2 Tile and Host-Controlled Memory Hierarchy (Complete)
+
+**Status: Complete**
+
+Implemented L2 shared SRAM tile with host-controlled block transfer modes, completing the DevMem↔L2↔L1 data path.
+
+Changes:
+- `verification/compute_tile/wrappers/blk_mem_models.sv`: added `blk_mem_gen_3` (32768×32 dual-port behavioral SRAM, 15-bit address)
+- `src/l2_tile/l2_tile.sv` (new): L2 tile top with blk_mem_gen_3 + DevMem↔L2 pipelined burst FSM; Port A = compute tile, Port B = device memory facing
+- `src/system/tpu.sv`: extended tpu_mode to 4 bits; added modes 5–8 (DM_TO_L2, L2_TO_DM, L2_TO_L1, L1_TO_L2); added l2_tile instantiation; connected device_mem Port B to l2_tile dm_ ports; added addr_l2 from slv_reg5_bus[14:0] (register 0x14); counter-based L2↔L1 FSM using combinational address wires (avoids extra BRAM latency cycle)
+- `verification/system/test_tpu.py`: added devmem_to_l2, l2_to_devmem, l2_to_l1, l1_to_l2 driver methods
+- `verification/system/test_l2_tile.py` (new): 4 tests — DM↔L2 round-trip, full DM→L2→L1→L2→DM pipeline, multiple sizes (16/64/128), base address isolation
+- `verification/system/Makefile`: added l2_tile.sv to SRC_TPU, added test_l2_tile target
+
+Test results:
+- `make test_data_integrity_rtl` → **TESTS=1 PASS=1 FAIL=0** ✓
+- `make test_device_mem` → **TESTS=3 PASS=3 FAIL=0** ✓
+- `make test_l2_tile` → **TESTS=4 PASS=4 FAIL=0** ✓
+
+Design note: Simplified from ISA instruction (PLAN.md P1.3 spec) to host-controlled modes. Avoids decoder/tensorcore changes for the prototype. In-kernel L1↔L2 movement via ISA remains future work.
+
+---
+
 ## 2026-02-25 — P1.1: Device Memory Emulation Layer (Complete)
 
 **Status: Complete**

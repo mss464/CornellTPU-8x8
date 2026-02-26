@@ -57,6 +57,13 @@ test_l2_tile: $(SIM_BUILD)
 	@! grep -q 'failure' results.xml || (echo "TEST FAILED" && exit 1)
 	@echo "=== L2 Tile Tests Complete ==="
 
+test_tpu_compute: $(SIM_BUILD)
+	@echo "=== Running TPU Compute Mode Tests ==="
+	$(IVERILOG) -o $(SIM_BUILD)/sim.vvp -s tpu $(IVFLAGS) $(SRC_ALL)
+	MODULE=test_tpu_compute COCOTB_TEST_MODULES=test_tpu_compute $(VVP) -M $(COCOTB_LIBS) -m libcocotbvpi_icarus $(SIM_BUILD)/sim.vvp
+	@! grep -q 'failure' results.xml || (echo "TEST FAILED" && exit 1)
+	@echo "=== TPU Compute Mode Tests Complete ==="
+
 $(SIM_BUILD):
 	mkdir -p $(SIM_BUILD)
 	mkdir -p $(WAVEFORMS)

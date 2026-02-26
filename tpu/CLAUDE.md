@@ -54,6 +54,7 @@ These rules govern how work is structured and handed off between agents.
 - Use foreground (main worktree) for sequential steps that build on each other.
 
 ### Skills / commands
+- Use `/tpu-smoke` for quick PASS/FAIL-only smoke test (saves context window).
 - Use `/tpu-test` to run the verification suite — do not inline `make` calls for this.
 - Use `/tpu-progress` to append to PROGRESS.md after completing a task.
 - Use `/tpu-status` to get a current summary before starting a new task.
@@ -255,19 +256,28 @@ increments on the cycle when `fifo_wren` fires.
 ## Verification Workflow
 
 ```bash
+# Quick smoke test (PASS/FAIL summary only) — use this first
+cd tpu
+make smoke-sim          # 3 system tests: data_integrity, device_mem, l2_tile
+make smoke-sim-full     # + compute unit tests + compiler smoke
+make smoke-board        # board: DEADBEEF roundtrip (requires FPGA)
+
 # Unit tests (compute_tile submodules)
 cd tpu/verification/compute_tile
 make test_<module>     # e.g. make test_mxu, make test_systolic_array
 
-# System integration test
+# System integration tests
 cd tpu/verification/system
-make test_data_integrity_rtl              # System integration integrity test
-make test_device_mem              # Device memory read/write integrity
-make test_l2_tile                 # L2 tile and L1↔L2 hierarchy tests
+make test_data_integrity_rtl     # System integration integrity test
+make test_device_mem             # Device memory read/write integrity
+make test_l2_tile                # L2 tile and L1↔L2 hierarchy tests
+make test_tpu_compute            # COMPUTE mode end-to-end (modes 3+4)
 ```
 
 Tests use **cocotb** + **Icarus Verilog**. Results appear in `results.xml`.
 BRAM IPs are replaced by `wrappers/blk_mem_models.sv` (1-cycle latency behavioral model).
+
+Use `/tpu-smoke` for quick PASS/FAIL output. Use `/tpu-test` for verbose output when debugging.
 
 **When adding RTL, always add or update a corresponding test.**
 

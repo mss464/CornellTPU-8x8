@@ -2,6 +2,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 // Module Name: compute_tile
 // Description: Wrapper for tensorcore (logic) and l1 (data memory).
+//              Exposes TMA signals so tpu.sv can wire them to l2_tile.
 //////////////////////////////////////////////////////////////////////////////////
 
 module compute_tile #(
@@ -27,7 +28,15 @@ module compute_tile #(
     input  logic [15:0]           dma_write_pointer,
     input  logic                  dma_rd_en,
     output logic [DATA_WIDTH-1:0] dma_rd_data,
-    input  logic [15:0]           dma_read_pointer
+    input  logic [15:0]           dma_read_pointer,
+
+    // TMA signals (tensorcore → l2_tile via tpu.sv)
+    output logic        tma_req,
+    output logic        tma_dir,
+    output logic [15:0] tma_dm_base,
+    output logic [14:0] tma_l2_base,
+    output logic [15:0] tma_len,
+    input  logic        tma_done
 );
 
     // Internal BRAM connection
@@ -53,7 +62,13 @@ module compute_tile #(
         .bram_din_b(pc_din_b),
         .bram_dout_b(pc_dout_b),
         .bram_en_b(pc_en_b),
-        .bram_we_b(pc_we_b)
+        .bram_we_b(pc_we_b),
+        .tma_req(tma_req),
+        .tma_dir(tma_dir),
+        .tma_dm_base(tma_dm_base),
+        .tma_l2_base(tma_l2_base),
+        .tma_len(tma_len),
+        .tma_done(tma_done)
     );
 
     // Instantiate L1

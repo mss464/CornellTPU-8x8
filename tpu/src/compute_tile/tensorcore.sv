@@ -3,6 +3,12 @@
 // Module Name: tensorcore
 // Description: Centralized compute controller for systolic array and SIMD VPU.
 //              Contains its own PC, Decoder, and Instruction BRAM.
+//
+// Instruction dispatch by MODE:
+//   MODE 0 (VPU)      → EXEC_VPU   → WAIT_COMPUTE (until vpu_done)
+//   MODE 1 (Systolic) → EXEC_SYS   → WAIT_COMPUTE (until systolic_done)
+//   MODE 2 (TMA)      → EXEC_TMA   → WAIT_TMA    (until tma_done)
+//   MODE 3 (HALT)     → HALT_STATE → done=1
 //////////////////////////////////////////////////////////////////////////////////
 
 module tensorcore #(
@@ -32,13 +38,21 @@ module tensorcore #(
     output logic [DATA_WIDTH-1:0]    bram_din_b,
     input  logic [DATA_WIDTH-1:0]    bram_dout_b,
     output logic                     bram_en_b,
-    output logic                     bram_we_b
+    output logic                     bram_we_b,
+
+    // === TMA instruction port (to l2_tile via compute_tile and tpu.sv) ===
+    output logic                     tma_req,       // 1-cycle pulse: trigger TMA transfer
+    output logic                     tma_dir,       // 0=DM_TO_L2, 1=L2_TO_DM
+    output logic [15:0]              tma_dm_base,   // device memory base address
+    output logic [14:0]              tma_l2_base,   // L2 SRAM base address
+    output logic [15:0]              tma_len,       // transfer length in words
+    input  logic                     tma_done       // 1-cycle pulse: TMA transfer complete
 );
 
     //---------------------------------------------
     // Internal Signals
     //---------------------------------------------
-    
+
     // PC signals
     logic [7:0] pc_val;
     logic       pc_enable;
@@ -53,10 +67,16 @@ module tensorcore #(
     logic [2:0]  vpu_type, vreg_dst, vreg_a, vreg_b, vpu_opcode;
     logic        scalar_b;
 
+    // TMA decoder fields
+    logic        tma_dir_dec;
+    logic [15:0] tma_dm_addr_dec;
+    logic [14:0] tma_l2_addr_dec;
+    logic [15:0] tma_len_dec;
+
     // Unit control
     logic start_systolic, start_vpu;
     logic systolic_done, vpu_done;
-    
+
     // Arbitrated BRAM signals from units
     logic [ADDR_WIDTH-1:0] systolic_addr, vpu_addr;
     logic [DATA_WIDTH-1:0] systolic_din_b, vpu_din_b;
@@ -74,25 +94,33 @@ module tensorcore #(
         FETCH_1      = 4'd5,
         FETCH_2      = 4'd6,
         FETCH_3      = 4'd7,
-        HALT_STATE   = 4'd8
+        HALT_STATE   = 4'd8,
+        EXEC_TMA     = 4'd9,   // TMA: latch params and issue tma_req
+        WAIT_TMA     = 4'd10   // TMA: wait for tma_done
     } tc_state_t;
 
     tc_state_t state;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            state <= IDLE;
-            done <= 1'b0;
+            state        <= IDLE;
+            done         <= 1'b0;
             start_systolic <= 1'b0;
-            start_vpu <= 1'b0;
-            pc_load <= 1'b0;
-            pc_load_val <= 8'd0;
+            start_vpu    <= 1'b0;
+            pc_load      <= 1'b0;
+            pc_load_val  <= 8'd0;
+            tma_req      <= 1'b0;
+            tma_dir      <= 1'b0;
+            tma_dm_base  <= 16'd0;
+            tma_l2_base  <= 15'd0;
+            tma_len      <= 16'd0;
         end else begin
             // Default pulse signals
             start_systolic <= 1'b0;
             start_vpu <= 1'b0;
-            pc_load <= 1'b0;
-            done <= 1'b0;
+            pc_load   <= 1'b0;
+            done      <= 1'b0;
+            tma_req   <= 1'b0;
 
             case (state)
                 IDLE: begin
@@ -117,8 +145,8 @@ module tensorcore #(
                                 start_systolic <= 1'b1;
                                 state <= WAIT_COMPUTE;
                             end
-                            2'b10: begin // RESERVED
-                                state <= HALT_STATE;
+                            2'b10: begin // TMA instruction
+                                state <= EXEC_TMA;
                             end
                             default: state <= HALT_STATE;
                         endcase
@@ -131,12 +159,29 @@ module tensorcore #(
                     end
                 end
 
+                // TMA: latch decoded fields, pulse tma_req, go to WAIT_TMA
+                EXEC_TMA: begin
+                    tma_req     <= 1'b1;
+                    tma_dir     <= tma_dir_dec;
+                    tma_dm_base <= tma_dm_addr_dec;
+                    tma_l2_base <= tma_l2_addr_dec;
+                    tma_len     <= tma_len_dec;
+                    state       <= WAIT_TMA;
+                end
+
+                // TMA: wait for tma_done, then fetch next instruction
+                WAIT_TMA: begin
+                    tma_req <= 1'b0; // ensure req is a pulse
+                    if (tma_done)
+                        state <= FETCH_1;
+                end
+
                 FETCH_1: state <= FETCH_2;
                 FETCH_2: state <= FETCH_3;
                 FETCH_3: state <= EXEC_COMPUTE;
 
                 HALT_STATE: begin
-                    done <= 1'b1;
+                    done  <= 1'b1;
                     state <= IDLE;
                 end
 
@@ -145,7 +190,7 @@ module tensorcore #(
         end
     end
 
-    assign pc_enable = (state == FETCH_1); // Increment PC when moving out of WAIT_COMPUTE
+    assign pc_enable = (state == FETCH_1); // Increment PC when moving to next fetch
 
     //---------------------------------------------
     // Submodule Instantiations
@@ -193,7 +238,11 @@ module tensorcore #(
         .vreg_a_decode(vreg_a),
         .vreg_b_decode(vreg_b),
         .vpu_opcode_decode(vpu_opcode),
-        .scalar_b_decode(scalar_b)
+        .scalar_b_decode(scalar_b),
+        .tma_dir_decode(tma_dir_dec),
+        .tma_dm_addr_decode(tma_dm_addr_dec),
+        .tma_l2_addr_decode(tma_l2_addr_dec),
+        .tma_len_decode(tma_len_dec)
     );
 
     // MXU: Matrix Unit

@@ -129,6 +129,14 @@
     wire [31:0] l2_ct_din;  // data written to L2 (from L1 read, L1→L2 mode)
     wire [31:0] l2_ct_dout; // data read from L2 (to L1 write, L2→L1 mode)
 
+    // TMA signals — compute_tile (tensorcore) → l2_tile
+    wire        ct_tma_req;
+    wire        ct_tma_dir;
+    wire [15:0] ct_tma_dm_base;
+    wire [14:0] ct_tma_l2_base;
+    wire [15:0] ct_tma_len;
+    wire        l2_tma_done;
+
     // Device memory Port B (driven by l2_tile)
     wire [15:0] dm_l2_addr;
     wire [31:0] dm_l2_din;
@@ -458,7 +466,7 @@
         .l2_we_b(dm_l2_we)
     );
 
-    // --- L2 Tile (shared SRAM + DevMem↔L2 FSM) ---
+    // --- L2 Tile (shared SRAM + tma_engine) ---
     l2_tile #(
         .L2_ADDR_WIDTH(15),
         .DATA_WIDTH(32),
@@ -472,19 +480,26 @@
         .ct_dout_a(l2_ct_dout),
         .ct_en_a(l2_ct_en),
         .ct_we_a(l2_ct_we),
-        // Port B — device memory side (internal FSM handles copies)
+        // Port B — device memory side (tma_engine handles copies)
         .dm_addr(dm_l2_addr),
         .dm_din(dm_l2_din),
         .dm_dout(dm_l2_dout),
         .dm_en(dm_l2_en),
         .dm_we(dm_l2_we),
-        // Transfer control (modes 5/6)
+        // Host-controlled transfer (modes 5/6)
         .start_dm_to_l2(start_dm_to_l2),
         .start_l2_to_dm(start_l2_to_dm),
         .xfer_dm_base(addr_devmem),
         .xfer_l2_base(addr_l2),
         .xfer_len(dma_len[15:0]),
-        .xfer_done(xfer_l2_done)
+        .xfer_done(xfer_l2_done),
+        // TMA instruction port (from compute_tile tensorcore)
+        .tma_req(ct_tma_req),
+        .tma_dir(ct_tma_dir),
+        .tma_dm_base(ct_tma_dm_base),
+        .tma_l2_base(ct_tma_l2_base),
+        .tma_len(ct_tma_len),
+        .tma_done(l2_tma_done)
     );
 
     // --- Compute Tile ---
@@ -508,7 +523,14 @@
         .dma_write_pointer(l1_dma_write_ptr),
         .dma_rd_en(l1_dma_rd_en),
         .dma_rd_data(l1_dma_rd_data),
-        .dma_read_pointer(l1_dma_read_ptr)
+        .dma_read_pointer(l1_dma_read_ptr),
+        // TMA signals (tensorcore → l2_tile)
+        .tma_req(ct_tma_req),
+        .tma_dir(ct_tma_dir),
+        .tma_dm_base(ct_tma_dm_base),
+        .tma_l2_base(ct_tma_l2_base),
+        .tma_len(ct_tma_len),
+        .tma_done(l2_tma_done)
     );
 
 	endmodule

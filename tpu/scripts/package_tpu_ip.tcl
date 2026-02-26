@@ -178,8 +178,8 @@ set_property -dict [list \
     CONFIG.Read_Width_B {32} \
     CONFIG.Enable_A {Use_ENA_Pin} \
     CONFIG.Enable_B {Use_ENB_Pin} \
-    CONFIG.Register_PortA_Output_of_Memory_Primitives {true} \
-    CONFIG.Register_PortB_Output_of_Memory_Primitives {true} \
+    CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
+    CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
     CONFIG.Use_Byte_Write_Enable {false} \
     CONFIG.Byte_Size {9} \
     CONFIG.Operating_Mode_A {WRITE_FIRST} \
@@ -205,8 +205,8 @@ set_property -dict [list \
     CONFIG.Read_Width_B {64} \
     CONFIG.Enable_A {Use_ENA_Pin} \
     CONFIG.Enable_B {Use_ENB_Pin} \
-    CONFIG.Register_PortA_Output_of_Memory_Primitives {true} \
-    CONFIG.Register_PortB_Output_of_Memory_Primitives {true} \
+    CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
+    CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
     CONFIG.Use_Byte_Write_Enable {false} \
     CONFIG.Byte_Size {9} \
     CONFIG.Operating_Mode_A {WRITE_FIRST} \
@@ -232,8 +232,8 @@ set_property -dict [list \
     CONFIG.Read_Width_B {32} \
     CONFIG.Enable_A {Use_ENA_Pin} \
     CONFIG.Enable_B {Use_ENB_Pin} \
-    CONFIG.Register_PortA_Output_of_Memory_Primitives {true} \
-    CONFIG.Register_PortB_Output_of_Memory_Primitives {true} \
+    CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
+    CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
     CONFIG.Use_Byte_Write_Enable {false} \
     CONFIG.Byte_Size {9} \
     CONFIG.Operating_Mode_A {WRITE_FIRST} \
@@ -259,8 +259,8 @@ set_property -dict [list \
     CONFIG.Read_Width_B {32} \
     CONFIG.Enable_A {Use_ENA_Pin} \
     CONFIG.Enable_B {Use_ENB_Pin} \
-    CONFIG.Register_PortA_Output_of_Memory_Primitives {true} \
-    CONFIG.Register_PortB_Output_of_Memory_Primitives {true} \
+    CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
+    CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
     CONFIG.Use_Byte_Write_Enable {false} \
     CONFIG.Byte_Size {9} \
     CONFIG.Operating_Mode_A {WRITE_FIRST} \

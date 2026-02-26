@@ -109,7 +109,8 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 - **Verification (modify):** `verification/system/Makefile` — add new test target
 - **Docs (modify):** `docs/system.md` — add device memory section to register map
 
-### P1.2: L2 Tile (Separate Module)
+### P1.2: L2 Tile (Separate Module) (RESOLVED 2026-02-25)
+- **Resolution:** L2 tile implemented as host-controlled block transfer modes (modes 5–8). 32768×32 BRAM (blk_mem_gen_3). New module: src/l2_tile/l2_tile.sv. Tests: test_l2_tile → TESTS=4 PASS=4 FAIL=0.
 - **Goal:** Create L2 as a separate tile/module, NOT a second BRAM inside `l1.sv`.
 - **What:** L2 tile sits between compute tiles and device memory. Responsible for staging data between L1s and device memory.
 - **L2 tile contents:** SRAM bank(s), address generation logic, L1↔L2 data mover, L2↔DevMem engine (initially simple).
@@ -121,7 +122,8 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 - **Docs (modify):** `docs/system.md` — L2 tile description
 - **Dependency:** P1.1 (needs device memory interface to connect to).
 
-### P1.3: L1 ↔ L2 Communication Instruction
+### P1.3: L1 ↔ L2 Communication Instruction (RESOLVED 2026-02-25)
+- **Resolution:** Implemented as host-controlled modes 7 (L2_TO_L1) and 8 (L1_TO_L2) in tpu.sv FSM. addr_l2 at register 0x14 (slv_reg5_bus[14:0]). Avoids ISA/decoder changes. ISA-driven in-kernel L1↔L2 movement remains future work.
 - **Goal:** Design and implement an ISA instruction for L1↔L2 data movement.
 - **What:** Moves a contiguous block between L1 (per-tile) and L2 (shared tile). Direction: L2→L1 (prefetch) or L1→L2 (writeback).
 - **ISA encoding:** New MODE value or new VPU_TYPE. Must be documented in `docs/isa.md`.

@@ -3,20 +3,18 @@
 Board-level smoke test for Mini-TPU.
 
 Tests:
-  1. tudaInit() — program FPGA
-  2. Write 16x DEADBEEF to device memory at addr 0
-  3. Read back and verify bit-exact match
+  1. Connect to FPGA (must be pre-programmed)
+  2. Write 16x DEADBEEF to device memory at addr 0 (mode WRITE_DEVMEM=1)
+  3. Read back and verify bit-exact match    (mode READ_DEVMEM=2)
 
 Usage: invoked via `make smoke-board` from tpu/
+Deployment: board-test copies runtime/pynq_host.py to ~/tpu_deploy/runtime/
+            so import directly from runtime.pynq_host, not via runtime.tuda.
 """
 
 import sys
-from pathlib import Path
 import numpy as np
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-
-from runtime.tuda import host, tudaInit, tudaMemcpy
+from runtime.pynq_host import TpuDriver
 
 PASS = 0
 FAIL = 0
@@ -32,25 +30,23 @@ def record(name, passed):
         FAIL += 1
 
 
-@host
-def run_board_smoke():
+def main():
     print("Board smoke test starting...")
-    tudaInit()
+    tpu = TpuDriver(program=False)
 
-    # Build 16-word DEADBEEF pattern (reinterpret uint32 bits as float32)
-    pattern = np.array([0xDEADBEEF] * 16, dtype=np.uint32).view(np.float32)
+    # Build 16-word DEADBEEF pattern.
+    # View as float32 so write_bram accepts it; compare as uint32 to avoid NaN equality.
+    pattern_u32 = np.array([0xDEADBEEF] * 16, dtype=np.uint32)
+    pattern_f32 = pattern_u32.view(np.float32)
 
-    # Write to device memory at addr 0 (HostToDevice = mode 1)
-    tudaMemcpy(0, pattern, "HostToDevice")
+    # Write to device memory at addr 0
+    tpu.write_bram(0, pattern_f32)
 
-    # Read back from device memory at addr 0 (DeviceToHost = mode 2)
-    result = tudaMemcpy(0, 16, "DeviceToHost")
+    # Read back from device memory at addr 0
+    result_f32 = tpu.read_bram(0, 16)
+    result_u32 = result_f32.view(np.uint32)
 
-    # Compare bit-exact (view as uint32 to avoid float NaN equality issues)
-    result_u32 = result.view(np.uint32)
-    pattern_u32 = pattern.view(np.uint32)
     passed = bool(np.all(result_u32 == pattern_u32))
-
     record("devmem_roundtrip", passed)
 
     if not passed:
@@ -65,4 +61,4 @@ def run_board_smoke():
 
 
 if __name__ == "__main__":
-    run_board_smoke()
+    main()

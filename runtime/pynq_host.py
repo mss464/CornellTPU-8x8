@@ -18,12 +18,14 @@ except ImportError:
     allocate = None
 
 
-# TPU Register addresses (AXI-Lite)
+# TPU Register addresses (AXI-Lite) — must match tpu.sv slv_reg map
 REG_ADDR = {
     "tpu_mode":     0x00,
     "instr_ready":  0x04,
     "stream_ready": 0x08,
-    "addr_ram":     0x0C,
+    "addr_ram":     0x0C,   # IRAM base address (mode 4: WRITE_IRAM)
+    "addr_devmem":  0x10,   # Device memory base address (modes 1/2: WRITE/READ_DEVMEM)
+    "addr_l2":      0x14,   # L2 SRAM base address (modes 5–8: devmem↔L2↔L1)
     "length":       0x18,
 }
 
@@ -151,7 +153,7 @@ class TpuDriver:
         in_buf = allocate(shape=values.shape, dtype=np.float32)
         
         self.wait_for_flag("instr_ready", 1)
-        self.mmio.write(REG_ADDR["addr_ram"], addr)
+        self.mmio.write(REG_ADDR["addr_devmem"], addr)
         self.mmio.write(REG_ADDR["length"], values.size)
         self.mmio.write(REG_ADDR["tpu_mode"], TpuMode.WRITE_BRAM)
         
@@ -178,7 +180,7 @@ class TpuDriver:
         out_buf = allocate(shape=(length,), dtype=np.float32)
         
         self.wait_for_flag("instr_ready", 1)
-        self.mmio.write(REG_ADDR["addr_ram"], addr)
+        self.mmio.write(REG_ADDR["addr_devmem"], addr)
         self.mmio.write(REG_ADDR["length"], length)
         self.mmio.write(REG_ADDR["tpu_mode"], TpuMode.READ_BRAM)
         

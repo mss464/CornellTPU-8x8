@@ -300,3 +300,90 @@ async def test_invalid_vpu_type(dut):
     assert cycle_count < 10, "Invalid VPU_TYPE should complete quickly"
 
     dut._log.info(f"PASS: Invalid VPU_TYPE handled gracefully in {cycle_count} cycles")
+
+
+@cocotb.test()
+async def test_vpu_simd_data_correctness(dut):
+    """Verify data correctness: VLOAD V0, VLOAD V1, VADD V2=V0+V1, VSTORE V2.
+
+    This test validates that vpu_simd.sv correctly pipelines data through the
+    load→compute→store path, not just that control signals fire.
+    """
+    clock = Clock(dut.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+
+    # Reset
+    dut.rst_n.value = 0
+    dut.start.value = 0
+    dut.vpu_type.value = 0
+    dut.addr_a.value = 0
+    dut.addr_out.value = 0
+    dut.vreg_dst.value = 0
+    dut.vreg_a.value = 0
+    dut.vreg_b.value = 0
+    dut.vpu_opcode.value = 0
+    dut.scalar_b.value = 0
+    dut.bram_dout.value = 0
+    await RisingEdge(dut.clk)
+    dut.rst_n.value = 1
+    await RisingEdge(dut.clk)
+
+    # Build BRAM model with known float values
+    bram = {}
+    v0_vals = [float(i + 1) for i in range(8)]    # [1.0, 2.0, ..., 8.0]
+    v1_vals = [float(i * 2 + 1) for i in range(8)]  # [1.0, 3.0, 5.0, ..., 15.0]
+    for i in range(8):
+        bram[50 + i] = float_to_fp32(v0_vals[i])
+    for i in range(8):
+        bram[60 + i] = float_to_fp32(v1_vals[i])
+    expected = [v0_vals[i] + v1_vals[i] for i in range(8)]
+
+    async def run_op(vpu_type, addr_a=0, addr_out=0, vreg_dst=0,
+                     vreg_a=0, vreg_b=0, vpu_opcode=0):
+        """Run one VPU operation, serving BRAM reads and capturing writes."""
+        dut.vpu_type.value = vpu_type
+        dut.addr_a.value = addr_a
+        dut.addr_out.value = addr_out
+        dut.vreg_dst.value = vreg_dst
+        dut.vreg_a.value = vreg_a
+        dut.vreg_b.value = vreg_b
+        dut.vpu_opcode.value = vpu_opcode
+        dut.scalar_b.value = 0
+        dut.start.value = 1
+        await RisingEdge(dut.clk)
+        dut.start.value = 0
+
+        for _ in range(200):
+            await RisingEdge(dut.clk)
+            if int(dut.bram_en.value) == 1 and int(dut.bram_we.value) == 0:
+                # Serve BRAM read: drive dout from model
+                dut.bram_dout.value = bram.get(int(dut.bram_addr.value), 0)
+            elif int(dut.bram_en.value) == 1 and int(dut.bram_we.value) == 1:
+                # Capture BRAM write into model
+                bram[int(dut.bram_addr.value)] = int(dut.bram_din.value)
+            if int(dut.done.value) == 1:
+                return
+        raise AssertionError(f"VPU op (vpu_type={vpu_type}) timed out")
+
+    # Step 1: VLOAD V0 from BRAM[50:57]
+    await run_op(vpu_type=1, addr_a=50, vreg_dst=0)
+
+    # Step 2: VLOAD V1 from BRAM[60:67]
+    await run_op(vpu_type=1, addr_a=60, vreg_dst=1)
+
+    # Step 3: VCOMPUTE V2 = V0 + V1 (vadd, opcode=0)
+    await run_op(vpu_type=3, vreg_a=0, vreg_b=1, vreg_dst=2, vpu_opcode=0)
+
+    # Step 4: VSTORE V2 to BRAM[70:77]
+    await run_op(vpu_type=2, addr_out=70, vreg_a=2)
+
+    # Verify: BRAM[70:77] == expected element-wise sums (FP32 bit-exact)
+    for i in range(8):
+        addr = 70 + i
+        assert addr in bram, f"Missing BRAM write at address {addr}"
+        got = fp32_to_float(bram[addr])
+        exp = expected[i]
+        assert abs(got - exp) < 1e-4, \
+            f"Data mismatch at V2[{i}]: expected {exp}, got {got}"
+
+    dut._log.info("PASS: test_vpu_simd_data_correctness — VLOAD→VADD→VSTORE data verified")

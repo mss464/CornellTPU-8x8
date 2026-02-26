@@ -234,6 +234,21 @@ tpu:
 		EXTRA_FILES="$$LOCAL_BIT $$LOCAL_HWH" \
 		PROGRAM_ARGS="$$(basename $$LOCAL_BIT)"
 
+#==============================================================================
+# SMOKE TESTS
+#==============================================================================
+.PHONY: smoke-sim smoke-sim-full smoke-board
+
+smoke-sim:
+	@bash scripts/smoke_test.sh --sim
+
+smoke-sim-full:
+	@bash scripts/smoke_test.sh --sim-full
+
+smoke-board:
+	@$(MAKE) board-test \
+		PROGRAM="$(abspath ../demos/programs/smoke_board.tu)"
+
 clean: clean-compute_tile
 	@if [ "$(TARGET)" = "ultra96-v2" ]; then \
 		rm -rf $(ULTRA96_IP_REPO_DIR) $(ULTRA96_OUTPUT_DIR) $(ULTRA96_DIR)/.Xil \

@@ -31,7 +31,7 @@ The TPU exposes a memory-mapped AXI4-Lite control interface used by the host to 
 | 0x08   | stream_ready  | R      | Status register for streaming data (busy, done) |
 | 0x0C   | addr_ram      | R/W    | Base address for bram or iram reads/writes |
 | 0x10   | addr_devmem   | R/W    | Base address for device memory reads/writes (16-bit) |
-| 0x14   | RESERVED      | —      | Reserved |
+| 0x14   | addr_l2       | R/W    | Base address for L2 SRAM reads/writes (15-bit) |
 | 0x18   | dma_len       | R/W    | Number of data words to stream |
 | 0x1C   | RESERVED      | —      | Reserved |
 | 0x20   | RESERVED      | —      | Reserved |
@@ -46,15 +46,19 @@ The TPU exposes a memory-mapped AXI4-Lite control interface used by the host to 
 
 #### tpu_mode (0x00)
 
-This register configures the tpu's operating mode. Only bits **[2:0]** are used, upper bits reserved and read as zero. Can be configured to the following operating modes:
+This register configures the tpu's operating mode. Only bits **[3:0]** are used, upper bits reserved and read as zero. Can be configured to the following operating modes:
 
-| Value | Mode        | Description |
-|-------|-------------|-------------|
-| 0x0   | IDLE        | TPU idle state (no operation) |
-| 0x1   | WRITE_DEVMEM | Stream data into device memory |
-| 0x2   | READ_DEVMEM  | Stream data out of device memory |
-| 0x3   | COMPUTE     | Execute instructions from IRAM |
-| 0x4   | WRITE_IRAM  | Stream intructions into IRAM |
+| Value | Mode         | Description |
+|-------|--------------|-------------|
+| 0x0   | IDLE         | TPU idle state (no operation) |
+| 0x1   | WRITE_DEVMEM | Stream data into device memory via AXI-Stream |
+| 0x2   | READ_DEVMEM  | Stream data out of device memory via AXI-Stream |
+| 0x3   | COMPUTE      | Execute instructions from IRAM |
+| 0x4   | WRITE_IRAM   | Stream instructions into IRAM |
+| 0x5   | DM_TO_L2     | Copy `dma_len` words from device memory (addr_devmem) to L2 SRAM (addr_l2) |
+| 0x6   | L2_TO_DM     | Copy `dma_len` words from L2 SRAM (addr_l2) to device memory (addr_devmem) |
+| 0x7   | L2_TO_L1     | Copy `dma_len` words from L2 SRAM (addr_l2) to compute tile L1 (addr_ram) |
+| 0x8   | L1_TO_L2     | Copy `dma_len` words from compute tile L1 (addr_ram) to L2 SRAM (addr_l2) |
 
 **Preconditions:**  
 - `instr_ready` **must be asserted** before writing a value to `tpu_mode`.
@@ -103,6 +107,18 @@ During memory read or write modes, data transfers begin at the address specified
 This register specifies the base address within device memory from which data is read or to which data is written during modes 1 (WRITE_DEVMEM) and 2 (READ_DEVMEM). Bits [15:0] are used (64K word address space), upper bits reserved.
 
 During device memory read or write modes, data transfers begin at the address specified by `addr_devmem`. The DMA write/read pointer is added to this base address to form the final device memory address.
+
+---
+
+#### addr_l2 (0x14)
+
+This register specifies the base address within the L2 shared SRAM for block transfer operations. Bits [14:0] are used (32768 word address space), upper bits reserved.
+
+Used by the following modes:
+- **Mode 5 (DM_TO_L2):** destination address in L2 SRAM
+- **Mode 6 (L2_TO_DM):** source address in L2 SRAM
+- **Mode 7 (L2_TO_L1):** source address in L2 SRAM (destination is addr_ram in L1)
+- **Mode 8 (L1_TO_L2):** destination address in L2 SRAM (source is addr_ram in L1)
 
 ---
 

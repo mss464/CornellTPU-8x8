@@ -216,6 +216,60 @@ set_property -dict [list \
 generate_target all [get_ips blk_mem_gen_1]
 export_ip_user_files -of_objects [get_ips blk_mem_gen_1] -no_script -force
 
+# --- blk_mem_gen_2: Device Memory BRAM used in device_mem.sv ---
+# 32-bit wide, 65536 deep (16-bit address), True Dual Port RAM
+puts "  Creating blk_mem_gen_2 (Device Memory BRAM - 32-bit x 65536)..."
+
+create_ip -name blk_mem_gen -vendor xilinx.com -library ip -version 8.4 \
+    -module_name blk_mem_gen_2
+
+set_property -dict [list \
+    CONFIG.Memory_Type {True_Dual_Port_RAM} \
+    CONFIG.Write_Width_A {32} \
+    CONFIG.Write_Depth_A {65536} \
+    CONFIG.Read_Width_A {32} \
+    CONFIG.Write_Width_B {32} \
+    CONFIG.Read_Width_B {32} \
+    CONFIG.Enable_A {Use_ENA_Pin} \
+    CONFIG.Enable_B {Use_ENB_Pin} \
+    CONFIG.Register_PortA_Output_of_Memory_Primitives {true} \
+    CONFIG.Register_PortB_Output_of_Memory_Primitives {true} \
+    CONFIG.Use_Byte_Write_Enable {false} \
+    CONFIG.Byte_Size {9} \
+    CONFIG.Operating_Mode_A {WRITE_FIRST} \
+    CONFIG.Operating_Mode_B {WRITE_FIRST} \
+] [get_ips blk_mem_gen_2]
+
+generate_target all [get_ips blk_mem_gen_2]
+export_ip_user_files -of_objects [get_ips blk_mem_gen_2] -no_script -force
+
+# --- blk_mem_gen_3: L2 tile SRAM used in l2_tile.sv ---
+# 32-bit wide, 32768 deep (15-bit address), True Dual Port RAM
+puts "  Creating blk_mem_gen_3 (L2 SRAM - 32-bit x 32768)..."
+
+create_ip -name blk_mem_gen -vendor xilinx.com -library ip -version 8.4 \
+    -module_name blk_mem_gen_3
+
+set_property -dict [list \
+    CONFIG.Memory_Type {True_Dual_Port_RAM} \
+    CONFIG.Write_Width_A {32} \
+    CONFIG.Write_Depth_A {32768} \
+    CONFIG.Read_Width_A {32} \
+    CONFIG.Write_Width_B {32} \
+    CONFIG.Read_Width_B {32} \
+    CONFIG.Enable_A {Use_ENA_Pin} \
+    CONFIG.Enable_B {Use_ENB_Pin} \
+    CONFIG.Register_PortA_Output_of_Memory_Primitives {true} \
+    CONFIG.Register_PortB_Output_of_Memory_Primitives {true} \
+    CONFIG.Use_Byte_Write_Enable {false} \
+    CONFIG.Byte_Size {9} \
+    CONFIG.Operating_Mode_A {WRITE_FIRST} \
+    CONFIG.Operating_Mode_B {WRITE_FIRST} \
+] [get_ips blk_mem_gen_3]
+
+generate_target all [get_ips blk_mem_gen_3]
+export_ip_user_files -of_objects [get_ips blk_mem_gen_3] -no_script -force
+
 puts "  BRAM IPs created and targets generated."
 
 ################################################################################

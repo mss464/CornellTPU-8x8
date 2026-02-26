@@ -15,6 +15,7 @@ SUPPORTED_TARGETS := ultra96-v2
 COMPUTE_TILE_DIR := src/compute_tile
 ULTRA96_DIR := .
 ULTRA96_FPGA_RTL_DIR := src/system
+ULTRA96_L2_TILE_DIR := src/l2_tile
 ULTRA96_IP_REPO_DIR := ip_repo
 ULTRA96_OUTPUT_DIR := build
 ULTRA96_PACKAGE_SCRIPT := scripts/package_tpu_ip.tcl
@@ -26,7 +27,7 @@ IP_NAME ?= minitpu
 IP_VERSION ?= 1.0
 IP_VENDOR ?= minitpu_team
 IP_LIBRARY ?= user
-# PROJ_NAME ?= minitpu
+PROJ_NAME ?= minitpu
 BD_NAME ?= minitpu
 
 # Board Credentials & Paths
@@ -136,7 +137,7 @@ bitstream: tpu-ip $(ULTRA96_BIT_DEPS)
 
 _ultra96_package_ip: $(ULTRA96_COMPONENT_XML)
 
-$(ULTRA96_COMPONENT_XML): $(COMPUTE_TILE_DIR)/*.sv $(ULTRA96_FPGA_RTL_DIR)/*.v $(ULTRA96_FPGA_RTL_DIR)/*.sv
+$(ULTRA96_COMPONENT_XML): $(COMPUTE_TILE_DIR)/*.sv $(ULTRA96_FPGA_RTL_DIR)/*.v $(ULTRA96_FPGA_RTL_DIR)/*.sv $(ULTRA96_L2_TILE_DIR)/*.sv
 	@echo "=========================================="
 	@echo "Packaging TPU IP: $(IP_NAME) v$(IP_VERSION)"
 	@echo "=========================================="
@@ -149,6 +150,7 @@ $(ULTRA96_COMPONENT_XML): $(COMPUTE_TILE_DIR)/*.sv $(ULTRA96_FPGA_RTL_DIR)/*.v $
 		-part $(PART) \
 		-rtl_dir $(COMPUTE_TILE_DIR) \
 		-rtl_dir $(ULTRA96_FPGA_RTL_DIR) \
+		-rtl_dir $(ULTRA96_L2_TILE_DIR) \
 		-repo_out $(ULTRA96_IP_REPO_DIR))
 	@echo ""
 	@echo "IP packaged successfully: $(ULTRA96_IP_OUT_DIR)"

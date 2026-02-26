@@ -129,6 +129,46 @@ class TpuRtlDriver:
         await self.wait_for_flag(0x04, 1) # instr_ready
         await self.write_axi_lite(0x00, 0) # IDLE
 
+    async def devmem_to_l2(self, devmem_addr, l2_addr, length):
+        """Copy length words from device memory to L2 (mode 5)."""
+        await self.wait_for_flag(0x04, 1)
+        await self.write_axi_lite(0x10, devmem_addr)  # addr_devmem
+        await self.write_axi_lite(0x14, l2_addr)      # addr_l2
+        await self.write_axi_lite(0x18, length)
+        await self.write_axi_lite(0x00, 5)             # DM_TO_L2
+        await self.wait_for_flag(0x04, 1)
+        await self.write_axi_lite(0x00, 0)             # IDLE
+
+    async def l2_to_devmem(self, l2_addr, devmem_addr, length):
+        """Copy length words from L2 to device memory (mode 6)."""
+        await self.wait_for_flag(0x04, 1)
+        await self.write_axi_lite(0x10, devmem_addr)  # addr_devmem
+        await self.write_axi_lite(0x14, l2_addr)      # addr_l2
+        await self.write_axi_lite(0x18, length)
+        await self.write_axi_lite(0x00, 6)             # L2_TO_DM
+        await self.wait_for_flag(0x04, 1)
+        await self.write_axi_lite(0x00, 0)             # IDLE
+
+    async def l2_to_l1(self, l2_addr, l1_base_addr, length):
+        """Copy length words from L2 to compute tile L1 (mode 7)."""
+        await self.wait_for_flag(0x04, 1)
+        await self.write_axi_lite(0x0C, l1_base_addr) # addr_ram (L1 base)
+        await self.write_axi_lite(0x14, l2_addr)      # addr_l2
+        await self.write_axi_lite(0x18, length)
+        await self.write_axi_lite(0x00, 7)             # L2_TO_L1
+        await self.wait_for_flag(0x04, 1)
+        await self.write_axi_lite(0x00, 0)             # IDLE
+
+    async def l1_to_l2(self, l1_base_addr, l2_addr, length):
+        """Copy length words from compute tile L1 to L2 (mode 8)."""
+        await self.wait_for_flag(0x04, 1)
+        await self.write_axi_lite(0x0C, l1_base_addr) # addr_ram (L1 base)
+        await self.write_axi_lite(0x14, l2_addr)      # addr_l2
+        await self.write_axi_lite(0x18, length)
+        await self.write_axi_lite(0x00, 8)             # L1_TO_L2
+        await self.wait_for_flag(0x04, 1)
+        await self.write_axi_lite(0x00, 0)             # IDLE
+
     async def read_bram(self, addr, length):
         await self.wait_for_flag(0x04, 1) # instr_ready
         await self.write_axi_lite(0x10, addr)  # addr_devmem (slv_reg4)

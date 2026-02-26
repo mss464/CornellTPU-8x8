@@ -50,6 +50,13 @@ test_device_mem: $(SIM_BUILD)
 	@! grep -q 'failure' results.xml || (echo "TEST FAILED" && exit 1)
 	@echo "=== Device Memory Tests Complete ==="
 
+test_l2_tile: $(SIM_BUILD)
+	@echo "=== Running L2 Tile Tests ==="
+	$(IVERILOG) -o $(SIM_BUILD)/sim.vvp -s tpu $(IVFLAGS) $(SRC_ALL)
+	MODULE=test_l2_tile COCOTB_TEST_MODULES=test_l2_tile $(VVP) -M $(COCOTB_LIBS) -m libcocotbvpi_icarus $(SIM_BUILD)/sim.vvp
+	@! grep -q 'failure' results.xml || (echo "TEST FAILED" && exit 1)
+	@echo "=== L2 Tile Tests Complete ==="
+
 $(SIM_BUILD):
 	mkdir -p $(SIM_BUILD)
 	mkdir -p $(WAVEFORMS)

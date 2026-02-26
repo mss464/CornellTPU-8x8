@@ -17,7 +17,8 @@ SRC_TPU = ../../src/system/tpu.sv \
           ../../src/system/tpu_slave_axi_lite.v \
           ../../src/system/tpu_slave_axi_stream.v \
           ../../src/system/fifo4.sv \
-          ../../src/system/device_mem.sv
+          ../../src/system/device_mem.sv \
+          ../../src/l2_tile/l2_tile.sv
 SRC_COMPUTE_TILE = ../../src/compute_tile/compute_tile.sv \
                    ../../src/compute_tile/tensorcore.sv \
                    ../../src/compute_tile/l1.sv \

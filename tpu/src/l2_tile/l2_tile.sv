@@ -124,11 +124,11 @@ module l2_tile #(
             rd_count    <= 16'd0;
             wr_count    <= 16'd0;
             len_reg     <= 16'd0;
-            dm_base_reg <= '0;
-            l2_base_reg <= '0;
-            rd_valid_d1 <= 1'b0;
-            l2_wr_addr_d1 <= '0;
-            dm_wr_addr_d1 <= '0;
+            dm_base_reg   <= 16'b0;
+            l2_base_reg   <= 15'b0;
+            rd_valid_d1   <= 1'b0;
+            l2_wr_addr_d1 <= 15'b0;
+            dm_wr_addr_d1 <= 16'b0;
         end else begin
             xfer_done   <= 1'b0;
             rd_valid_d1 <= 1'b0;
@@ -199,12 +199,12 @@ module l2_tile #(
     // =========================================================================
     always_comb begin
         // Defaults — no activity
-        sram_addr_b = '0;
-        sram_din_b  = '0;
+        sram_addr_b = 15'b0;
+        sram_din_b  = 32'b0;
         sram_en_b   = 1'b0;
         sram_we_b   = 1'b0;
-        dm_addr     = '0;
-        dm_din      = '0;
+        dm_addr     = 16'b0;
+        dm_din      = 32'b0;
         dm_en       = 1'b0;
         dm_we       = 1'b0;
 

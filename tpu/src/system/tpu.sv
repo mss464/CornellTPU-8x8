@@ -110,6 +110,7 @@
     wire [15:0] write_pointer;
     wire [15:0] read_pointer;
     wire [31:0] dma_dram_din;
+    wire stream_data_valid;
     wire [63:0] dma_iram_din;
     wire [31:0] dma_dout;
 
@@ -234,6 +235,7 @@
         .data_to_iram(dma_iram_din),
         .write_pointer_stream(write_pointer),
         .done(write_bram_done),
+        .data_valid(stream_data_valid),
         .write_en(data_write_en || instr_write_en),
         .tpu_mode_stream(tpu_mode[2:0])
     );
@@ -452,7 +454,7 @@
         .rst_n(s00_axi_aresetn),
         // Port A — host DMA
         .base_addr(addr_devmem),
-        .dma_wr_en(data_write_en),
+        .dma_wr_en(data_write_en && stream_data_valid),
         .dma_wr_data(dma_dram_din),
         .dma_write_pointer(write_pointer),
         .dma_rd_en(read_en),

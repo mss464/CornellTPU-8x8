@@ -19,6 +19,7 @@
 		output wire [63:0] data_to_iram,
 		output reg [15:0] write_pointer_stream,
 		output wire done,
+		output wire data_valid,
 		input wire write_en,
 		input wire [2:0] tpu_mode_stream, // 4 for instr writing and 2 for dram writing
 
@@ -177,6 +178,7 @@
 
 	// FIFO write enable generation
 	assign fifo_wren = S_AXIS_TVALID && axis_tready;
+assign data_valid = fifo_wren;
 
 	// FIFO Implementation
 //	generate 

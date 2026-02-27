@@ -1,0 +1,11 @@
+name: minitpu
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  - pip:
+    - cocotb>=2.0
+    - cocotbext-axi>=0.1.24
+    - numpy

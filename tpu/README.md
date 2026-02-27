@@ -1,62 +1,38 @@
-# TPU
+# TPU Hardware
 
-## Reference
+This directory contains the source code, verification and build infrastructure for the Mini-TPU hardware.
 
-![Ironwood architecture](ironwood-architecture.png)
+### Architecture
+![../docs/assets/system-v2.png](../docs/assets/system-v2.png)
 
-## FPGA Flow Overview
+## Project Structure
+- src
+   - compute_tile/
+   - system/
+- Makefile
+- scripts/
+- verification/
+    - compute_tile/
+    - system/
 
-The FPGA build flow packages the portable TensorCore RTL into a Vivado IP, then
-builds a board-specific block design and bitstream using board Tcl scripts.
+## Build Flow
 
-Stages:
-1. **TensorCore IP**: Package `tpu/TensorCore/*.sv` into a reusable IP.
-2. **TPU IP**: Wrap TensorCore with board-specific AXI/stream interfaces.
-3. **Bitstream**: Build block design + implementation → `.bit` and `.hwh`.
-
-## Supported Targets
-
-| Target | Status | Notes |
-|--------|--------|-------|
-| ultra96-v2 | ✅ Supported | Zynq UltraScale+ MPSoC flow (Vivado) |
-| alveo-u280 | ⏳ Planned | Vitis/XRT flow to be added |
-| alveo-v80 | ⏳ Planned | Vitis/XRT flow to be added |
-
-## Quick Start (Ultra96-v2)
-
+The FPGA build flow packages the portable TensorCore RTL into a Vivado IP, then builds a board-specific block design and bitstream.
 ```bash
-# From repo root
-make -C tpu tensorcore-ip
-make -C tpu bitstream TARGET=ultra96-v2
+make compute_tile-ip    # package compute tile as IP
+make tpu-ip            # package tpu as IP
+make bitstream         # build bitstream
+make tpu               # build tpu hardware by programming FPGA
 ```
 
-## Manual Vivado Usage (Ultra96-v2)
+### Build Outputs
 
-```bash
-# Package TPU IP
-vivado -mode batch -source tpu/ultra96-v2/package_tpu_ip.tcl -tclargs \
-    -ip_name cornell_tpu \
-    -part xczu3eg-sbva484-1-i \
-    -rtl_dir tpu/TensorCore \
-    -rtl_dir tpu/ultra96-v2/rtl \
-    -repo_out tpu/ultra96-v2/ip_repo
-
-# Build block design + bitstream
-vivado -mode batch -source tpu/ultra96-v2/build_bd_bitstream.tcl -tclargs \
-    -proj_name tpu_system \
-    -part xczu3eg-sbva484-1-i \
-    -ip_repo_path tpu/ultra96-v2/ip_repo \
-    -out_dir tpu/ultra96-v2/output
-```
-
-## Build Outputs (Ultra96-v2)
-
-After a successful build, artifacts are in `tpu/ultra96-v2/output/artifacts/`:
+Artifacts are located in `build/artifacts/`:
 
 | File | Description |
 |------|-------------|
-| `minitpu.bit` | FPGA bitstream (~5.5 MB) |
-| `minitpu.hwh` | Hardware handoff for PYNQ (~343 KB) |
+| `minitpu.bit` | FPGA bitstream |
+| `minitpu.hwh` | Hardware handoff for PYNQ |
 | `utilization_report.txt` | Resource usage summary |
 | `timing_summary.txt` | Timing analysis |
 | `power_report.txt` | Power estimates |
@@ -67,20 +43,143 @@ After a successful build, artifacts are in `tpu/ultra96-v2/output/artifacts/`:
 - DSPs: 34 (for FP32 multiply)
 - Clock: 50 MHz (WNS ~3ns positive slack)
 
-## Validation
 
-Run FPGA tests after building:
+## RTL Architecture (TensorCore)
 
-```bash
-make -C tests board-test \
-    BIT=tpu/ultra96-v2/output/artifacts/minitpu.bit \
-    HWH=tpu/ultra96-v2/output/artifacts/minitpu.hwh \
-    PROGRAM=tests/fpga/test_comprehensive.py
+The TensorCore is the heart of the TPU, implemented in portable SystemVerilog.
+
+### RTL Module Hierarchy
+
+```
+                                ┌──────────────────────────────────────────────┐
+                                │             tpu.sv (Top Level)               │
+                                │                                              │
+                                │  ├─ AXI-Lite Slave (Control Registers)       │
+                                │  ├─ AXI-Stream Slave (DMA Input)             │
+                                │  ├─ AXI-Stream Master (DMA Output)           │
+                                │  ├─ TODO: separate interface for host & DDR  │
+                                │  │                                           │
+                                │  └─ compute_tile.sv (Logic Wrapper)          │
+                                │     ├─ tensorcore.sv (Controller)            │
+                                │     │  ├─ pc.sv                              │
+                                │     │  ├─ decoder.sv                         │
+                                │     │  ├─ blk_mem_gen_1 (I-BRAM)             │
+                                │     │  ├─ mxu.sv (Systolic Array)            │
+                                │     │  └─ vpu_simd.sv (Vector ALU)           │
+                                │     ├─ l1.sv (Data BRAM)                     │
+                                │     └─ TODO: router.sv                       │
+                                └──────────────────────────────────────────────┘
 ```
 
-## Notes
+### Core Components
 
-- Source Vivado settings before building:
-  `source /opt/xilinx/Vitis/2023.2/settings64.sh`
-- Board-specific files live under `tpu/<target>/`.
-- IP instance name in block design is `tpu_0` (used by `pynq_host.py` driver).
+- **TensorCore (`tensorcore.sv`)**: Central controller; includes PC, Decoder, and Instruction BRAM.
+- **Compute Tile (`compute_tile.sv`)**: Wrapper for TensorCore and L1 data memory, providing a unified DMA interface.
+- **Matrix Unit (`mxu.sv`)**: 4×4 weight-stationary systolic array.
+- **SIMD Unit (`vpu_simd.sv`)**: Vector processing unit for element-wise operations (ReLU, etc.).
+
+### Data Flow
+
+```
+                    ┌──────────────────────────────────────────────────┐
+   Input (64-bit)   │                  COMPUTE PATH                     │   Output (32-bit)
+   ────────────────►│                                                   │────────────────►
+                    │  ┌─────────┐   ┌─────────────┐   ┌─────────────┐ │
+   Instructions     │  │ BRAM    │──►│  Systolic   │──►│   Output    │ │
+   ────────────────►│  │ (Data/  │   │   Array     │   │   Buffer    │ │
+                    │  │ Weight) │   │   (4×4)     │   │             │ │
+                    │  └─────────┘   └─────────────┘   └─────────────┘ │
+                    │       │                              ▲           │
+                    │       ▼                              │           │
+                    │  ┌─────────────────────────────────┐ │           │
+                    │  │            VPU                  │─┘           │
+                    │  │  (ReLU, Element-wise ops)       │             │
+                    │  └─────────────────────────────────┘             │
+                    └──────────────────────────────────────────────────┘
+```
+
+---
+
+## System Integration (Ultra96-v2)
+
+For FPGA deployment, the TensorCore is wrapped in AXI interfaces and integrated into a Zynq UltraScale+ system.
+
+### System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Zynq UltraScale+ MPSoC                     │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                    Processing System                      │   │
+│  │                                                           │   │
+│  │   M_AXI_HPM0_FPD ─────┐          ┌───── S_AXI_HP0_FPD    │   │
+│  │                        │          │                       │   │
+│  │   PL_CLK0 ────────────┼──────────┼───────                 │   │
+│  │   PL_RESETN0 ─────────┼──────────┼───────                 │   │
+│  └──────────────────────┼──────────┼────────────────────────┘   │
+└─────────────────────────┼──────────┼────────────────────────────┘
+                          │          │
+                          ▼          ▲
+              ┌───────────────────────────────┐
+              │       AXI Interconnect        │
+              │        (Control Path)         │
+              └───────┬─────────────┬─────────┘
+                      │             │
+            ┌─────────▼───┐   ┌─────▼─────────┐
+            │  AXI DMA    │   │  Mini-TPU     │
+            │ (Control)   │   │   (S00_AXI)   │
+            └─────────────┘   └───────────────┘
+                  │                   ▲
+    ┌─────────────┴───────────────────┴──────────┐
+    │              AXI SmartConnect               │
+    │              (Memory Access)                │
+    └────────────────────┬────────────────────────┘
+                         │ (to PS HP0)
+```
+
+### IP Interfaces
+
+The packaged TPU IP exposes:
+
+| Interface | Type | Width | Description |
+|-----------|------|-------|-------------|
+| `S00_AXI` | AXI4-Lite Slave | 32-bit data, 6-bit addr | Control registers |
+| `S00_AXIS` | AXI-Stream Slave | 64-bit | Input data stream (Instructions/Weights/Data) |
+| `M00_AXIS` | AXI-Stream Master | 32-bit | Output data stream |
+
+---
+
+---
+
+## Verification
+
+The Mini-TPU uses a multi-level verification strategy combining SystemVerilog unit tests and cycle-accurate Cocotb integration tests.
+
+### 1. Unit Testing (Compute Tile)
+Portable unit tests for the core logic (MXU, SIMD, Scratchpad).
+```bash
+make -C tpu/verification/compute_tile all
+```
+
+### 2. System-Level Simulation (RTL)
+Integration tests that verify AXI-Lite control and AXI-Stream DMA paths using **Icarus Verilog** and **Cocotb**.
+```bash
+make -C tpu/verification/system test_data_integrity_rtl
+```
+
+**Current Verification Status:**
+- ✅ **Compute Tile Unit Tests**: Passing.
+- ⏳ **System RTL Simulation**: Functional, but under investigation.
+  - *Known Issue*: A 1-element data shift persists in DMA read-back.
+  - *Mitigation*: Simulation currently uses a behavioral BRAM model with 3-cycle read latency to match hardware assumptions.
+
+---
+
+## Hardware Targets
+
+| Target | Status | Notes |
+|--------|--------|-------|
+| `ultra96-v2` | ✅ Supported | Zynq UltraScale+ MPSoC flow (Vivado) |
+| `alveo-u280` | ⏳ Planned | Vitis/XRT flow to be added |
+
+---

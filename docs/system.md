@@ -12,7 +12,7 @@ This section documents the architecture, programming model, and instruction set 
 
 ## Architecture
 
-![CornellTPU Architecture diagram](https://github.com/user-attachments/assets/8382725f-a695-419f-a9ef-7e9156491637)
+![CornellTPU Architecture diagram](assets/system-v1.jpg)
 
 
 The Darker lines represent data movement (fp32 data or 64-bit instructions). tpu_mode is sent to BRAM and IRAM as based on the current mode, the appropriate write enable signal must be asserted. 

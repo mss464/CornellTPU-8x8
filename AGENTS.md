@@ -1,10 +1,19 @@
-# AGENTS.md - Mini-TPU Project Guidelines
 
-This workflow is being refactored. Keep changes minimal and local.
+### Status
+Current MVP: Offload TinyTorch Transformer's matmul operations to TPU.
+- [ ] Debug the TPU hardware
+    - [ ] Fix the Host interface
+    - [ ] Verify the instruction memory capacity
+        - [ ] Implement branch/loop/complex instructions
+    - [ ] Verify the data memory capacity
+    - [ ] Implement address generation (preferrably with just scalar operations)
+- [ ] Create TPU program equivalent to @systolic_tiled_matmul.py
 
-## Scope Rule (WIP)
+---
 
-- `tpu/` hardware design. tensorcore + interconnect/interface/memory per target fpga/asic.
-- `tests/` testbenches for validating workflow in a modular way
-- `compiler/` TPU compiler from PyTorch-like to TPU program
-- `docs/` documentation
+### 🛠️ Developer Notes for AI Agents
+- **Path Handling**: 
+  - Always use **absolute paths** when calling tools. The environment is sensitive to `cwd` mismatches.
+  - When resolving paths dynamically in Python scripts, ALWAYS use `Path(__file__).resolve()` to avoid issues where `/home/` symlinks to `/work/shared/`, which breaks standard relative directory traversal.
+- **Workflow Speed**: For heavy simulations like `systolic_tiled_matmul.py`, use the highest possible `TILE_DIM` (e.g., 16 or 32) and offload the inner block math to NumPy to avoid Python loop overhead.
+- **Resource Limits**: When using `read_url_content`, non-binary text formats are preferred. Pretrained weights should be converted to `.npz` locally rather than downloaded directly if possible.

@@ -319,3 +319,105 @@ async def test_tma_instruction_in_kernel(dut):
             f"TMA mismatch at index {i}: expected {input_data[i]}, got {result[i]}"
 
     dut._log.info("test_tma_instruction_in_kernel PASSED")
+
+
+# ---------------------------------------------------------------------------
+# Test 4: DMA + Compute concurrent execution (P2.08 overlap capability)
+# ---------------------------------------------------------------------------
+@cocotb.test()
+async def test_dma_compute_overlap(dut):
+    """Verify DMA write (mode 1) and Compute (mode 3) can execute concurrently.
+
+    This test exercises the P2.08 architecture: the thin arbiter dispatches
+    mode-3 to compute_ctrl and mode-1 to dma_engine independently. Both
+    sub-FSMs use disjoint BRAM ports so they run without resource conflicts.
+
+    Test flow:
+      1. Load identity kernel to IRAM; load input[0:7] into L1[0:7].
+      2. Start COMPUTE (doorbell mode=3) — do NOT wait for instr_ready.
+      3. Immediately start DMA WRITE (doorbell mode=1) to DevMem[300:307].
+         The arbiter must accept this while compute_ctrl is running.
+      4. Send 8 stream words for the DMA write.
+      5. Wait for global instr_ready (both sub-FSMs done).
+      6. Verify:
+           a) DMA result: DevMem[300:307] == dma_data
+           b) Compute result: identity L1[0:7] → L1[8:15] readback correct.
+    """
+    start_clocks(dut)
+    driver = TpuComputeDriver(dut)
+    await driver.reset()
+
+    n = 8
+    input_data = np.array([float(i + 1) for i in range(n)], dtype=np.float32)
+
+    # ----------------------------------------------------------------
+    # Setup phase (sequential — all must complete before concurrent phase)
+    # ----------------------------------------------------------------
+    # Load compute input into L1[0:7] via DevMem → L2 → L1
+    await driver.write_bram(0, input_data)
+    await driver.devmem_to_l2(devmem_addr=0, l2_addr=0, length=n)
+    await driver.l2_to_l1(l2_addr=0, l1_base_addr=0, length=n)
+
+    # Load identity kernel: vload(V0, addr=0), vstore(V0, addr=8), halt
+    vload  = encode_vpu_instr(addr_a=0,   vpu_type=1, vreg_dst=0)
+    vstore = encode_vpu_instr(addr_out=8, vpu_type=2, vreg_a=0)
+    await driver.write_iram([vload, vstore, HALT_INSTR])
+
+    await driver.wait_for_flag(0x04, 1)   # ensure fully idle before concurrent phase
+
+    # ----------------------------------------------------------------
+    # Concurrent phase: start COMPUTE then immediately start DMA WRITE
+    # ----------------------------------------------------------------
+    # Step A: fire COMPUTE doorbell — compute_ctrl starts, instr_ready goes low
+    await driver.write_axi_lite(0x18, 0)          # dma_len=0 (unused by COMPUTE)
+    await driver.write_axi_lite(0x00, 3 | 0x10)  # MODE_COMPUTE | doorbell
+    # *** Do NOT call wait_for_flag here — DMA must start while compute runs ***
+
+    # Step B: set descriptor for DMA write to DevMem[300:307]
+    await driver.write_axi_lite(0x10, 300)        # addr_devmem = 300
+    await driver.write_axi_lite(0x18, n)          # length = 8
+    await driver.write_axi_lite(0x00, 1 | 0x10)  # MODE_WR_DEVMEM | doorbell
+    # Arbiter dispatches to dma_engine (compute_ctrl is running independently)
+
+    # Step C: wait for DMA engine stream_ready, then send stream data
+    await driver.wait_for_flag(0x08, 1)           # stream_ready from dma_engine
+
+    dma_data = np.array([42.0 + i for i in range(n)], dtype=np.float32)
+    for i, val in enumerate(dma_data):
+        dut.s00_axis_tdata.value = float_to_int(val)
+        dut.s00_axis_tstrb.value = 0xF
+        dut.s00_axis_tlast.value = 1 if i == n - 1 else 0
+        dut.s00_axis_tvalid.value = 1
+        while True:
+            await ReadOnly()
+            tready = dut.s00_axis_tready.value
+            await RisingEdge(driver.clk)
+            if tready == 1:
+                break
+    dut.s00_axis_tvalid.value = 0
+    dut.s00_axis_tlast.value = 0
+
+    # ----------------------------------------------------------------
+    # Wait for ALL sub-FSMs done (instr_ready = both compute + DMA idle)
+    # ----------------------------------------------------------------
+    await driver.wait_for_flag(0x04, 1, timeout_cycles=10000)
+
+    # ----------------------------------------------------------------
+    # Verify: DMA write result in DevMem[300:307]
+    # ----------------------------------------------------------------
+    result_dma = await driver.read_bram(300, n)
+    for i in range(n):
+        assert abs(result_dma[i] - dma_data[i]) < 1e-6, \
+            f"DMA overlap: DevMem[{300+i}] expected {dma_data[i]}, got {result_dma[i]}"
+
+    # ----------------------------------------------------------------
+    # Verify: compute result (identity kernel L1[0:7] → L1[8:15])
+    # ----------------------------------------------------------------
+    await driver.l1_to_l2(l1_base_addr=8, l2_addr=8, length=n)
+    await driver.l2_to_devmem(l2_addr=8, devmem_addr=8, length=n)
+    result_compute = await driver.read_bram(8, n)
+    for i in range(n):
+        assert abs(result_compute[i] - input_data[i]) < 1e-6, \
+            f"Compute overlap: L1[{8+i}] expected {input_data[i]}, got {result_compute[i]}"
+
+    dut._log.info("test_dma_compute_overlap PASSED")

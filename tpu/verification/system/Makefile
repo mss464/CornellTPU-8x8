@@ -13,6 +13,9 @@ export PYGPI_PYTHON_BIN = $(shell python3 -c "import sys; print(sys.executable)"
 IVFLAGS = -g2012 -Wall
 
 SRC_TPU = ../../src/system/tpu.sv \
+          ../../src/system/dma_engine.sv \
+          ../../src/system/compute_ctrl.sv \
+          ../../src/system/l2_ctrl.sv \
           ../../src/system/tpu_master_axi_stream.v \
           ../../src/system/tpu_slave_axi_lite.v \
           ../../src/system/tpu_slave_axi_stream.v \

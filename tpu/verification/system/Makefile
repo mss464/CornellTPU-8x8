@@ -82,6 +82,25 @@ test_tpu_compute: $(SIM_BUILD)
 	@! grep -q 'failure' results.xml || (echo "TEST FAILED" && exit 1)
 	@echo "=== TPU Compute Mode Tests Complete ==="
 
+test_slave_stream: $(SIM_BUILD)
+	@echo "=== Running Slave AXI-Stream Unit Tests ==="
+	$(IVERILOG) -o $(SIM_BUILD)/sim_slave.vvp -s tpu_slave_axi_stream $(IVFLAGS) $(IVFLAGS_VCD) \
+		../../src/system/tpu_slave_axi_stream.v
+	MODULE=test_slave_stream COCOTB_TEST_MODULES=test_slave_stream $(COCOTB_TESTCASE_ENV) \
+		$(VVP) -M $(COCOTB_LIBS) -m libcocotbvpi_icarus $(SIM_BUILD)/sim_slave.vvp
+	@! grep -q 'failure' results.xml || (echo "TEST FAILED" && exit 1)
+	@echo "=== Slave AXI-Stream Unit Tests Complete ==="
+
+test_master_stream: $(SIM_BUILD)
+	@echo "=== Running Master AXI-Stream Unit Tests ==="
+	$(IVERILOG) -o $(SIM_BUILD)/sim_master.vvp -s tpu_master_axi_stream $(IVFLAGS) $(IVFLAGS_VCD) \
+		../../src/system/tpu_master_axi_stream.v \
+		../../src/system/fifo4.sv
+	MODULE=test_master_stream COCOTB_TEST_MODULES=test_master_stream $(COCOTB_TESTCASE_ENV) \
+		$(VVP) -M $(COCOTB_LIBS) -m libcocotbvpi_icarus $(SIM_BUILD)/sim_master.vvp
+	@! grep -q 'failure' results.xml || (echo "TEST FAILED" && exit 1)
+	@echo "=== Master AXI-Stream Unit Tests Complete ==="
+
 $(SIM_BUILD):
 	mkdir -p $(SIM_BUILD)
 	mkdir -p $(WAVEFORMS)

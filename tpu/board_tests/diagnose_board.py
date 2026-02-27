@@ -18,7 +18,8 @@ import os
 import time
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+# Allow import from sibling runtime/ directory (deploy layout: board_tests/ and runtime/ are siblings)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'runtime'))
 from pynq_host import TpuDriver, REG_ADDR
 
 

@@ -57,7 +57,7 @@ Fixed 10 stale references across CLAUDE.md, PROGRESS.md, README.md, and 3 Makefi
 
 ### Pending items (deferred to next session)
 
-- [ ] Consolidate `runtime/board_tests/` under `tpu/` directory
+- [x] Consolidate `runtime/board_tests/` under `tpu/` directory — moved to `tpu/board_tests/`; updated `sys.path` to `../runtime`; Makefile deploys `tpu/board_tests/` as top-level `board_tests/` alongside `runtime/`
 - [ ] Create `/tpu-board-align` skill (sim→board→diagnose→align cycle)
 - [ ] Create `/tpu-deploy` skill (`make bitstream → make tpu → make board-test` pipeline)
 

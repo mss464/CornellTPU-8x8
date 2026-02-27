@@ -257,7 +257,7 @@ smoke-sim:
 smoke-sim-full:
 	@bash scripts/smoke_test.sh --sim-full
 
-# Run the offline board test suite (runtime/board_tests/test_board.py).
+# Run the offline board test suite (tpu/board_tests/test_board.py).
 # Usage: make board-tests [BOARD_TEST_ARGS="--test devmem_rw_small --verbose"]
 BOARD_TEST_ARGS ?=
 board-tests:
@@ -268,16 +268,17 @@ board-tests:
 	SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"; \
 	DEPLOY_TMP="$$(mktemp -d /tmp/tpu_deploy.XXXXXX)"; \
 	trap 'rm -rf "$$DEPLOY_TMP"' EXIT; \
-	mkdir -p "$$DEPLOY_TMP/runtime"; \
+	mkdir -p "$$DEPLOY_TMP/runtime" "$$DEPLOY_TMP/board_tests"; \
 	cp -r runtime/. "$$DEPLOY_TMP/runtime/"; \
-	find "$$DEPLOY_TMP/runtime" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true; \
-	find "$$DEPLOY_TMP/runtime" -name '*.pyc' -delete 2>/dev/null || true; \
+	cp -r tpu/board_tests/. "$$DEPLOY_TMP/board_tests/"; \
+	find "$$DEPLOY_TMP" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true; \
+	find "$$DEPLOY_TMP" -name '*.pyc' -delete 2>/dev/null || true; \
 	if [[ -f "$(ROOT)/hw_config.json" ]]; then cp "$(ROOT)/hw_config.json" "$$DEPLOY_TMP/"; fi; \
 	sshpass -p "$(BOARD_PASS)" ssh $$SSH_OPTS "$(BOARD_USER)@$(BOARD_IP)" "mkdir -p $(DEPLOY_DIR)"; \
 	sshpass -p "$(BOARD_PASS)" scp -r $$SSH_OPTS "$$DEPLOY_TMP"/* "$(BOARD_USER)@$(BOARD_IP):$(DEPLOY_DIR)/"; \
 	echo "== Running board_tests/test_board.py on board =="; \
 	sshpass -p "$(BOARD_PASS)" ssh -t $$SSH_OPTS "$(BOARD_USER)@$(BOARD_IP)" \
-	"cd $(DEPLOY_DIR) && echo $(BOARD_PASS) | sudo -S python3 runtime/board_tests/test_board.py $(BOARD_TEST_ARGS)"
+	"cd $(DEPLOY_DIR) && echo $(BOARD_PASS) | sudo -S python3 board_tests/test_board.py $(BOARD_TEST_ARGS)"
 
 clean: clean-compute_tile
 	@if [ "$(TARGET)" = "ultra96-v2" ]; then \

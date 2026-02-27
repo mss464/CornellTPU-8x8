@@ -1,5 +1,6 @@
 module fifo4 #(
-    parameter int WIDTH = 32
+    parameter int WIDTH = 32,
+    parameter int DEPTH = 8   // Must be a power of 2
 )(
     input  logic                 clk,
     input  logic                 rst_n,
@@ -18,27 +19,29 @@ module fifo4 #(
     output logic                 one_item_remaining
 );
 
+    localparam int PTR_W = $clog2(DEPTH) + 1;  // index bits + wrap bit
+
     //-----------------------------
-    // Storage (8 entries)
+    // Storage (DEPTH entries)
     //-----------------------------
-    logic [WIDTH-1:0] mem [0:7];
+    logic [WIDTH-1:0] mem [0:DEPTH-1];
     initial begin
-        for (int i = 0; i < 8; i++) mem[i] = '0;
+        for (int i = 0; i < DEPTH; i++) mem[i] = '0;
     end
 
     //-----------------------------
-    // Pointers (2-bit index + wrap)
+    // Pointers (index bits + wrap bit)
     //-----------------------------
-    logic [3:0] wptr;   // index = wptr[2:0], wrap = wptr[3]
-    logic [3:0] rptr;
+    logic [PTR_W-1:0] wptr;   // index = wptr[PTR_W-2:0], wrap = wptr[PTR_W-1]
+    logic [PTR_W-1:0] rptr;
 
     //-----------------------------
     // EMPTY / FULL logic
     //-----------------------------
     assign empty = (wptr == rptr);
-    assign full  = (wptr[3] != rptr[3]) &&
-                   (wptr[2:0] == rptr[2:0]);
-    assign one_item_remaining = ((rptr + 4'd1) == wptr);
+    assign full  = (wptr[PTR_W-1] != rptr[PTR_W-1]) &&
+                   (wptr[PTR_W-2:0] == rptr[PTR_W-2:0]);
+    assign one_item_remaining = ((rptr + 1'b1) == wptr);
 
     //-----------------------------
     // WRITE logic
@@ -47,8 +50,8 @@ module fifo4 #(
         if (!rst_n) begin
             wptr <= '0;
         end else if (wr_en && !full) begin
-            mem[wptr[2:0]] <= wr_data;
-            wptr <= wptr + 3'd1;
+            mem[wptr[PTR_W-2:0]] <= wr_data;
+            wptr <= wptr + 1'b1;
         end
     end
 
@@ -60,8 +63,8 @@ module fifo4 #(
             rptr <= '0;
             rd_data <= '0;
         end else if (rd_en && !empty) begin
-            rd_data <= mem[rptr[2:0]];
-            rptr <= rptr + 3'd1;
+            rd_data <= mem[rptr[PTR_W-2:0]];
+            rptr <= rptr + 1'b1;
         end
     end
 

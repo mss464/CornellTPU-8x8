@@ -140,7 +140,8 @@
     wire        fifo_empty;
 
 	
-	fifo4 #(.WIDTH(32)) u_fifo4 (
+	localparam FIFO_DEPTH = 8;
+	fifo4 #(.WIDTH(32), .DEPTH(FIFO_DEPTH)) u_fifo4 (
         .clk    (M_AXIS_ACLK),
         .rst_n  (M_AXIS_ARESETN),
     

@@ -183,7 +183,7 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 | # | Sub-task | File(s) | Impact |
 |---|----------|---------|--------|
 | 1 | Drop N=64, keep N≤16 + boundary N=8/9 (DONE) | `test_tpu.py` | 5× speedup |
-| 2 | Fix Verilator (`perl-FindBin`), add `SIM=verilator` to Makefile | system `Makefile` | 10-50× speedup |
+| 2 | Fix Verilator (`perl-FindBin`), add `SIM=verilator` to Makefile (DONE) | system `Makefile` | 10-50× speedup |
 | 3 | `TESTCASE=` and `VCD=` selectors in Makefile (DONE) | system `Makefile` | Dev iteration |
 | 4 | Replace manual AXI with `cocotbext-axi` (`AXIStreamSource/Sink`) | `test_tpu.py` | 3-5× fewer VPI crossings |
 | 5 | Unit-level stream tests: `test_slave_stream.py`, `test_master_stream.py` | new files + Makefile | 10× faster compile, isolated |
@@ -210,7 +210,11 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 
 ## P2 — Medium-Term: Multi-Tile Mesh
 
-### P2.07: Deepen AXI-Stream FIFO
+### P2.07: Deepen AXI-Stream FIFO (RESOLVED 2026-02-27)
+- **Resolution:** Added `DEPTH` parameter (default=8) to `fifo4.sv` with parametric pointer width
+  (`PTR_W = $clog2(DEPTH)+1`). Updated `tpu_master_axi_stream.v` to use `#(.WIDTH(32), .DEPTH(8))`
+  via a `localparam FIFO_DEPTH`. No functional change at DEPTH=8. All 7 fifo4 unit tests pass;
+  3/3 smoke sim tests pass.
 - **Goal:** Parameterize `fifo4` depth and decouple prefetch window from FIFO capacity.
 - **Depends:** P1.4 (DMA correctness).
 - **Problem:** `fifo4` depth=8 is hardcoded. Prefetch window `count <= 8` creates fragile coupling. Backpressure stalls at high throughput.

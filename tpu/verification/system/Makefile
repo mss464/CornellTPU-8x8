@@ -39,8 +39,20 @@ SRC_ALL = $(SRC_TPU) $(SRC_COMPUTE_TILE)
 
 # TESTCASE=<name> selects a single cocotb test (e.g. TESTCASE=test_boundary_n8)
 # VCD=1 enables waveform dump to dump.vcd (via -DVCD_DUMP compile flag)
+# SIM=verilator  uses Verilator (faster; requires verilator ≥5 and perl-FindBin)
+#                Falls back to iverilog if not specified.
 COCOTB_TESTCASE_ENV = $(if $(TESTCASE),COCOTB_TESTCASE=$(TESTCASE))
 IVFLAGS_VCD         = $(if $(VCD),-DVCD_DUMP -s vcd_dump)
+
+# SIM=verilator enables Verilator backend (requires: perl-FindBin, verilator ≥5.x)
+# Usage: make test_data_integrity_rtl SIM=verilator
+SIM ?= icarus
+ifeq ($(SIM),verilator)
+  VERILATOR_FLAGS = --cc --exe --build -j 0 --timing
+  COCOTB_SIM = verilator
+else
+  COCOTB_SIM = icarus
+endif
 
 test_data_integrity_rtl: $(SIM_BUILD)
 	@echo "=== Running Data Integrity RTL Test ==="

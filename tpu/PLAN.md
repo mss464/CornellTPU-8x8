@@ -143,15 +143,17 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 - **Compiler (modify):** `compiler/assembler.py` — new mnemonic
 - **Dependency:** P1.2 (L2 tile must exist).
 
-### P1.4: RTL Correctness: DMA Write+Read Corruption (Root Cause Known)
-- **Goal:** Fix two compounding DMA bugs causing board smoke test to fail with +2 shift and element duplication.
-- **Root cause (identified 2026-02-26, see PROGRESS.md and docs/memory_hierarchy.md §6–7):**
-  - **Bug A** (`tpu_slave_axi_stream.v`): IDLE→WRITE_FIFO reset stall causes `wea` to fire before `write_pointer_stream` increments. `data[0]` is overwritten by `data[1]` at address 0. Fix: gate `wea` on `fifo_wren` (AXI handshake), not just `data_write_en`.
-  - **Bug B** (`tpu_master_axi_stream.v`): FIFO registered-read boundary duplicate. `axis_tvalid` deasserts 1 cycle late relative to `fifo_empty`, causing DMA to receive last FIFO word twice. Fix: gate `axis_tvalid` using `fifo_one_left` (same early-deassert pattern already used for `tlast`).
-- **RTL (modify):** `src/system/tpu_slave_axi_stream.v` — gate wea on fifo_wren
-- **RTL (modify):** `src/system/tpu_master_axi_stream.v` — gate axis_tvalid on fifo_one_left
-- **Verification (modify):** `verification/system/test_tpu.py` — add boundary-size transfer tests (N=8, N=9, N=16) to catch both bugs in simulation
-- **Board:** rebuild bitstream after RTL fix and re-run `make smoke-board`
+### P1.4: RTL Correctness: DMA Write+Read Corruption (PARTIALLY RESOLVED)
+- **Resolution (2026-02-27):**
+  - **Bug A** (slave write stall): RESOLVED. Gate `dma_wr_en` on `stream_data_valid` in `tpu.sv` line 457. Sim confirms first element preserved.
+  - **Bug B** (master FIFO boundary duplicate): DOES NOT EXIST in RTL. `valid_d1` and `rd_data` are inherently aligned (both 1-cycle delayed from `rd_en`). The `!fifo_empty` gate attempted in P1.4 was wrong — it dropped the last word. Reverted to `assign M_AXIS_TVALID = valid_d1`.
+  - **Board +2 shift:** Root cause is NOT Bug B. Suspect list: BRAM output register (Vivado IP cache), PS DMA timing, clock domain mismatch. Requires board-level investigation.
+  - **Sim:** 4 boundary tests (N=8, N=9, N=16, known values) all pass. 11/11 system tests pass.
+- **RTL (modified):** `src/system/tpu.sv` — `dma_wr_en = data_write_en && stream_data_valid`
+- **RTL (modified):** `src/system/tpu_slave_axi_stream.v` — `reset <= 1'b0` on IDLE→WRITE_FIFO
+- **RTL (reverted):** `src/system/tpu_master_axi_stream.v` — `M_AXIS_TVALID = valid_d1` (no `!fifo_empty` gate)
+- **Verification (added):** `verification/system/test_tpu.py` — boundary tests N=8, N=9, N=16
+- **Board:** bitstream rebuild needed; board +2 shift still open (different root cause)
 
 ### P1.5: L2 ↔ Device Memory TMA Instruction
 - **Goal:** Design a TMA (Tensor Memory Access) instruction for L2↔DevMem transfers.
@@ -172,9 +174,62 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 - **Docs (modify):** `docs/tuda.md` — update programming model for new memory hierarchy
 - **Note:** ISA changes must be coordinated between RTL (`decoder.sv`) and compiler (`assembler.py`).
 
+### P1.7: Verification Infrastructure Overhaul
+- **Goal:** Make sim practical for iterative RTL development. Current cocotb + iverilog gives ~5k cycles/sec.
+- **Depends:** None (independent infrastructure work).
+- **Sub-tasks (file-independent → can run in parallel worktrees):**
+
+| # | Sub-task | File(s) | Impact |
+|---|----------|---------|--------|
+| 1 | Drop N=64, keep N≤16 + boundary N=8/9 (DONE) | `test_tpu.py` | 5× speedup |
+| 2 | Fix Verilator (`perl-FindBin`), add `SIM=verilator` to Makefile | system `Makefile` | 10-50× speedup |
+| 3 | `TESTCASE=` and `VCD=` selectors in Makefile (DONE) | system `Makefile` | Dev iteration |
+| 4 | Replace manual AXI with `cocotbext-axi` (`AXIStreamSource/Sink`) | `test_tpu.py` | 3-5× fewer VPI crossings |
+| 5 | Unit-level stream tests: `test_slave_stream.py`, `test_master_stream.py` | new files + Makefile | 10× faster compile, isolated |
+| 6 | Conda environment (`environment.yml`) + `make setup` (DONE) | root `environment.yml`, `tpu/Makefile` | Reproducibility |
+
+- Sub-tasks 1, 2, 3, 5, 6 are file-independent → run in parallel worktrees.
+- Sub-task 4 touches `test_tpu.py` (shared with 1) → run sequentially after 1.
+
+### P1.8: Descriptor-Based DMA Engine
+- **Goal:** Replace host-polled control flow with autonomous descriptor-driven transfers.
+- **Depends:** P1.4 (DMA correctness).
+- **Problem:** Current design requires O(N) AXI-Lite reads in `wait_for_flag` per transfer. Each burns ~5-10 VPI round-trips in sim and MMIO overhead on board.
+- **Fix:** Command descriptor model:
+  1. Host writes 3-word descriptor (mode, base_addr, length) to register window
+  2. Host asserts `doorbell` bit
+  3. Hardware sequences full transfer autonomously
+  4. Hardware asserts `done` flag/interrupt on completion
+  5. Host polls once or uses interrupt
+- **RTL (modify):** `src/system/tpu.sv` — descriptor-driven sequencer replaces polled FSM
+- **RTL (modify):** `src/system/tpu_slave_axi_lite.v` — doorbell register, descriptor window
+- **Impact:** Sim goes from O(N²) to O(N) VPI crossings per transfer. Board eliminates MMIO polling overhead. Enables compute/DMA overlap.
+
 ---
 
 ## P2 — Medium-Term: Multi-Tile Mesh
+
+### P2.07: Deepen AXI-Stream FIFO
+- **Goal:** Parameterize `fifo4` depth and decouple prefetch window from FIFO capacity.
+- **Depends:** P1.4 (DMA correctness).
+- **Problem:** `fifo4` depth=8 is hardcoded. Prefetch window `count <= 8` creates fragile coupling. Backpressure stalls at high throughput.
+- **Fix:**
+  - Parameterize: `fifo4 #(.WIDTH(32), .DEPTH(64))`
+  - Decouple: `localparam PREFETCH_DEPTH` auto-derived from FIFO depth
+  - Use one BRAM slice (512-deep at 32-bit) for sustained 1-word/cycle throughput
+- **RTL (modify):** `src/system/fifo4.sv`, `src/system/tpu_master_axi_stream.v`
+- **Verification (modify):** `verification/compute_tile/test_fifo4.py` — parameterized depth tests
+
+### P2.08: Separate DMA and Compute FSMs
+- **Goal:** Factor the monolithic `tpu.sv` FSM into independent sub-FSMs for overlapped execution.
+- **Depends:** P1.8 (descriptor-based DMA).
+- **Problem:** Modes 1–8 are mutually exclusive in one FSM. Compute (mode 3) cannot overlap DMA (mode 1/2). All modes funnel through one combinational priority.
+- **Fix:** Independent sub-FSMs:
+  - DMA FSM (modes 1/2, 5/6) — owns AXI-Stream + device_mem Port A
+  - Compute FSM (mode 3/4) — owns tensorcore + L1 Port A
+  - L2 FSM (modes 7/8) — owns L2 Port A + L1 DMA port
+  - Top-level thin arbiter dispatches descriptors, tracks completion
+- **RTL (modify):** `src/system/tpu.sv` → split + new `src/system/dma_engine.sv`, `src/system/compute_ctrl.sv`
 
 ### P2.05: MXU Pipelined Burst Mode
 - **Goal:** Refactor `mxu.sv` from per-element `MEM_LATENCY` wait to true pipelined burst reads.

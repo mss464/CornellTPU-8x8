@@ -457,7 +457,11 @@ always override it to 0 on the transition OUT of IDLE, or use begin-end blocks.
 
 | Issue | Location | Priority |
 |---|---|---|
-| Scalar VPU ops are NOPs | `vpu_simd.sv` | P1 |
-| DMA off-by-one on large matmuls | `write/read_pointer_stream` | P2 |
-| Subnormals (<1.18e-38) cause bus errors | FP32 units | P2 |
-| MXU reads at ~33% peak (per-element wait) | `mxu.sv` | P1 |
+| Subnormals (<1.18e-38) cause bus errors | FP32 units | P3 |
+| MXU per-element stall (no pipelined burst) | `mxu.sv` | P3 |
+| Board +2 shift (requires hardware investigation) | DMA path | P1 |
+
+Resolved issues (removed from table):
+- Scalar VPU ops → RESOLVED in P2.06 (2026-02-27)
+- MXU ~33% peak → PARTIALLY RESOLVED in P2.05 (MEM_LATENCY 3→1, 3× speedup; true burst is P3)
+- DMA off-by-one → likely resolved by master stream rewrite (2026-02-27); needs board verification

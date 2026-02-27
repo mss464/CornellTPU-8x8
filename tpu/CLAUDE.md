@@ -82,7 +82,7 @@ tpu/
 │   │   ├── tpu_slave_axi_lite.v      AXI-Lite register slave (host → ctrl regs)
 │   │   ├── tpu_slave_axi_stream.v    AXI-Stream sink (DMA write path)
 │   │   ├── tpu_master_axi_stream.v   AXI-Stream source (DMA read path)
-│   │   ├── fifo4.sv                  4-entry shallow FIFO (used by master stream)
+│   │   ├── fifo4.sv                  FWFT synchronous FIFO (depth=64, used by master stream)
 │   │   └── device_mem.sv             Device memory BRAM (host DMA target)
 │   │
 │   ├── l2_tile/           ← L2 shared SRAM tile
@@ -178,9 +178,7 @@ tpu/
 | Device memory size | 65536 × 32-bit words | blk_mem_gen_2 in device_mem.sv / blk_mem_models.sv |
 | L2 SRAM size | 32768 × 32-bit words | blk_mem_gen_3 in l2_tile.sv / blk_mem_models.sv |
 | BRAM read latency | **1 cycle** (registered output) | blk_mem_models.sv `always@(posedge clka)` |
-| FIFO depth | 8 entries | fifo4.sv |
-| INIT_COUNTER prefetch | 8 words | C_M_START_COUNT=32, count<=8 |
-| FP32 clamp range | [1e-20, 1e20] | compute_tile.sv |
+| FIFO depth | 64 entries (parameterized) | fifo4.sv `DEPTH=64` |
 
 ### BRAM Latency — Critical Detail
 
@@ -193,20 +191,17 @@ always @(posedge clka) if (ena) douta <= mem[addra];
 ```
 
 Any module that reads BRAM must pipeline data signals by exactly 1 cycle, NOT 3.
-`tpu_master_axi_stream.v` uses `valid_data` (0-cycle extra delay) for `fifo_wr_en`.
-
-`BRAM_READ_LATENCY = 1` is declared as a localparam in `tpu_master_axi_stream.v` for reference.
-If using output-registered BRAM (2 pipeline stages total), update it to 2 and add a
-shift-register on `valid_data` accordingly.
+`tpu_master_axi_stream.v` tracks this with a `bram_reading → bram_data_valid` shift register:
+address presented on cycle N → `bram_data_valid` asserts on cycle N+1 → FIFO captures data.
 
 ---
 
 ## Design Pitfalls
 
-### 1. IDLE→State Reset Signal Pattern
+### 1. IDLE→State Reset Signal Pattern (`tpu_slave_axi_stream.v`)
 
-Both `tpu_master_axi_stream.v` and `tpu_slave_axi_stream.v` use a `reset` register
-that stays HIGH during IDLE. The FSM has a **missing `begin`/`end` after `else`**:
+`tpu_slave_axi_stream.v` uses a `reset` register that stays HIGH during IDLE.
+The FSM has a **missing `begin`/`end` after `else`**:
 
 ```verilog
 always @(posedge clk) begin
@@ -224,8 +219,8 @@ always @(posedge clk) begin
 end
 ```
 
-**Problem:** On IDLE→NextState transition, Block 2's IDLE case assigns `reset <= 1'b1` as
-an NBA. Block 1 (which checks `if(!ARESETN || reset)`) fires the reset branch at the FIRST
+**Problem:** On IDLE→NextState transition, the IDLE case assigns `reset <= 1'b1` as
+an NBA. The block that checks `if(!ARESETN || reset)` fires the reset branch at the FIRST
 cycle of NextState, wasting one cycle (e.g., `write_pointer_stream` doesn't increment,
 causing the second value to overwrite address 0).
 
@@ -240,9 +235,11 @@ IDLE: begin
 end
 ```
 
-Applied in:
-- `tpu_slave_axi_stream.v` line 123: explicit `reset <= 1'b0` on IDLE→WRITE_FIFO
-- `tpu_master_axi_stream.v`: `count <= 8` (not `< 8`) workaround for INIT_COUNTER prefetch
+Applied in `tpu_slave_axi_stream.v` line 123: explicit `reset <= 1'b0` on IDLE→WRITE_FIFO.
+
+**Note:** `tpu_master_axi_stream.v` was fully rewritten (2026-02-27) and no longer has this
+pattern. It uses a clean 3-state FSM (IDLE → FILL → STREAM) with explicit `fifo_flush`
+instead of the `reset` register trick.
 
 ### 2. AXI-Stream Write Handshake Timing
 
@@ -260,7 +257,6 @@ increments on the cycle when `fifo_wren` fires.
 cd tpu
 make smoke-sim          # 3 system tests: data_integrity, device_mem, l2_tile
 make smoke-sim-full     # + compute unit tests + compiler smoke
-make smoke-board        # board: DEADBEEF roundtrip (requires FPGA)
 
 # Unit tests (compute_tile submodules)
 cd tpu/verification/compute_tile
@@ -293,19 +289,26 @@ Use `/tpu-smoke` for quick PASS/FAIL output. Use `/tpu-test` for verbose output 
 
 ## Key Design Notes
 
-### init_fill_valid (tpu_master_axi_stream.v)
-- AXI-Stream master pre-fills an internal FIFO during `INIT_COUNTER` phase.
-- Condition: `count <= 8 && count <= N`. Fires immediately — BRAM already holds `data[0]` at `addr=0` during IDLE.
-- `count <= 8` (not `< 8`) because Block 1 sees `count=1` on its first INIT_COUNTER cycle
-  (the IDLE→INIT_COUNTER edge has `reset=1`, stalling Block 1 for one cycle while
-  Block 2's counter advances).
-- If you change BRAM latency, this window must shift by the same number of cycles.
+### Master AXI-Stream Architecture (tpu_master_axi_stream.v)
+
+Rewritten 2026-02-27. Clean 3-state FSM: **IDLE → FILL → STREAM**.
+
+- **FILL** state pre-fills the FWFT FIFO with ~2-4 BRAM words before streaming begins.
+  BRAM has 1-cycle latency (address on cycle N → data valid cycle N+1). The FIFO absorbs
+  this latency naturally; no startup counter needed.
+- **STREAM** continues BRAM reads in parallel with AXI handshakes. Flow-control via
+  `fifo_almost_full` prevents overflow. `beats_sent` counter drives TLAST/done.
+- **M_AXIS_TKEEP** = all-ones whenever TVALID (required by Xilinx DMA S2MM).
+- **FWFT FIFO** (`fifo4.sv`, depth=64): `rd_data` valid combinationally when `!empty`.
+  No pipeline stage between FIFO and AXI output. Synchronous `flush` port clears on IDLE.
+- **Rising-edge detector** on `read_en` prevents re-trigger race when FSM returns to IDLE
+  while `dma_read_en` is still high.
 
 ### Architecture Direction (Tensix-Inspired)
 
 **Reference:** Tenstorrent Tensix (system-level; tile-level design differs).
 
-**Memory hierarchy:** L1 (per compute tile, `scratchpad.sv`) ↔ L2 (separate tile) ↔ Device Memory (DDR/HBM).
+**Memory hierarchy:** L1 (per compute tile, `l1.sv`) ↔ L2 (separate tile) ↔ Device Memory (DDR/HBM).
 Data movement across this hierarchy is TPU-initiated via instructions, NOT host-initiated.
 
 - **L1 ↔ L2:** Simple communication instruction (new ISA instruction)
@@ -317,6 +320,6 @@ Data movement across this hierarchy is TPU-initiated via instructions, NOT host-
 **MVP target:** 2×2 mesh of compute tiles + L2 tile underneath, connected via AXI NoC.
 Control tile distributes host signals over NoC. All scheduling is static.
 
-**L2 is NOT a second BRAM in `scratchpad.sv`** — it is a separate tile (`src/l2_tile/l2_tile.sv`).
+**L2 is NOT a second BRAM in `l1.sv`** — it is a separate tile (`src/l2_tile/l2_tile.sv`).
 
 See `PLAN.md` for full task breakdown (P1 = single tile + device memory, P2 = multi-tile mesh).

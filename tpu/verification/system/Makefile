@@ -119,3 +119,6 @@ $(SIM_BUILD):
 
 clean:
 	rm -rf $(SIM_BUILD) $(WAVEFORMS)/*.vcd results.xml __pycache__ *.vcd
+
+.PHONY: test_data_integrity_rtl test_device_mem test_l2_tile test_tpu_compute
+.PHONY: test_slave_stream test_master_stream clean

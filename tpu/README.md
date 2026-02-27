@@ -66,7 +66,7 @@ The TensorCore is the heart of the TPU, implemented in portable SystemVerilog.
                                 │     │  ├─ blk_mem_gen_1 (I-BRAM)             │
                                 │     │  ├─ mxu.sv (Systolic Array)            │
                                 │     │  └─ vpu_simd.sv (Vector ALU)           │
-                                │     ├─ scratchpad.sv (Data BRAM)             │
+                                │     ├─ l1.sv (Data BRAM)                     │
                                 │     └─ TODO: router.sv                       │
                                 └──────────────────────────────────────────────┘
 ```
@@ -74,7 +74,7 @@ The TensorCore is the heart of the TPU, implemented in portable SystemVerilog.
 ### Core Components
 
 - **TensorCore (`tensorcore.sv`)**: Central controller; includes PC, Decoder, and Instruction BRAM.
-- **Compute Tile (`compute_tile.sv`)**: Wrapper for TensorCore and Scratchpad memory, providing a unified DMA interface.
+- **Compute Tile (`compute_tile.sv`)**: Wrapper for TensorCore and L1 data memory, providing a unified DMA interface.
 - **Matrix Unit (`mxu.sv`)**: 4×4 weight-stationary systolic array.
 - **SIMD Unit (`vpu_simd.sv`)**: Vector processing unit for element-wise operations (ReLU, etc.).
 

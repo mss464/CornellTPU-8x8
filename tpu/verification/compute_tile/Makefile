@@ -68,10 +68,6 @@ SRC_VPU = $(TPU_DIR)/vpu.sv $(SRC_VPU_OP)
 SRC_VEC_REGFILE = $(TPU_DIR)/vec_regfile.sv
 SRC_VPU_SIMD = $(TPU_DIR)/vpu_simd.sv $(SRC_VPU_OP) $(SRC_VEC_REGFILE)
 
-# Integrated Modules
-SRC_TENSORCORE = $(TPU_DIR)/tensorcore.sv $(SRC_PC) $(SRC_DECODER) $(SRC_MXU) $(SRC_VPU_SIMD) $(WRAPPERS)/blk_mem_models.sv
-SRC_COMPUTE_TILE = $(TPU_DIR)/compute_tile.sv $(SRC_TENSORCORE) $(SRC_BRAM)
-
 # All sources for comprehensive tests (deduplicated)
 SRC_CORE = $(SRC_PC) $(SRC_DECODER) $(SRC_FP32)
 SRC_TENSORCORE = $(TPU_DIR)/tensorcore.sv \

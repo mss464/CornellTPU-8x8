@@ -30,8 +30,7 @@ module tpu #
     parameter integer C_S00_AXI_DATA_WIDTH  = 32,
     parameter integer C_S00_AXI_ADDR_WIDTH  = 6,
     parameter integer C_S00_AXIS_TDATA_WIDTH = 32,
-    parameter integer C_M00_AXIS_TDATA_WIDTH = 32,
-    parameter integer C_M00_AXIS_START_COUNT = 32
+    parameter integer C_M00_AXIS_TDATA_WIDTH = 32
 )
 (
     // AXI-Lite slave
@@ -72,6 +71,7 @@ module tpu #
     output wire        m00_axis_tvalid,
     output wire [C_M00_AXIS_TDATA_WIDTH-1:0] m00_axis_tdata,
     output wire [(C_M00_AXIS_TDATA_WIDTH/8)-1:0] m00_axis_tstrb,
+    output wire [(C_M00_AXIS_TDATA_WIDTH/8)-1:0] m00_axis_tkeep,
     output wire        m00_axis_tlast,
     input  wire        m00_axis_tready
 );
@@ -334,19 +334,19 @@ module tpu #
     // AXI-Stream master (DMA read)
     // =========================================================================
     tpu_master_axi_stream #(
-        .C_M_AXIS_TDATA_WIDTH(C_M00_AXIS_TDATA_WIDTH),
-        .C_M_START_COUNT     (C_M00_AXIS_START_COUNT)
+        .C_M_AXIS_TDATA_WIDTH(C_M00_AXIS_TDATA_WIDTH)
     ) tpu_master_axi_stream_inst (
         .M_AXIS_ACLK    (m00_axis_aclk),
         .M_AXIS_ARESETN (m00_axis_aresetn),
         .M_AXIS_TVALID  (m00_axis_tvalid),
         .M_AXIS_TDATA   (m00_axis_tdata),
         .M_AXIS_TSTRB   (m00_axis_tstrb),
+        .M_AXIS_TKEEP   (m00_axis_tkeep),
         .M_AXIS_TLAST   (m00_axis_tlast),
         .M_AXIS_TREADY  (m00_axis_tready),
         .data_to_ddr    (devmem_rd_data),
         .len            (dma_len),
-        .read_en        (dma_start_stream),
+        .read_en        (dma_read_en),
         .done           (read_bram_done),
         .read_pointer_stream(read_pointer)
     );

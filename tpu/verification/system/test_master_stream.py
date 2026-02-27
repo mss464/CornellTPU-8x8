@@ -7,28 +7,21 @@ Port reference (tpu_master_axi_stream.v):
   Inputs:  M_AXIS_ACLK, M_AXIS_ARESETN, M_AXIS_TREADY,
            data_to_ddr[31:0], len[31:0], read_en
   Outputs: M_AXIS_TVALID, M_AXIS_TDATA[31:0], M_AXIS_TSTRB[3:0],
-           M_AXIS_TLAST, done, read_pointer_stream[15:0]
+           M_AXIS_TKEEP[3:0], M_AXIS_TLAST, done, read_pointer_stream[15:0]
 
-Timing model (from RTL):
-  - IDLE → INIT_COUNTER when read_en pulses high for one clock.
-  - INIT_COUNTER: runs C_M_START_COUNT-1 = 31 cycles (count 0..30).
-    During this phase, for count 1..min(8,N) the FIFO is pre-filled
-    (init_fill_valid=1) and read_pointer_stream advances to pre-fetch
-    BRAM words. data_to_ddr must hold the word for the address the DUT
-    presented on the PREVIOUS rising edge (1-cycle BRAM latency model).
-  - SEND_STREAM: axis_tvalid = (state==SEND_STREAM) && !fifo_empty.
-    M_AXIS_TVALID = valid_d1 (one additional cycle delayed).
-    M_AXIS_TDATA = fifo_rd_data (registered FIFO read, 1 cycle after rd_en).
-    read_pointer_stream advances on every fifo_rd_en.
-  - tx_done asserts when read_pointer_stream >= N and fifo_empty.
+Timing model (from rewritten RTL):
+  - IDLE → FILL on read_en rising edge (no INIT_COUNTER delay).
+  - FILL: issues BRAM reads (read_pointer_stream increments); waits for
+    FIFO to have at least 1 entry (!fifo_empty) → STREAM.
+  - STREAM: drives AXI handshake from FWFT FIFO. TVALID = !fifo_empty.
+    TDATA = fifo_rd_data (combinational). Continues BRAM reads in parallel.
+    beats_sent counts handshakes. TLAST on last beat. done → IDLE.
 
 Driving strategy:
-  - After every RisingEdge, read read_pointer_stream and drive data_to_ddr
-    with mem[ptr].  This models a 0-cycle combinatorial BRAM (no pipeline).
-    The RTL samples data_to_ddr at the next posedge via fifo_wr_data, which
-    creates the effective 1-cycle latency the hardware expects.
-  - Outputs (M_AXIS_TVALID, M_AXIS_TDATA, done) are read after the same
-    RisingEdge using .value (registered outputs, stable after posedge).
+  After each RisingEdge, read read_pointer_stream and drive data_to_ddr
+  with mem[ptr]. This models a 0-cycle combinatorial BRAM (no pipeline).
+  The RTL's internal BRAM latency tracking (bram_data_valid) creates the
+  effective 1-cycle latency the hardware expects.
 """
 
 import struct
@@ -66,12 +59,10 @@ async def run_master_transfer(dut, mem, n, timeout_cycles=500):
     Returns list of received M_AXIS_TDATA words in order.
 
     Driving protocol:
-      After each RisingEdge we:
+      After every RisingEdge we:
         1. Read read_pointer_stream (registered output, stable post-posedge).
         2. Drive data_to_ddr with mem[ptr] for the NEXT cycle.
-        3. Check M_AXIS_TVALID / M_AXIS_TDATA / done.
-      This models a 0-cycle combinatorial lookup from the testbench side;
-      the RTL's internal FIFO write path creates the effective latency.
+        3. Check M_AXIS_TVALID / M_AXIS_TDATA / M_AXIS_TKEEP / done.
     """
     dut.len.value = n
     dut.read_en.value = 1
@@ -86,13 +77,17 @@ async def run_master_transfer(dut, mem, n, timeout_cycles=500):
         ptr    = int(dut.read_pointer_stream.value)
         tvalid = int(dut.M_AXIS_TVALID.value)
         tready = int(dut.M_AXIS_TREADY.value)
-        tdata  = int(dut.M_AXIS_TDATA.value)
         done   = int(dut.done.value)
 
         # Drive data_to_ddr for the next cycle based on current pointer
         dut.data_to_ddr.value = int(mem.get(ptr, 0))
 
         if tvalid and tready:
+            tdata = int(dut.M_AXIS_TDATA.value)
+            tkeep = int(dut.M_AXIS_TKEEP.value)
+            # Verify TKEEP is all-ones on every valid beat
+            assert tkeep == 0xF, \
+                f"TKEEP should be 0xF on valid beat, got {tkeep:#x}"
             results.append(tdata)
 
         if done:
@@ -128,6 +123,7 @@ async def test_master_read_n8(dut):
     Verifies:
       - Correct number of words received (8)
       - Data values match the behavioural memory model
+      - TKEEP driven on every beat
     """
     cocotb.start_soon(Clock(dut.M_AXIS_ACLK, 10, units="ns").start())
     await reset_dut(dut)

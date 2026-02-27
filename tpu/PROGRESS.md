@@ -5,6 +5,51 @@ See `PLAN.md` for goals and `CLAUDE.md` for agent working notes / hardware quirk
 
 ---
 
+## 2026-02-27 — Sim Infrastructure + DMA Bug B Reanalysis
+
+**Status: Complete**
+
+### Bug B reanalysis
+
+The `!fifo_empty` gate on `M_AXIS_TVALID` (added 2026-02-26) was **wrong** — it drops the last word because `fifo_empty` and `rd_data`/`valid_d1` update in the same NBA cycle. The last valid `rd_data` appears exactly when `fifo_empty` goes HIGH after the final `rptr` NBA.
+
+**Finding: Bug B does NOT exist in RTL.** `valid_d1` and `rd_data` are inherently aligned (both 1-cycle delayed from `rd_en`), so no duplicate occurs. Reverted to `assign M_AXIS_TVALID = valid_d1`. All 4 boundary tests (N=8, N=9, N=16, known values) pass.
+
+The board +2 shift has a different root cause. Suspect list:
+1. BRAM output register: Vivado IP cache may retain 2-cycle config despite TCL change
+2. PS DMA timing: Zynq `xlnk.cma_array` handshake differs from cocotb
+3. Clock domain: three separate cocotb clocks vs. one hardware clock
+
+### Sim infrastructure changes
+
+1. **`environment.yml`** (new): conda env spec — python 3.9, cocotb>=2.0, cocotbext-axi, numpy
+2. **`tpu/Makefile`**: added `make setup` target for conda env creation
+3. **`test_tpu.py`**: dropped N=64 from `test_data_integrity` (was ~80% of sim cost)
+4. **System `Makefile`**: added `TESTCASE=` (→ `COCOTB_TESTCASE`) and `VCD=1` (→ `-DVCD_DUMP`) selectors
+5. **`blk_mem_models.sv`**: added conditional `vcd_dump` module (`ifdef VCD_DUMP`)
+
+### Sim performance
+
+| Before | After |
+|--------|-------|
+| ~4,622 cycles/sec, N=64 test alone ~80 min | ~40,000 ns/s, full 4-test suite in 0.19s |
+
+### PLAN.md updates
+
+Added new P-tasks: P1.7 (Verification Infrastructure Overhaul), P1.8 (Descriptor-Based DMA Engine), P2.07 (Deepen AXI-Stream FIFO), P2.08 (Separate DMA and Compute FSMs).
+
+### Regression results
+
+| Suite | Tests | Result |
+|-------|-------|--------|
+| `test_data_integrity_rtl` | 4 | PASS |
+| `test_device_mem` | 3 | PASS |
+| `test_l2_tile` | 4 | PASS |
+
+Files changed: `environment.yml`, `tpu/Makefile`, `tpu/verification/system/Makefile`, `tpu/verification/system/test_tpu.py`, `tpu/src/system/tpu_master_axi_stream.v`, `tpu/verification/compute_tile/wrappers/blk_mem_models.sv`, `tpu/PLAN.md`, `tpu/PROGRESS.md`
+
+---
+
 ## 2026-02-26 — P1.4: Board Smoke Test Debugging (In Progress)
 
 **Status: Root cause identified, fix pending**

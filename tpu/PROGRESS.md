@@ -5,6 +5,56 @@ See `PLAN.md` for goals and `CLAUDE.md` for agent working notes / hardware quirk
 
 ---
 
+## 2026-02-27 — P1.5/P1.6/P1.7/P2.07 Parallel Task Completion
+
+**Status: Complete**
+
+All planned tasks resolved in parallel via four isolated git worktree agents. Baseline: 3/3 smoke tests passing throughout.
+
+### P1.5: TMA Instruction End-to-End Test (RESOLVED)
+
+RTL was already fully implemented (`decoder.sv` MODE=2, `tensorcore.sv` EXEC_TMA/WAIT_TMA, `tma_engine.sv`, `l2_tile.sv`, `tpu.sv` wiring). Added missing system-level test:
+- `verification/system/test_tpu_compute.py`: added `encode_tma_instr()` helper and `test_tma_instruction_in_kernel` test
+- Test flow: host→DevMem[32:39] → TMA kernel (MODE=2, dm_base=32, l2_base=0, len=8) → L2→L1→L2→DevMem[100:107]→host; verify [10.0..17.0]
+- Result: TESTS=3 PASS=3 FAIL=0 (identity kernel, VADD kernel, TMA kernel)
+- PLAN.md: P1.5 marked RESOLVED
+
+### P1.6: ISA Documentation Overhaul (RESOLVED)
+
+- `docs/isa.md`: MODE=2 changed from RESERVED→TMA; added full TMA section (field table, semantics, constraints, example, mnemonic `tma <dir> <dm_base> <l2_base> <len>`)
+- `docs/system.md`: added TMA instruction note after mode table
+- PLAN.md: P1.6 marked RESOLVED
+
+### P1.7-5: Unit-Level AXI-Stream Tests (DONE)
+
+New standalone unit tests compile only the DUT (not the full 20-file tpu top):
+- `verification/system/test_slave_stream.py`: 3 tests for `tpu_slave_axi_stream` (n=1, n=4, n=8 Bug A regression) — TESTS=3 PASS=3 FAIL=0
+- `verification/system/test_master_stream.py`: 3 tests for `tpu_master_axi_stream` + `fifo4` (n=1, n=4, n=8) — TESTS=3 PASS=3 FAIL=0
+- `verification/system/Makefile`: added `test_slave_stream` and `test_master_stream` targets
+- Sim time: ~210ns and ~1230ns respectively (~10× faster compile than full system)
+- Key finding: slave `C_S_AXIS_TDATA_WIDTH=64` so tdata is 64-bit; data_to_bram is lower 32 bits
+
+### P2.07: Parameterize fifo4 DEPTH (RESOLVED)
+
+- `src/system/fifo4.sv`: added `DEPTH=8` parameter; derived `PTR_W = $clog2(DEPTH)+1`; all hardcoded indices/widths replaced
+- `src/system/tpu_master_axi_stream.v`: added `localparam FIFO_DEPTH=8`; instantiation uses `#(.WIDTH(32), .DEPTH(FIFO_DEPTH))`
+- No functional change at DEPTH=8; all 7 fifo4 unit tests pass; smoke 3/3 pass
+
+### P1.7-2: SIM= Makefile selector (DONE)
+
+- `verification/system/Makefile`: added `SIM ?= icarus` variable block with `ifeq ($(SIM),verilator)` conditional; documented alongside TESTCASE=/VCD= comment block
+
+### Files changed
+`verification/system/test_tpu_compute.py`, `verification/system/test_slave_stream.py` (new), `verification/system/test_master_stream.py` (new), `verification/system/Makefile`, `src/system/fifo4.sv`, `src/system/tpu_master_axi_stream.v`, `docs/isa.md`, `docs/system.md`, `PLAN.md`
+
+### Commits
+- `341da41` doc) P1.6 ISA documentation overhaul
+- `8432201` feat) P2.07 + P1.7-2 — parameterize FIFO depth, add SIM= Makefile selector
+- `4e3ad62` feat) P1.5 TMA instruction — add end-to-end system test + mark RESOLVED
+- `c1655f4` feat) P1.7-5 unit stream tests — test_slave_stream + test_master_stream
+
+---
+
 ## 2026-02-27 — Sim Infrastructure + DMA Bug B Reanalysis
 
 **Status: Complete**

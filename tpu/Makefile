@@ -215,8 +215,9 @@ board-test:
 	DEPLOY_TMP="$$(mktemp -d /tmp/tpu_deploy.XXXXXX)"; \
 	trap 'rm -rf "$$DEPLOY_TMP"' EXIT; \
 	mkdir -p "$$DEPLOY_TMP/runtime"; \
-	cp runtime/pynq_host.py "$$DEPLOY_TMP/runtime/"; \
-	cp runtime/__init__.py "$$DEPLOY_TMP/runtime/"; \
+	cp -r runtime/. "$$DEPLOY_TMP/runtime/"; \
+	find "$$DEPLOY_TMP/runtime" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true; \
+	find "$$DEPLOY_TMP/runtime" -name '*.pyc' -delete 2>/dev/null || true; \
 	cp "$$PROGRAM_ABSPATH_PATH" "$$DEPLOY_TMP/"; \
 	if [[ -f "$(ROOT)/hw_config.json" ]]; then cp "$(ROOT)/hw_config.json" "$$DEPLOY_TMP/"; fi; \
 	for extra in $(EXTRA_FILES); do \
@@ -244,7 +245,7 @@ tpu:
 #==============================================================================
 # SMOKE TESTS
 #==============================================================================
-.PHONY: smoke-sim smoke-sim-full smoke-board
+.PHONY: smoke-sim smoke-sim-full smoke-board board-tests
 
 smoke-sim:
 	@bash scripts/smoke_test.sh --sim
@@ -252,12 +253,33 @@ smoke-sim:
 smoke-sim-full:
 	@bash scripts/smoke_test.sh --sim-full
 
-
-PROGRAM="../demos/programs/mlp.tu"
+SMOKE_PROGRAM ?= ../demos/programs/smoke_board.tu
 
 smoke-board:
 	@$(MAKE) board-test \
-		PROGRAM_ABSPATH="$(abspath $(PROGRAM))"
+		PROGRAM_ABSPATH="$(abspath $(SMOKE_PROGRAM))"
+
+# Run the offline board test suite (runtime/board_tests/test_board.py).
+# Usage: make board-tests [BOARD_TEST_ARGS="--test devmem_rw_small --verbose"]
+BOARD_TEST_ARGS ?=
+board-tests:
+	@set -euo pipefail; \
+	require() { command -v "$$1" >/dev/null 2>&1 || { echo "Missing required tool: $$1" >&2; exit 1; }; }; \
+	require ssh; require scp; require sshpass; \
+	cd "$(PROJECT_ROOT)"; \
+	SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"; \
+	DEPLOY_TMP="$$(mktemp -d /tmp/tpu_deploy.XXXXXX)"; \
+	trap 'rm -rf "$$DEPLOY_TMP"' EXIT; \
+	mkdir -p "$$DEPLOY_TMP/runtime"; \
+	cp -r runtime/. "$$DEPLOY_TMP/runtime/"; \
+	find "$$DEPLOY_TMP/runtime" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true; \
+	find "$$DEPLOY_TMP/runtime" -name '*.pyc' -delete 2>/dev/null || true; \
+	if [[ -f "$(ROOT)/hw_config.json" ]]; then cp "$(ROOT)/hw_config.json" "$$DEPLOY_TMP/"; fi; \
+	sshpass -p "$(BOARD_PASS)" ssh $$SSH_OPTS "$(BOARD_USER)@$(BOARD_IP)" "mkdir -p $(DEPLOY_DIR)"; \
+	sshpass -p "$(BOARD_PASS)" scp -r $$SSH_OPTS "$$DEPLOY_TMP"/* "$(BOARD_USER)@$(BOARD_IP):$(DEPLOY_DIR)/"; \
+	echo "== Running board_tests/test_board.py on board =="; \
+	sshpass -p "$(BOARD_PASS)" ssh -t $$SSH_OPTS "$(BOARD_USER)@$(BOARD_IP)" \
+	"cd $(DEPLOY_DIR) && echo $(BOARD_PASS) | sudo -S python3 runtime/board_tests/test_board.py $(BOARD_TEST_ARGS)"
 
 clean: clean-compute_tile
 	@if [ "$(TARGET)" = "ultra96-v2" ]; then \

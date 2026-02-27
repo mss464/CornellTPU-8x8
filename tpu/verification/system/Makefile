@@ -1,14 +1,23 @@
 # Makefile for TPU System RTL Tests
 IVERILOG = iverilog
 VVP = vvp
-COCOTB_LIBS = $(shell python3 -c "import cocotb; import os; print(os.path.join(os.path.dirname(cocotb.__file__), 'libs'))")
+
+# Prefer the minitpu conda environment Python (has cocotbext-axi).
+# Fall back to whatever python3 is on PATH if the conda env is not present.
+CONDA_PYTHON := $(shell conda run -n minitpu which python3 2>/dev/null || which python3)
+COCOTB_LIBS := $(shell $(CONDA_PYTHON) -c "import cocotb; import os; print(os.path.join(os.path.dirname(cocotb.__file__), 'libs'))")
 
 SIM_BUILD = sim_build
 WAVEFORMS = waveforms
 
+# Add the conda env site-packages to PYTHONPATH so that packages installed
+# only in the conda env (e.g. cocotbext-axi) are visible when cocotb embeds
+# Python via the VPI mechanism (embedded Python does not load conda activate).
+CONDA_SITE_PKGS := $(shell $(CONDA_PYTHON) -c "import site; print(':'.join(site.getsitepackages()))" 2>/dev/null)
+
 export COCOTB_REDUCED_LOG_FMT = 1
-export PYTHONPATH := $(PWD):$(PYTHONPATH)
-export PYGPI_PYTHON_BIN = $(shell python3 -c "import sys; print(sys.executable)")
+export PYTHONPATH := $(PWD):$(CONDA_SITE_PKGS):$(PYTHONPATH)
+export PYGPI_PYTHON_BIN = $(CONDA_PYTHON)
 
 IVFLAGS = -g2012 -Wall
 

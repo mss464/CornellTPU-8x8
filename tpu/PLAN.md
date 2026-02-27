@@ -258,11 +258,15 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 - **Verification (modify):** `verification/compute_tile/test_mxu.py` — burst mode tests
 - **Dependency:** Stable L1 interface (P1.3 should not break existing Port B interface).
 
-### P2.06: Scalar VPU Ops (Currently NOPs)
-- **Goal:** Implement real scalar operations in `vpu_simd.sv` instead of watchdog-guarded NOPs.
-- **RTL (modify):** `src/compute_tile/vpu_simd.sv` — scalar dispatch path fix
-- **RTL (modify):** `src/compute_tile/vpu_op.sv` — scalar operation implementation
-- **Verification (modify):** `verification/compute_tile/test_vpu_simd.py` — scalar op tests
+### P2.06: Scalar VPU Ops (RESOLVED 2026-02-27)
+- **Resolution:** Added SCALAR (VPU_TYPE=0) dispatch and 5-state BRAM-read FSM to `vpu_simd.sv`.
+  `vpu_type=3'b000` dispatches to `SCALAR_READ_A→SCALAR_WAIT_A→SCALAR_LATCH_A→SCALAR_WAIT_B→SCALAR_COMPUTE→DONE_STATE`.
+  A dedicated `scalar_alu` vpu_op instance computes result combinationally from `scalar_a_reg` and
+  `bram_dout` (via `scalar_op_b` mux in SCALAR_COMPUTE state). `saved_addr_b` added to IDLE latching.
+  Three new tests added: `test_scalar_add` (3.0+4.0=7.0), `test_scalar_relu` (relu(-2.5)=0.0),
+  `test_scalar_mul` (2.5*4.0=10.0). All 10 vpu_simd tests pass; smoke sim 3/3 pass.
+- **RTL (modified):** `src/compute_tile/vpu_simd.sv` — SCALAR states, saved_addr_b, scalar_alu instance
+- **Verification (modified):** `verification/compute_tile/test_vpu_simd.py` — 3 new scalar tests
 
 ### P2.1: AXI NoC Infrastructure
 - **Goal:** Design the on-chip network connecting compute tiles, L2 tile, and control tile.

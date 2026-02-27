@@ -387,3 +387,134 @@ async def test_vpu_simd_data_correctness(dut):
             f"Data mismatch at V2[{i}]: expected {exp}, got {got}"
 
     dut._log.info("PASS: test_vpu_simd_data_correctness — VLOAD→VADD→VSTORE data verified")
+
+
+# ---------------------------------------------------------------------------
+# P2.06 — SCALAR VPU tests
+# ---------------------------------------------------------------------------
+
+def _reset_signals(dut):
+    """Drive all inputs to safe defaults before asserting rst_n."""
+    dut.rst_n.value = 0
+    dut.start.value = 0
+    for sig in [dut.vpu_type, dut.addr_a, dut.addr_b, dut.addr_out,
+                dut.vreg_dst, dut.vreg_a, dut.vreg_b, dut.vpu_opcode,
+                dut.scalar_b, dut.bram_dout]:
+        sig.value = 0
+
+
+async def _run_scalar_op(dut, vpu_type, vpu_opcode, addr_a, addr_b, addr_out,
+                         bram_init, timeout=30):
+    """
+    Run one SCALAR VPU operation and return (written_addr, written_bits).
+
+    bram_init: dict {addr: uint32_bits}
+    Returns: (addr_written, data_written_as_int) or (None, None) on timeout.
+    """
+    dut.vpu_type.value  = vpu_type
+    dut.vpu_opcode.value = vpu_opcode
+    dut.addr_a.value    = addr_a
+    dut.addr_b.value    = addr_b
+    dut.addr_out.value  = addr_out
+    dut.start.value     = 1
+    await RisingEdge(dut.clk)
+    dut.start.value = 0
+
+    written_addr = [None]
+    written_data = [None]
+
+    for _ in range(timeout):
+        await RisingEdge(dut.clk)
+
+        # Serve BRAM reads
+        if int(dut.bram_en.value) and not int(dut.bram_we.value):
+            addr = int(dut.bram_addr.value)
+            dut.bram_dout.value = bram_init.get(addr, 0)
+
+        # Capture BRAM writes
+        if int(dut.bram_en.value) and int(dut.bram_we.value):
+            written_addr[0] = int(dut.bram_addr.value)
+            written_data[0] = int(dut.bram_din.value)
+
+        if int(dut.done.value):
+            break
+
+    return written_addr[0], written_data[0]
+
+
+@cocotb.test()
+async def test_scalar_add(dut):
+    """SCALAR ADD: bram[2] = bram[0] + bram[1]  (3.0 + 4.0 = 7.0)"""
+    clock = Clock(dut.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+    _reset_signals(dut)
+    await RisingEdge(dut.clk)
+    dut.rst_n.value = 1
+    await RisingEdge(dut.clk)
+
+    bram = {0: float_to_fp32(3.0), 1: float_to_fp32(4.0)}
+
+    wr_addr, wr_data = await _run_scalar_op(
+        dut,
+        vpu_type=0,   # SCALAR
+        vpu_opcode=0, # ADD
+        addr_a=0, addr_b=1, addr_out=2,
+        bram_init=bram,
+    )
+
+    assert wr_addr == 2, f"Expected write to addr 2, got {wr_addr}"
+    result = fp32_to_float(wr_data)
+    assert abs(result - 7.0) < 1e-5, f"Expected 3.0+4.0=7.0, got {result}"
+    dut._log.info(f"PASS: test_scalar_add — result={result}")
+
+
+@cocotb.test()
+async def test_scalar_relu(dut):
+    """SCALAR RELU: bram[1] = relu(bram[0])  where bram[0] is -2.5 → 0.0"""
+    clock = Clock(dut.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+    _reset_signals(dut)
+    await RisingEdge(dut.clk)
+    dut.rst_n.value = 1
+    await RisingEdge(dut.clk)
+
+    bram = {0: float_to_fp32(-2.5)}
+
+    wr_addr, wr_data = await _run_scalar_op(
+        dut,
+        vpu_type=0,   # SCALAR
+        vpu_opcode=2, # RELU
+        addr_a=0, addr_b=0, addr_out=1,
+        bram_init=bram,
+    )
+
+    assert wr_addr == 1, f"Expected write to addr 1, got {wr_addr}"
+    result = fp32_to_float(wr_data)
+    assert result == 0.0, f"Expected relu(-2.5)=0.0, got {result}"
+    dut._log.info(f"PASS: test_scalar_relu — result={result}")
+
+
+@cocotb.test()
+async def test_scalar_mul(dut):
+    """SCALAR MUL: bram[2] = bram[0] * bram[1]  (2.5 * 4.0 = 10.0)"""
+    clock = Clock(dut.clk, 10, unit="ns")
+    cocotb.start_soon(clock.start())
+    _reset_signals(dut)
+    await RisingEdge(dut.clk)
+    dut.rst_n.value = 1
+    await RisingEdge(dut.clk)
+
+    bram = {0: float_to_fp32(2.5), 1: float_to_fp32(4.0)}
+
+    wr_addr, wr_data = await _run_scalar_op(
+        dut,
+        vpu_type=0,   # SCALAR
+        vpu_opcode=3, # MUL
+        addr_a=0, addr_b=1, addr_out=2,
+        bram_init=bram,
+    )
+
+    assert wr_addr == 2, f"Expected write to addr 2, got {wr_addr}"
+    result = fp32_to_float(wr_data)
+    assert abs(result - 10.0) < 1e-4, f"Expected 2.5*4.0=10.0, got {result}"
+    dut._log.info(f"PASS: test_scalar_mul — result={result}")

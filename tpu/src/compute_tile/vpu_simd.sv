@@ -58,7 +58,7 @@ module vpu_simd #(
 
 
     // FSM states
-    typedef enum logic [3:0] {
+    typedef enum logic [4:0] {
         IDLE,
         VLOAD_REQ,
         VLOAD_WAIT1,
@@ -70,6 +70,11 @@ module vpu_simd #(
         VSTORE_REQ,
         VCOMPUTE_READ,
         VCOMPUTE_EXEC,
+        SCALAR_READ_A,
+        SCALAR_WAIT_A,
+        SCALAR_LATCH_A,
+        SCALAR_WAIT_B,
+        SCALAR_COMPUTE,
         DONE_STATE
     } state_t;
 
@@ -125,8 +130,27 @@ module vpu_simd #(
 
     // Saved instruction fields for multi-cycle operations
     logic [12:0] saved_addr_a;
+    logic [12:0] saved_addr_b;
     logic [12:0] saved_addr_out;
     logic [2:0] saved_vreg_dst, saved_vreg_a;
+
+    // Scalar path: operand latches and dedicated ALU instance
+    logic [DATA_W-1:0] scalar_a_reg, scalar_b_reg;
+    logic [DATA_W-1:0] scalar_result;
+    logic [DATA_W-1:0] scalar_op_b;
+
+    // During SCALAR_COMPUTE, use bram_dout directly as operand B so we avoid
+    // an extra pipeline cycle.  At all other times scalar_b_reg is used (it
+    // holds the last latched value and keeps the combinational logic stable).
+    assign scalar_op_b = (state == SCALAR_COMPUTE) ? bram_dout : scalar_b_reg;
+
+    vpu_op #(.DATA_W(DATA_W), .OP_W(3)) scalar_alu (
+        .start(1'b1),
+        .operand0(scalar_a_reg),
+        .operand1(scalar_op_b),
+        .opcode(vpu_opcode),
+        .result_out(scalar_result)
+    );
 
     // FSM
     always_ff @(posedge clk or negedge rst_n) begin
@@ -145,9 +169,12 @@ module vpu_simd #(
             done_simd <= 1'b0;
             load_buffer <= '0;
             saved_addr_a <= '0;
+            saved_addr_b <= '0;
             saved_addr_out <= '0;
             saved_vreg_dst <= '0;
             saved_vreg_a <= '0;
+            scalar_a_reg <= '0;
+            scalar_b_reg <= '0;
         end else begin
             // Defaults
             done_simd <= 1'b0;
@@ -160,12 +187,16 @@ module vpu_simd #(
                     if (start_simd) begin
                         elem_idx <= '0;
                         // Save instruction fields
-                        saved_addr_a <= addr_a;
+                        saved_addr_a   <= addr_a;
+                        saved_addr_b   <= addr_b;
                         saved_addr_out <= addr_out;
                         saved_vreg_dst <= vreg_dst;
-                        saved_vreg_a <= vreg_a;
+                        saved_vreg_a   <= vreg_a;
 
                         case (vpu_type)
+                            3'b000: begin  // SCALAR
+                                state <= SCALAR_READ_A;
+                            end
                             3'b001: begin  // VLOAD
                                 state <= VLOAD_REQ;
                             end
@@ -258,6 +289,45 @@ module vpu_simd #(
                     rf_wr_addr <= saved_vreg_dst;
                     rf_wr_data <= alu_result;
                     state <= DONE_STATE;
+                end
+
+                // SCALAR: issue read for operand A (addr presented; keep en high)
+                SCALAR_READ_A: begin
+                    bram_en_simd   <= 1'b1;
+                    bram_we_simd   <= 1'b0;
+                    bram_addr_simd <= saved_addr_a;
+                    state          <= SCALAR_WAIT_A;
+                end
+
+                // SCALAR: extra wait — bram_dout for A becomes valid next cycle
+                SCALAR_WAIT_A: begin
+                    bram_en_simd   <= 1'b1;
+                    state          <= SCALAR_LATCH_A;
+                end
+
+                // SCALAR: bram_dout carries A; latch and issue read for B
+                SCALAR_LATCH_A: begin
+                    scalar_a_reg   <= bram_dout;
+                    bram_en_simd   <= 1'b1;
+                    bram_we_simd   <= 1'b0;
+                    bram_addr_simd <= saved_addr_b;
+                    state          <= SCALAR_WAIT_B;
+                end
+
+                // SCALAR: extra wait — bram_dout for B becomes valid next cycle
+                SCALAR_WAIT_B: begin
+                    bram_en_simd   <= 1'b1;
+                    state          <= SCALAR_COMPUTE;
+                end
+
+                // SCALAR: bram_dout carries B (fed combinationally into scalar_alu);
+                // write result to addr_out in the same cycle.
+                SCALAR_COMPUTE: begin
+                    bram_en_simd   <= 1'b1;
+                    bram_we_simd   <= 1'b1;
+                    bram_addr_simd <= saved_addr_out;
+                    bram_din_simd  <= scalar_result;
+                    state          <= DONE_STATE;
                 end
 
                 DONE_STATE: begin

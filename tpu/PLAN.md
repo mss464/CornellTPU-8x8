@@ -241,7 +241,16 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
   - Top-level thin arbiter dispatches descriptors, tracks completion
 - **RTL (modify):** `src/system/tpu.sv` → split + new `src/system/dma_engine.sv`, `src/system/compute_ctrl.sv`
 
-### P2.05: MXU Pipelined Burst Mode
+### P2.05: MXU Pipelined Burst Mode (RESOLVED 2026-02-27)
+- **Resolution:** `MEM_LATENCY` parameter was 3 (3 wait cycles per BRAM read) but BRAM has
+  1-cycle registered output latency (address captured at posedge N → data valid at posedge N+1).
+  Changed `.MEM_LATENCY(3)` → `.MEM_LATENCY(1)` in `tensorcore.sv`. The MXU FSM condition
+  `mem_latency_timer >= (MEM_LATENCY - 1)` is satisfied immediately after 1 posedge at
+  MEM_LATENCY=1, which is correct for 1-cycle BRAM. Gives 3× speedup on W and X loads
+  (was 3 stall cycles × 32 elements = 96 wasted cycles; now 1 cycle × 32 = 32).
+  All 7 MXU unit tests pass; 3/3 smoke sim tests pass; 3/3 compute end-to-end tests pass.
+  True pipelined burst (overlapping reads, no stall between elements) remains future work (P3.x).
+- **RTL (modified):** `src/compute_tile/tensorcore.sv` — `.MEM_LATENCY(3)` → `.MEM_LATENCY(1)`
 - **Goal:** Refactor `mxu.sv` from per-element `MEM_LATENCY` wait to true pipelined burst reads.
 - **Impact:** ~3x throughput improvement on large matmuls (current ~33% peak utilization).
 - **RTL (modify):** `src/compute_tile/mxu.sv` — pipelined burst FSM

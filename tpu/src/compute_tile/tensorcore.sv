@@ -251,7 +251,7 @@ module tensorcore #(
         .DATA_WIDTH(DATA_WIDTH),
         .BANKING_FACTOR(1),
         .ADDRESS_WIDTH(ADDR_WIDTH),
-        .MEM_LATENCY(3)
+        .MEM_LATENCY(1)
     ) u_mxu (
         .clk(clk),
         .rst_n(rst_n),

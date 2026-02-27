@@ -230,16 +230,18 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 - **RTL (modify):** `src/system/fifo4.sv`, `src/system/tpu_master_axi_stream.v`
 - **Verification (modify):** `verification/compute_tile/test_fifo4.py` — parameterized depth tests
 
-### P2.08: Separate DMA and Compute FSMs
-- **Goal:** Factor the monolithic `tpu.sv` FSM into independent sub-FSMs for overlapped execution.
+### P2.08: Separate DMA and Compute FSMs (RESOLVED 2026-02-27)
+- **Resolution:** Factored monolithic `tpu.sv` FSM into three independent sub-FSMs:
+  - `dma_engine.sv` (new): modes 1/2/4/5/6 — owns AXI-Stream + device_mem Port A
+  - `compute_ctrl.sv` (new): mode 3 — compute tile start/done handshake
+  - `l2_ctrl.sv` (new): modes 7/8 — L2 Port A + L1 DMA port, 1-cycle BRAM pipeline
+  - `tpu.sv` (refactored): thin concurrent arbiter, doorbell dispatches to disjoint sub-FSMs
+  - `test_dma_compute_overlap` added to `test_tpu_compute.py`: verifies mode-3 + mode-1 run concurrently
+  - 18/18 system tests pass (4 suites). DMA+Compute overlap verified in sim.
+- **RTL (modified):** `src/system/tpu.sv`, `src/system/dma_engine.sv` (new), `src/system/compute_ctrl.sv` (new), `src/system/l2_ctrl.sv` (new)
+- **Verification:** `verification/system/test_tpu_compute.py` — `test_dma_compute_overlap`
 - **Depends:** P1.8 (descriptor-based DMA).
-- **Problem:** Modes 1–8 are mutually exclusive in one FSM. Compute (mode 3) cannot overlap DMA (mode 1/2). All modes funnel through one combinational priority.
-- **Fix:** Independent sub-FSMs:
-  - DMA FSM (modes 1/2, 5/6) — owns AXI-Stream + device_mem Port A
-  - Compute FSM (mode 3/4) — owns tensorcore + L1 Port A
-  - L2 FSM (modes 7/8) — owns L2 Port A + L1 DMA port
-  - Top-level thin arbiter dispatches descriptors, tracks completion
-- **RTL (modify):** `src/system/tpu.sv` → split + new `src/system/dma_engine.sv`, `src/system/compute_ctrl.sv`
+- **Goal:** Factor the monolithic `tpu.sv` FSM into independent sub-FSMs for overlapped execution.
 
 ### P2.05: MXU Pipelined Burst Mode (RESOLVED 2026-02-27)
 - **Resolution:** `MEM_LATENCY` parameter was 3 (3 wait cycles per BRAM read) but BRAM has

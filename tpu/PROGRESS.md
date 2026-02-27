@@ -5,6 +5,70 @@ See `PLAN.md` for goals and `CLAUDE.md` for agent working notes / hardware quirk
 
 ---
 
+## 2026-02-27 — P2.08: Separate DMA and Compute FSMs (Complete)
+
+**Status: Complete**
+
+Factored the monolithic `tpu.sv` FSM into three independent sub-FSMs and a thin concurrent arbiter. All three run simultaneously when their respective BRAM ports are not in conflict.
+
+### Architecture
+
+- `dma_engine.sv` (new): modes 1/2/4/5/6 — owns AXI-Stream path + device_mem Port A
+- `compute_ctrl.sv` (new): mode 3 — compute tile start/done handshake (2-state FSM)
+- `l2_ctrl.sv` (new): modes 7/8 — L2 Port A + L1 DMA port; 1-cycle BRAM pipeline
+- `tpu.sv` (refactored): doorbell arbiter dispatches descriptors to disjoint sub-FSMs; `instr_ready = !dma_running && !compute_running && !l2_running`
+
+### Concurrent execution
+
+BRAM port ownership is fully disjoint:
+- device_mem Port A → dma_engine only
+- L2 Port A → l2_ctrl only; L2 Port B → tma_engine (inside l2_tile) only
+- L1 Port A → l2_ctrl DMA; L1 Port B → tensorcore (compute_ctrl)
+
+Verified: `test_dma_compute_overlap` fires mode-3 then mode-1 back-to-back without waiting for `instr_ready` between them. Both sub-FSMs run concurrently. Verified correct output for both DMA write and compute result.
+
+### Board driver update
+
+`runtime/pynq_host.py` fully rewritten to use P1.8 doorbell protocol throughout. All methods now write `(mode | 0x10)` — no trailing IDLE write. Added `devmem_to_l2`, `l2_to_devmem`, `l2_to_l1`, `l1_to_l2` methods. IRAM `write_instructions` default `base_addr=1` with full docstring explaining the timing workaround.
+
+### Board test suite (new)
+
+`runtime/board_tests/test_board.py` — 12 offline board tests:
+
+| # | Test | What it covers |
+|---|------|----------------|
+| 1 | `devmem_rw_small` | 8-word DevMem roundtrip |
+| 2 | `devmem_rw_large` | 256-word DevMem roundtrip |
+| 3 | `devmem_base_offset` | non-zero base address |
+| 4 | `devmem_multi_region` | two regions, no aliasing |
+| 5 | `devmem_boundary_8` | N=FIFO depth; Bug A/B regression |
+| 6 | `devmem_boundary_9` | N=FIFO+1; drain transition |
+| 7 | `devmem_known_values` | bit-exact float pattern |
+| 8 | `deadbeef` | 0xDEADBEEF bit-exact roundtrip |
+| 9 | `l2_dm_roundtrip` | DevMem→L2→DevMem |
+| 10 | `l2_l1_roundtrip` | DevMem→L2→L1→L2→DevMem |
+| 11 | `hierarchy_pipeline` | Full hierarchy + identity kernel |
+| 12 | `vadd_kernel` | VADD kernel end-to-end on board |
+
+`runtime/board_tests/diagnose_board.py` — hardware diagnostic probe: AXI-Lite register dump, DMA channel status, overlay IP list, shift-bug probe.
+
+### Verification coverage
+
+`tpu/docs/verification.md` (1007 lines): full line/path coverage for all 22 RTL modules under `tpu/src/`. Summary table, known issues, concurrent execution documentation.
+
+### Regression results
+
+| Suite | Tests | Result |
+|-------|-------|--------|
+| `test_data_integrity_rtl` | 4 | PASS |
+| `test_device_mem` | 3 | PASS |
+| `test_l2_tile` | 4 | PASS |
+| `test_tpu_compute` | 4 (3 prior + overlap) | PASS |
+
+Files changed: `src/system/tpu.sv` (refactored), `src/system/dma_engine.sv` (new), `src/system/compute_ctrl.sv` (new), `src/system/l2_ctrl.sv` (new), `verification/system/test_tpu_compute.py`, `verification/system/Makefile`, `docs/verification.md`, `runtime/pynq_host.py` (full rewrite), `runtime/board_tests/test_board.py` (new), `runtime/board_tests/diagnose_board.py` (new)
+
+---
+
 ## 2026-02-27 — P1.8: Doorbell-Based Descriptor DMA (Complete)
 
 **Status: Complete**

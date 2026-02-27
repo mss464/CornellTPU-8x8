@@ -155,16 +155,17 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 - **Verification (added):** `verification/system/test_tpu.py` — boundary tests N=8, N=9, N=16
 - **Board:** bitstream rebuild needed; board +2 shift still open (different root cause)
 
-### P1.5: L2 ↔ Device Memory TMA Instruction
-- **Goal:** Design a TMA (Tensor Memory Access) instruction for L2↔DevMem transfers.
-- **What:** Handles address generation and burst transfers between L2 SRAM and device memory.
-- **Prototype:** Simple contiguous block transfer (no coalescing). Coalescing and strided access are future (P3.5).
-- **RTL (modify):** `src/l2_tile/l2_tile.sv` — TMA engine, DevMem request/response logic
-- **RTL (new):** `src/l2_tile/tma_engine.sv` — address generation + burst controller
-- **Verification (new):** `verification/l2_tile/test_tma.py` — TMA transfer correctness
-- **Verification (modify):** `verification/l2_tile/Makefile`
-- **Docs (modify):** `docs/isa.md` — TMA instruction encoding
-- **Compiler (modify):** `compiler/assembler.py` — TMA mnemonic
+### P1.5: L2 ↔ Device Memory TMA Instruction (RESOLVED 2026-02-27)
+- **Resolution:** TMA RTL was already fully implemented in a prior session:
+  - `src/compute_tile/decoder.sv` — MODE=2 fields: dir[61], dm_base[60:45], l2_base[44:30], len[29:14]
+  - `src/compute_tile/tensorcore.sv` — EXEC_TMA/WAIT_TMA states; issues tma_req pulse, waits for tma_done
+  - `src/l2_tile/l2_tile.sv` + `src/l2_tile/tma_engine.sv` — DM2L2/L22DM FSM with 1-cycle BRAM pipeline
+  - `src/system/tpu.sv` — ct_tma_* wires between compute_tile and l2_tile
+  - This commit adds the end-to-end system test to verify the full path.
+- **Verification (new):** `verification/system/test_tpu_compute.py` — `encode_tma_instr` helper + `test_tma_instruction_in_kernel` test
+  - Writes 8 values to DevMem[32:39], runs TMA kernel (DM_TO_L2, dm_base=32, l2_base=0, len=8),
+    reads back L2[0:7] through L2→L1→L2→DevMem[100:107]→host, verifies values match [10.0..17.0].
+  - Result: TESTS=3 PASS=3 FAIL=0 (all test_tpu_compute tests pass).
 - **Dependency:** P1.1 (device memory) + P1.2 (L2 tile).
 
 ### P1.6: ISA Documentation Overhaul (RESOLVED 2026-02-27)

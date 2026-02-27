@@ -121,6 +121,26 @@ def encode_vpu_instr(addr_a=0, addr_b=0, addr_out=0, vpu_type=0,
 HALT_INSTR = 3 << 62  # mode=3
 
 
+def encode_tma_instr(dir=0, dm_base=0, l2_base=0, length=0):
+    """Encode a TMA instruction (MODE=2).
+
+    Bit field layout (matches decoder.sv):
+      [63:62] = 2  (MODE=2, TMA)
+      [61]    = dir (0=DM_TO_L2, 1=L2_TO_DM)
+      [60:45] = dm_base (16-bit device memory address)
+      [44:30] = l2_base (15-bit L2 SRAM address)
+      [29:14] = length  (16-bit transfer length in words)
+      [13:0]  = 0 (reserved)
+    """
+    instr = 0
+    instr |= (2 & 0x3) << 62           # MODE=2
+    instr |= (dir & 0x1) << 61         # direction
+    instr |= (dm_base & 0xFFFF) << 45  # dm_base [60:45]
+    instr |= (l2_base & 0x7FFF) << 30  # l2_base [44:30]
+    instr |= (length & 0xFFFF) << 14   # len [29:14]
+    return instr
+
+
 # ---------------------------------------------------------------------------
 # Test 1: Identity kernel — VLOAD V0 then VSTORE V0
 # ---------------------------------------------------------------------------
@@ -238,3 +258,64 @@ async def test_compute_vadd_kernel(dut):
             f"VADD mismatch at [C[{i}]]: expected {expected[i]}, got {result[i]}"
 
     dut._log.info("test_compute_vadd_kernel PASSED")
+
+
+# ---------------------------------------------------------------------------
+# Test 3: TMA instruction — DM_TO_L2 via in-kernel TMA instruction
+# ---------------------------------------------------------------------------
+@cocotb.test()
+async def test_tma_instruction_in_kernel(dut):
+    """End-to-end TMA instruction test (MODE=2, DM→L2 direction).
+
+    Data flow:
+      Host → DevMem[32:39]          (mode 1: write 8 known values)
+      IRAM ← [TMA(dm=32,l2=0,n=8), HALT]  (mode 4: load kernel)
+      COMPUTE (mode 3): TMA engine copies DevMem[32:39] → L2[0:7]
+      L2[0:7] → L1[0:7]            (mode 7)
+      L1[0:7] → L2[0:7]            (mode 8) — round-trip to DevMem via L2
+      L2[0:7] → DevMem[100:107]    (mode 6)
+      Host ← DevMem[100:107]       (mode 2: read back)
+      Verify output matches input [10.0..17.0]
+
+    The TMA instruction drives the DM→L2 copy entirely within the kernel.
+    The host does NOT need to intervene during COMPUTE mode execution.
+    """
+    start_clocks(dut)
+    driver = TpuComputeDriver(dut)
+    await driver.reset()
+
+    n = 8
+    input_data = np.array([float(i + 10) for i in range(n)], dtype=np.float32)  # [10..17]
+
+    # Stage 1: Host → DevMem[32:39]
+    await driver.write_bram(32, input_data)
+
+    # Stage 2: Write TMA kernel to IRAM
+    #   TMA(dir=0, dm_base=32, l2_base=0, len=8): copy DevMem[32:39] → L2[0:7]
+    #   HALT
+    tma_instr = encode_tma_instr(dir=0, dm_base=32, l2_base=0, length=n)
+    await driver.write_iram([tma_instr, HALT_INSTR])
+
+    # Stage 3: Execute kernel — TMA engine runs autonomously
+    # timeout_cycles must be large enough for TMA engine to complete the 8-word transfer
+    # TMA DM2L2_READ takes len cycles + 2 drain/done cycles plus tensorcore FSM overhead
+    await driver.execute(timeout_cycles=10000)
+
+    # Stage 4: L2[0:7] → L1[0:7]
+    await driver.l2_to_l1(l2_addr=0, l1_base_addr=0, length=n)
+
+    # Stage 5: L1[0:7] → L2[0:7] (round-trip for readback)
+    await driver.l1_to_l2(l1_base_addr=0, l2_addr=0, length=n)
+
+    # Stage 6: L2[0:7] → DevMem[100:107]
+    await driver.l2_to_devmem(l2_addr=0, devmem_addr=100, length=n)
+
+    # Stage 7: Host ← DevMem[100:107]
+    result = await driver.read_bram(100, n)
+
+    # Verify: values should match the original [10.0..17.0]
+    for i in range(n):
+        assert abs(result[i] - input_data[i]) < 1e-6, \
+            f"TMA mismatch at index {i}: expected {input_data[i]}, got {result[i]}"
+
+    dut._log.info("test_tma_instruction_in_kernel PASSED")

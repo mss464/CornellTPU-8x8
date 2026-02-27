@@ -146,14 +146,13 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 ### P1.4: RTL Correctness: DMA Write+Read Corruption (PARTIALLY RESOLVED)
 - **Resolution (2026-02-27):**
   - **Bug A** (slave write stall): RESOLVED. Gate `dma_wr_en` on `stream_data_valid` in `tpu.sv` line 457. Sim confirms first element preserved.
-  - **Bug B** (master FIFO boundary duplicate): DOES NOT EXIST in RTL. `valid_d1` and `rd_data` are inherently aligned (both 1-cycle delayed from `rd_en`). The `!fifo_empty` gate attempted in P1.4 was wrong — it dropped the last word. Reverted to `assign M_AXIS_TVALID = valid_d1`.
-  - **Board +2 shift:** Root cause is NOT Bug B. Suspect list: BRAM output register (Vivado IP cache), PS DMA timing, clock domain mismatch. Requires board-level investigation.
-  - **Sim:** 4 boundary tests (N=8, N=9, N=16, known values) all pass. 11/11 system tests pass.
-- **RTL (modified):** `src/system/tpu.sv` — `dma_wr_en = data_write_en && stream_data_valid`
-- **RTL (modified):** `src/system/tpu_slave_axi_stream.v` — `reset <= 1'b0` on IDLE→WRITE_FIFO
-- **RTL (reverted):** `src/system/tpu_master_axi_stream.v` — `M_AXIS_TVALID = valid_d1` (no `!fifo_empty` gate)
-- **Verification (added):** `verification/system/test_tpu.py` — boundary tests N=8, N=9, N=16
-- **Board:** bitstream rebuild needed; board +2 shift still open (different root cause)
+  - **Bug B** (master FIFO boundary duplicate): RESOLVED by full rewrite. `tpu_master_axi_stream.v` rewritten from scratch with clean 3-state FSM (IDLE→FILL→STREAM), FWFT FIFO, and `M_AXIS_TKEEP` output.
+  - **Board DMA hang:** PERSISTS after TKEEP fix + full rewrite. `read_bram` hangs on `dma.recvchannel.wait()`. TKEEP was not the root cause. Sim passes all 23 tests. Board investigation needed — suspect IPI wiring, DMA configuration, or clock domain issue. See PROGRESS.md 2026-02-27 for investigation directions.
+  - **Sim:** All pass: 9/9 fifo4, 3/3 master_stream, 4/4 data_integrity, 4/4 tpu_compute, 3/3 smoke-sim.
+- **RTL (rewritten):** `src/system/tpu_master_axi_stream.v` — clean 3-state FSM, TKEEP, FWFT FIFO
+- **RTL (rewritten):** `src/system/fifo4.sv` — FWFT, depth=64, synchronous flush
+- **RTL (modified):** `src/system/tpu.sv` — `m00_axis_tkeep` port, removed `C_M00_AXIS_START_COUNT`
+- **Board:** Hang persists. Next: ILA probes on AXI-Stream signals, verify IPI TKEEP wiring.
 
 ### P1.5: L2 ↔ Device Memory TMA Instruction (RESOLVED 2026-02-27)
 - **Resolution:** TMA RTL was already fully implemented in a prior session:
@@ -216,10 +215,9 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 ## P2 — Medium-Term: Multi-Tile Mesh
 
 ### P2.07: Deepen AXI-Stream FIFO (RESOLVED 2026-02-27)
-- **Resolution:** Added `DEPTH` parameter (default=8) to `fifo4.sv` with parametric pointer width
-  (`PTR_W = $clog2(DEPTH)+1`). Updated `tpu_master_axi_stream.v` to use `#(.WIDTH(32), .DEPTH(8))`
-  via a `localparam FIFO_DEPTH`. No functional change at DEPTH=8. All 7 fifo4 unit tests pass;
-  3/3 smoke sim tests pass.
+- **Resolution:** Full rewrite of `fifo4.sv` — FWFT synchronous FIFO, depth=64 (parameterized),
+  synchronous `flush` port, `almost_full` signal. `rd_data` valid combinationally when `!empty`
+  (eliminates 1-cycle read pipeline). 9/9 fifo4 unit tests pass; 3/3 smoke sim tests pass.
 - **Goal:** Parameterize `fifo4` depth and decouple prefetch window from FIFO capacity.
 - **Depends:** P1.4 (DMA correctness).
 - **Problem:** `fifo4` depth=8 is hardcoded. Prefetch window `count <= 8` creates fragile coupling. Backpressure stalls at high throughput.

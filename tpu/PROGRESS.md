@@ -5,6 +5,64 @@ See `PLAN.md` for goals and `CLAUDE.md` for agent working notes / hardware quirk
 
 ---
 
+## 2026-02-27 — Master AXI-Stream + FIFO rewrite + board test (In Progress)
+
+**Status: In Progress — board hang persists**
+
+### RTL rewrite (complete, sim passes)
+
+Rewrote `tpu_master_axi_stream.v` and `fifo4.sv` from scratch per P2.07 plan:
+
+- **`fifo4.sv`**: FWFT synchronous FIFO, depth=64, synchronous `flush` port, `almost_full` signal. Eliminates 1-cycle read pipeline stage — `rd_data` valid combinationally when `!empty`.
+- **`tpu_master_axi_stream.v`**: Clean 3-state FSM (IDLE→FILL→STREAM). Removed INIT_COUNTER 32-cycle startup. `reads_issued` / `read_pointer_stream` split for correct BRAM timing. Rising-edge detector on `read_en` prevents re-trigger race.
+- **`tpu.sv`**: Added `m00_axis_tkeep` output port (= all-ones whenever TVALID). Removed `C_M00_AXIS_START_COUNT` parameter.
+- **TKEEP hypothesis**: The original module lacked `M_AXIS_TKEEP`. Xilinx DMA S2MM requires TKEEP to mark valid data bytes — without it, DMA treats every beat as null → never completes → host `read_bram` hangs.
+
+### Sim regression: all pass
+
+- 9/9 fifo4 unit tests
+- 3/3 master_stream unit tests (TKEEP verified = 0xF on all valid beats)
+- 4/4 data_integrity boundary tests
+- 4/4 tpu_compute tests
+- 3/3 smoke-sim
+
+### Board test: HANG PERSISTS
+
+Rebuilt bitstream with TKEEP fix, deployed to Ultra96-v2 (`132.236.59.64`).
+Board test result: `read_bram` still hangs on `dma.recvchannel.wait()`.
+
+```
+Running 12 test(s)...
+^C  (Ctrl-C after hang)
+File "runtime/board_tests/test_board.py", line 148, in test_devmem_rw_small
+    result = s.tpu.read_bram(0, n)
+File "runtime/board_tests/../pynq_host.py", line 196, in read_bram
+    self.dma.recvchannel.wait()
+```
+
+**TKEEP was NOT the root cause.** The DMA recv channel never completes.
+
+### Next investigation directions for board hang
+
+1. **Vivado IPI wiring**: Verify that `m00_axis_tkeep` is actually connected to the DMA's `s_axis_s2mm_tkeep` in the block design. The repackaged IP may need manual IPI reconnection.
+2. **DMA S2MM configuration**: Check if the Xilinx AXI DMA IP is configured in `Direct Register` vs `Scatter-Gather` mode. Confirm `s_axis_s2mm` port width matches 32-bit.
+3. **TLAST timing**: Board DMA requires TLAST to fire exactly once at end of transfer. If TLAST fires early or never, DMA hangs.
+4. **ILA/VIO debug**: Add ILA probes on `m00_axis_tvalid`, `m00_axis_tready`, `m00_axis_tlast`, `m00_axis_tkeep` to observe actual AXI-Stream handshake on fabric.
+5. **Clock domain**: Verify `M_AXIS_ACLK` is the same clock as the DMA S2MM interface clock.
+6. **PYNQ DMA buffer alignment**: `dma.recvchannel.transfer(buf)` may require physically contiguous, cache-coherent buffer. Check `allocate()` vs `xlnk.cma_array()`.
+
+### Documentation cleanup (complete)
+
+Fixed 10 stale references across CLAUDE.md, PROGRESS.md, README.md, and 3 Makefiles.
+
+### Pending items (deferred to next session)
+
+- [ ] Consolidate `runtime/board_tests/` under `tpu/` directory
+- [ ] Create `/tpu-board-align` skill (sim→board→diagnose→align cycle)
+- [ ] Create `/tpu-deploy` skill (`make bitstream → make tpu → make board-test` pipeline)
+
+---
+
 ## 2026-02-27 — board-test deploy fix + P1.7-4 cocotbext-axi BFMs (Complete)
 
 **Status: Complete**

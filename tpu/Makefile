@@ -8,6 +8,11 @@
 #   make bitstream TARGET=ultra96-v2
 ################################################################################
 
+.PHONY: setup
+setup:
+	conda env create -f ../environment.yml || conda env update -f ../environment.yml
+	@echo "Activate with: conda activate minitpu"
+
 TARGET ?= ultra96-v2
 TARGETS := ultra96-v2 alveo-u280
 SUPPORTED_TARGETS := ultra96-v2
@@ -186,11 +191,11 @@ verify-compute_unit:
 
 verify-system_bus:
 	@$(MAKE) board-test \
-		PROGRAM="$(abspath verification/system/diagnose_ip.py)"
+		PROGRAM_ABSPATH="$(abspath verification/system/diagnose_ip.py)"
 
 verify-system_data:
 	@$(MAKE) board-test \
-		PROGRAM="$(abspath verification/system/test_data_integrity.py)"
+		PROGRAM_ABSPATH="$(abspath verification/system/test_data_integrity.py)"
 
 # Low-level deployment engine.
 # 1. Creates a clean staging area locally.
@@ -201,9 +206,9 @@ board-test:
 	require() { command -v "$$1" >/dev/null 2>&1 || { echo "Missing required tool: $$1" >&2; exit 1; }; }; \
 	require ssh; require scp; require sshpass; \
 	cd "$(PROJECT_ROOT)"; \
-	PROGRAM_PATH="$(PROGRAM)"; \
-	if [[ ! -f "$$PROGRAM_PATH" ]]; then \
-		echo "Missing test program: $$PROGRAM_PATH" >&2; \
+	PROGRAM_ABSPATH_PATH="$(PROGRAM_ABSPATH)"; \
+	if [[ ! -f "$$PROGRAM_ABSPATH_PATH" ]]; then \
+		echo "Missing test program: $$PROGRAM_ABSPATH_PATH" >&2; \
 		exit 1; \
 	fi; \
 	SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"; \
@@ -211,18 +216,18 @@ board-test:
 	trap 'rm -rf "$$DEPLOY_TMP"' EXIT; \
 	mkdir -p "$$DEPLOY_TMP/runtime"; \
 	cp runtime/pynq_host.py "$$DEPLOY_TMP/runtime/"; \
-	touch "$$DEPLOY_TMP/runtime/__init__.py"; \
-	cp "$$PROGRAM_PATH" "$$DEPLOY_TMP/"; \
+	cp runtime/__init__.py "$$DEPLOY_TMP/runtime/"; \
+	cp "$$PROGRAM_ABSPATH_PATH" "$$DEPLOY_TMP/"; \
 	if [[ -f "$(ROOT)/hw_config.json" ]]; then cp "$(ROOT)/hw_config.json" "$$DEPLOY_TMP/"; fi; \
 	for extra in $(EXTRA_FILES); do \
 		if [[ -f "$$extra" ]]; then cp "$$extra" "$$DEPLOY_TMP/"; fi; \
 	done; \
-	PROGRAM_NAME="$$(basename "$$PROGRAM_PATH")"; \
+	PROGRAM_ABSPATH_NAME="$$(basename "$$PROGRAM_ABSPATH_PATH")"; \
 	sshpass -p "$(BOARD_PASS)" ssh $$SSH_OPTS "$(BOARD_USER)@$(BOARD_IP)" "mkdir -p $(DEPLOY_DIR)"; \
 	sshpass -p "$(BOARD_PASS)" scp -r $$SSH_OPTS "$$DEPLOY_TMP"/* "$(BOARD_USER)@$(BOARD_IP):$(DEPLOY_DIR)/"; \
-	echo "== Running $$PROGRAM_NAME on board =="; \
+	echo "== Running $$PROGRAM_ABSPATH_NAME on board =="; \
 	sshpass -p "$(BOARD_PASS)" ssh -t $$SSH_OPTS "$(BOARD_USER)@$(BOARD_IP)" \
-	"cd $(DEPLOY_DIR) && echo $(BOARD_PASS) | sudo -S python3 $$PROGRAM_NAME $(PROGRAM_ARGS)"
+	"cd $(DEPLOY_DIR) && echo $(BOARD_PASS) | sudo -S python3 $$PROGRAM_ABSPATH_NAME $(PROGRAM_ABSPATH_ARGS)"
 
 tpu:
 	@if [ ! -f "$(BIT)" ] && [ ! -f "$(ULTRA96_BITSTREAM)" ]; then \
@@ -232,9 +237,9 @@ tpu:
 	@LOCAL_BIT="$(if $(BIT),$(BIT),$(ULTRA96_BITSTREAM))"; \
 	LOCAL_HWH="$(if $(HWH),$(HWH),$(ULTRA96_HWH))"; \
 	$(MAKE) board-test \
-		PROGRAM="$(abspath scripts/program_fpga.py)" \
+		PROGRAM_ABSPATH="$(abspath scripts/program_fpga.py)" \
 		EXTRA_FILES="$$LOCAL_BIT $$LOCAL_HWH" \
-		PROGRAM_ARGS="$$(basename $$LOCAL_BIT)"
+		PROGRAM_ABSPATH_ARGS="$$(basename $$LOCAL_BIT)"
 
 #==============================================================================
 # SMOKE TESTS
@@ -247,9 +252,12 @@ smoke-sim:
 smoke-sim-full:
 	@bash scripts/smoke_test.sh --sim-full
 
+
+PROGRAM="../demos/programs/mlp.tu"
+
 smoke-board:
 	@$(MAKE) board-test \
-		PROGRAM="$(abspath ../demos/programs/smoke_board.tu)"
+		PROGRAM_ABSPATH="$(abspath $(PROGRAM))"
 
 clean: clean-compute_tile
 	@if [ "$(TARGET)" = "ultra96-v2" ]; then \

@@ -5,6 +5,28 @@ See `PLAN.md` for goals and `CLAUDE.md` for agent working notes / hardware quirk
 
 ---
 
+## 2026-02-27 — board-test deploy fix + P1.7-4 cocotbext-axi BFMs (Complete)
+
+**Status: Complete**
+
+### board-test Makefile fix (`tpu/Makefile`)
+
+- **Root cause:** `board-test` deployed only `pynq_host.py` + `__init__.py`. `runtime/__init__.py` imports `allocator.py` and `device.py` at module load time — both absent on board — causing `ImportError` on any `from runtime.* import` call. Symptom: hung `read_bram` when running `smoke_board.tu` / `dummy_test.tu` on board.
+- **Fix:** `board-test` now does `cp -r runtime/.` (full directory, stripping `__pycache__`/`.pyc`). `smoke-board` PROGRAM var fixed: was `mlp.tu` (wrong), now `smoke_board.tu`. New `board-tests` target deploys full runtime and runs `runtime/board_tests/test_board.py` on the board.
+- **Usage:** `make board-tests [BOARD_TEST_ARGS="--test devmem_rw_small --verbose"]`
+- **Commit:** `20c35ae`
+
+### P1.7-4: cocotbext-axi BFM integration
+
+- **`verification/system/test_tpu.py`:** `TpuRtlDriver.write_bram()` replaced with `AXIStreamSource.send(AxiStreamFrame(bytes))` — packs float32 array into a byte frame, BFM handles TVALID/TREADY/TLAST handshaking internally. `read_bram()` replaced with `AXIStreamSink.recv()` — BFM holds TREADY high, accumulates beats, returns frame on TLAST. 3–5× fewer VPI crossings per transfer.
+- **`verification/system/Makefile`:** Added `CONDA_PYTHON` (resolves minitpu conda env Python via `conda run -n minitpu which python3`). Added `CONDA_SITE_PKGS` injected into `PYTHONPATH` so cocotbext-axi (installed only in the conda env) is visible when cocotb embeds Python via the VPI mechanism. `COCOTB_LIBS` changed to `:=` (immediate expand) so it uses CONDA_PYTHON rather than system python3.
+- **Test result:** All 4 boundary tests pass (N=8, N=9, N=16, known values); 3/3 smoke sim pass; 4/4 tpu_compute tests pass.
+- **Commit:** `9e82100`
+
+**P1.7 all 6 sub-tasks now complete.** Next priorities: P2.1 (AXI NoC infrastructure) or P1.4 board +2 shift root cause (requires hardware).
+
+---
+
 ## 2026-02-27 — P2.08: Separate DMA and Compute FSMs (Complete)
 
 **Status: Complete**

@@ -186,7 +186,7 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 | 1 | Drop N=64, keep N≤16 + boundary N=8/9 (DONE) | `test_tpu.py` | 5× speedup |
 | 2 | Fix Verilator (`perl-FindBin`), add `SIM=verilator` to Makefile (DONE) | system `Makefile` | 10-50× speedup |
 | 3 | `TESTCASE=` and `VCD=` selectors in Makefile (DONE) | system `Makefile` | Dev iteration |
-| 4 | Replace manual AXI with `cocotbext-axi` (`AXIStreamSource/Sink`) | `test_tpu.py` | 3-5× fewer VPI crossings |
+| 4 | Replace manual AXI with `cocotbext-axi` (`AXIStreamSource/Sink`) (DONE 2026-02-27) | `test_tpu.py`, system `Makefile` | 3-5× fewer VPI crossings |
 | 5 | Unit-level stream tests: `test_slave_stream.py`, `test_master_stream.py` (DONE) | new files + Makefile | 10× faster compile, isolated |
 | 6 | Conda environment (`environment.yml`) + `make setup` (DONE) | root `environment.yml`, `tpu/Makefile` | Reproducibility |
 

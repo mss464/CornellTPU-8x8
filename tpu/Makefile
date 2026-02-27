@@ -43,6 +43,10 @@ DEPLOY_DIR ?= ~/tpu_deploy
 PROJECT_ROOT := $(abspath $(CURDIR)/..)
 ROOT         := .
 
+# Deploy 
+PROGRAM ?= ../demos/programs/smoke_board.tu
+PROGRAM_ABSPATH="$(abspath $(PROGRAM))"
+
 # Vivado settings
 VIVADO_SETTINGS ?= /opt/xilinx/Vitis/2023.2/settings64.sh
 VIVADO ?= vivado
@@ -206,9 +210,8 @@ board-test:
 	require() { command -v "$$1" >/dev/null 2>&1 || { echo "Missing required tool: $$1" >&2; exit 1; }; }; \
 	require ssh; require scp; require sshpass; \
 	cd "$(PROJECT_ROOT)"; \
-	PROGRAM_ABSPATH_PATH="$(PROGRAM_ABSPATH)"; \
-	if [[ ! -f "$$PROGRAM_ABSPATH_PATH" ]]; then \
-		echo "Missing test program: $$PROGRAM_ABSPATH_PATH" >&2; \
+	if [[ ! -f "$(PROGRAM_ABSPATH)" ]]; then \
+		echo "Missing test program: $(PROGRAM_ABSPATH)" >&2; \
 		exit 1; \
 	fi; \
 	SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"; \
@@ -216,19 +219,20 @@ board-test:
 	trap 'rm -rf "$$DEPLOY_TMP"' EXIT; \
 	mkdir -p "$$DEPLOY_TMP/runtime"; \
 	cp -r runtime/. "$$DEPLOY_TMP/runtime/"; \
-	find "$$DEPLOY_TMP/runtime" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true; \
-	find "$$DEPLOY_TMP/runtime" -name '*.pyc' -delete 2>/dev/null || true; \
-	cp "$$PROGRAM_ABSPATH_PATH" "$$DEPLOY_TMP/"; \
+	PROGRAM_RELPATH="$$(python3 -c "import os; p=os.path.relpath('$(PROGRAM_ABSPATH)','$(PROJECT_ROOT)'); print('' if p.startswith('..') else p)")"; \
+	if [[ -z "$$PROGRAM_RELPATH" || ! -f "$$DEPLOY_TMP/$$PROGRAM_RELPATH" ]]; then \
+		cp "$(PROGRAM_ABSPATH)" "$$DEPLOY_TMP/"; \
+		PROGRAM_RELPATH="$$(basename "$(PROGRAM_ABSPATH)")"; \
+	fi; \
 	if [[ -f "$(ROOT)/hw_config.json" ]]; then cp "$(ROOT)/hw_config.json" "$$DEPLOY_TMP/"; fi; \
 	for extra in $(EXTRA_FILES); do \
 		if [[ -f "$$extra" ]]; then cp "$$extra" "$$DEPLOY_TMP/"; fi; \
 	done; \
-	PROGRAM_ABSPATH_NAME="$$(basename "$$PROGRAM_ABSPATH_PATH")"; \
 	sshpass -p "$(BOARD_PASS)" ssh $$SSH_OPTS "$(BOARD_USER)@$(BOARD_IP)" "mkdir -p $(DEPLOY_DIR)"; \
 	sshpass -p "$(BOARD_PASS)" scp -r $$SSH_OPTS "$$DEPLOY_TMP"/* "$(BOARD_USER)@$(BOARD_IP):$(DEPLOY_DIR)/"; \
-	echo "== Running $$PROGRAM_ABSPATH_NAME on board =="; \
+	echo "== Running $$PROGRAM_RELPATH on board =="; \
 	sshpass -p "$(BOARD_PASS)" ssh -t $$SSH_OPTS "$(BOARD_USER)@$(BOARD_IP)" \
-	"cd $(DEPLOY_DIR) && echo $(BOARD_PASS) | sudo -S python3 $$PROGRAM_ABSPATH_NAME $(PROGRAM_ABSPATH_ARGS)"
+	"cd $(DEPLOY_DIR) && echo $(BOARD_PASS) | sudo -S python3 $$PROGRAM_RELPATH $(PROGRAM_ABSPATH_ARGS)"
 
 tpu:
 	@if [ ! -f "$(BIT)" ] && [ ! -f "$(ULTRA96_BITSTREAM)" ]; then \
@@ -252,12 +256,6 @@ smoke-sim:
 
 smoke-sim-full:
 	@bash scripts/smoke_test.sh --sim-full
-
-SMOKE_PROGRAM ?= ../demos/programs/smoke_board.tu
-
-smoke-board:
-	@$(MAKE) board-test \
-		PROGRAM_ABSPATH="$(abspath $(SMOKE_PROGRAM))"
 
 # Run the offline board test suite (runtime/board_tests/test_board.py).
 # Usage: make board-tests [BOARD_TEST_ARGS="--test devmem_rw_small --verbose"]

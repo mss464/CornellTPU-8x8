@@ -18,7 +18,8 @@ SRC_TPU = ../../src/system/tpu.sv \
           ../../src/system/tpu_slave_axi_stream.v \
           ../../src/system/fifo4.sv \
           ../../src/system/device_mem.sv \
-          ../../src/l2_tile/l2_tile.sv
+          ../../src/l2_tile/l2_tile.sv \
+          ../../src/l2_tile/tma_engine.sv
 SRC_COMPUTE_TILE = ../../src/compute_tile/compute_tile.sv \
                    ../../src/compute_tile/tensorcore.sv \
                    ../../src/compute_tile/l1.sv \
@@ -36,31 +37,36 @@ SRC_COMPUTE_TILE = ../../src/compute_tile/compute_tile.sv \
 
 SRC_ALL = $(SRC_TPU) $(SRC_COMPUTE_TILE)
 
+# TESTCASE=<name> selects a single cocotb test (e.g. TESTCASE=test_boundary_n8)
+# VCD=1 enables waveform dump to dump.vcd (via -DVCD_DUMP compile flag)
+COCOTB_TESTCASE_ENV = $(if $(TESTCASE),COCOTB_TESTCASE=$(TESTCASE))
+IVFLAGS_VCD         = $(if $(VCD),-DVCD_DUMP -s vcd_dump)
+
 test_data_integrity_rtl: $(SIM_BUILD)
 	@echo "=== Running Data Integrity RTL Test ==="
-	$(IVERILOG) -o $(SIM_BUILD)/sim.vvp -s tpu $(IVFLAGS) $(SRC_ALL)
-	MODULE=test_tpu COCOTB_TEST_MODULES=test_tpu $(VVP) -M $(COCOTB_LIBS) -m libcocotbvpi_icarus $(SIM_BUILD)/sim.vvp
+	$(IVERILOG) -o $(SIM_BUILD)/sim.vvp -s tpu $(IVFLAGS) $(IVFLAGS_VCD) $(SRC_ALL)
+	MODULE=test_tpu COCOTB_TEST_MODULES=test_tpu $(COCOTB_TESTCASE_ENV) $(VVP) -M $(COCOTB_LIBS) -m libcocotbvpi_icarus $(SIM_BUILD)/sim.vvp
 	@! grep -q 'failure' results.xml || (echo "TEST FAILED" && exit 1)
 	@echo "=== Data Integrity RTL Test Complete ==="
 
 test_device_mem: $(SIM_BUILD)
 	@echo "=== Running Device Memory Tests ==="
-	$(IVERILOG) -o $(SIM_BUILD)/sim.vvp -s tpu $(IVFLAGS) $(SRC_ALL)
-	MODULE=test_device_mem COCOTB_TEST_MODULES=test_device_mem $(VVP) -M $(COCOTB_LIBS) -m libcocotbvpi_icarus $(SIM_BUILD)/sim.vvp
+	$(IVERILOG) -o $(SIM_BUILD)/sim.vvp -s tpu $(IVFLAGS) $(IVFLAGS_VCD) $(SRC_ALL)
+	MODULE=test_device_mem COCOTB_TEST_MODULES=test_device_mem $(COCOTB_TESTCASE_ENV) $(VVP) -M $(COCOTB_LIBS) -m libcocotbvpi_icarus $(SIM_BUILD)/sim.vvp
 	@! grep -q 'failure' results.xml || (echo "TEST FAILED" && exit 1)
 	@echo "=== Device Memory Tests Complete ==="
 
 test_l2_tile: $(SIM_BUILD)
 	@echo "=== Running L2 Tile Tests ==="
-	$(IVERILOG) -o $(SIM_BUILD)/sim.vvp -s tpu $(IVFLAGS) $(SRC_ALL)
-	MODULE=test_l2_tile COCOTB_TEST_MODULES=test_l2_tile $(VVP) -M $(COCOTB_LIBS) -m libcocotbvpi_icarus $(SIM_BUILD)/sim.vvp
+	$(IVERILOG) -o $(SIM_BUILD)/sim.vvp -s tpu $(IVFLAGS) $(IVFLAGS_VCD) $(SRC_ALL)
+	MODULE=test_l2_tile COCOTB_TEST_MODULES=test_l2_tile $(COCOTB_TESTCASE_ENV) $(VVP) -M $(COCOTB_LIBS) -m libcocotbvpi_icarus $(SIM_BUILD)/sim.vvp
 	@! grep -q 'failure' results.xml || (echo "TEST FAILED" && exit 1)
 	@echo "=== L2 Tile Tests Complete ==="
 
 test_tpu_compute: $(SIM_BUILD)
 	@echo "=== Running TPU Compute Mode Tests ==="
-	$(IVERILOG) -o $(SIM_BUILD)/sim.vvp -s tpu $(IVFLAGS) $(SRC_ALL)
-	MODULE=test_tpu_compute COCOTB_TEST_MODULES=test_tpu_compute $(VVP) -M $(COCOTB_LIBS) -m libcocotbvpi_icarus $(SIM_BUILD)/sim.vvp
+	$(IVERILOG) -o $(SIM_BUILD)/sim.vvp -s tpu $(IVFLAGS) $(IVFLAGS_VCD) $(SRC_ALL)
+	MODULE=test_tpu_compute COCOTB_TEST_MODULES=test_tpu_compute $(COCOTB_TESTCASE_ENV) $(VVP) -M $(COCOTB_LIBS) -m libcocotbvpi_icarus $(SIM_BUILD)/sim.vvp
 	@! grep -q 'failure' results.xml || (echo "TEST FAILED" && exit 1)
 	@echo "=== TPU Compute Mode Tests Complete ==="
 

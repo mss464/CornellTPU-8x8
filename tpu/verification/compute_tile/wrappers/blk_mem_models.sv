@@ -114,6 +114,17 @@ module blk_mem_gen_3 (
     end
 endmodule
 
+// VCD waveform dump — enabled by compiling with -DVCD_DUMP
+// Usage: make test_data_integrity_rtl VCD=1
+`ifdef VCD_DUMP
+module vcd_dump;
+    initial begin
+        $dumpfile("dump.vcd");
+        $dumpvars(0, tpu);
+    end
+endmodule
+`endif
+
 // Behavioral model for blk_mem_gen_2 (Device Memory)
 // 65536x32-bit dual-port SRAM, 16-bit address, 1-cycle registered output latency.
 module blk_mem_gen_2 (

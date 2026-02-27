@@ -60,7 +60,11 @@ This register configures the tpu's operating mode. Only bits **[3:0]** are used,
 | 0x7   | L2_TO_L1     | Copy `dma_len` words from L2 SRAM (addr_l2) to compute tile L1 (addr_ram) |
 | 0x8   | L1_TO_L2     | Copy `dma_len` words from compute tile L1 (addr_ram) to L2 SRAM (addr_l2) |
 
-**Preconditions:**  
+> **TMA instruction (MODE=2 in ISA):** The tensorcore can also trigger L2↔DevMem transfers
+> autonomously via the TMA instruction during COMPUTE mode (tpu_mode=3). This is distinct from
+> the host-controlled modes 5/6. See `docs/isa.md` for TMA instruction encoding.
+
+**Preconditions:**
 - `instr_ready` **must be asserted** before writing a value to `tpu_mode`.
 
 **Mode Transition Requirement:**  

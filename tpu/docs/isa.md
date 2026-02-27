@@ -375,7 +375,7 @@ MODE is encoded in bits [63:62].
 |-----:|----------------------|
 |   0  | VPU instruction      |
 |   1  | Systolic instruction |
-|   2  | RESERVED             |
+|   2  | TMA instruction      |
 |   3  | Halt                 |
 
 Invalid mode values are undefined.
@@ -662,6 +662,40 @@ weights are stored in `[out_features, in_features]` layout.
 - LEN is encoded but currently ignored by hardware. Set LEN = 16 by convention.
 - For larger matrices, use software tiling with VPU accumulation (see below).
 
+### TMA (MODE = 2)
+
+TMA (Tensor Memory Access) transfers a contiguous block of words between device memory and L2 SRAM. Initiated by the tensorcore during COMPUTE mode and handled by `tma_engine.sv` inside the L2 tile.
+
+| Field     | Bits    | Description                                   |
+|-----------|---------|-----------------------------------------------|
+| MODE      | [63:62] | Must be 2                                     |
+| DIR       | [61]    | 0 = DevMem → L2, 1 = L2 → DevMem             |
+| DM_BASE   | [60:45] | Device memory base address (16-bit word addr) |
+| L2_BASE   | [44:30] | L2 SRAM base address (15-bit word addr)       |
+| LEN       | [29:14] | Transfer length in words (16-bit)             |
+| RESERVED  | [13:0]  | Must be zero                                  |
+
+**Semantics (DIR=0, DevMem → L2):**
+```
+L2[L2_BASE : L2_BASE+LEN-1] = DevMem[DM_BASE : DM_BASE+LEN-1]
+```
+
+**Semantics (DIR=1, L2 → DevMem):**
+```
+DevMem[DM_BASE : DM_BASE+LEN-1] = L2[L2_BASE : L2_BASE+LEN-1]
+```
+
+**Completion:** Hardware asserts `tma_done` (1-cycle pulse) when the transfer finishes. The tensorcore waits in `WAIT_TMA` state until this signal fires before fetching the next instruction.
+
+**Constraints:** LEN must be ≤ 32768 (L2 size). DM_BASE + LEN must not exceed 65536 (DevMem size).
+
+**Example:**
+```
+# Load 64 floats from DevMem[0x100] into L2[0x200]
+tma dir=0 dm_base=0x100 l2_base=0x200 len=64
+```
+
+**Assembler mnemonic:** `tma <dir> <dm_base> <l2_base> <len>`
 
 ### Halt (MODE = 3)
 
@@ -694,6 +728,7 @@ The current assembler uses these mnemonics:
   - `vmax <vdst> <va> <vb>` - Vector maximum
   - `vmin <vdst> <va> <vb>` - Vector minimum
 - Control: `halt`
+  - `tma <dir> <dm_base> <l2_base> <len>` - TMA block transfer (dir=0: devmem→L2, dir=1: L2→devmem)
 - Pseudo: `load <addr> <len> <values>`, `store <addr> <len> <label>`
 
 ## Tiled Matrix Multiplication

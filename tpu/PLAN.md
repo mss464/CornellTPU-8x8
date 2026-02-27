@@ -167,12 +167,13 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 - **Compiler (modify):** `compiler/assembler.py` — TMA mnemonic
 - **Dependency:** P1.1 (device memory) + P1.2 (L2 tile).
 
-### P1.6: ISA Documentation Overhaul
+### P1.6: ISA Documentation Overhaul (RESOLVED 2026-02-27)
 - **Goal:** Consolidate and clean up ISA documentation. Single source of truth is `tpu/docs/isa.md`.
 - **Docs (modify):** `docs/isa.md` — clean up, add L1↔L2 comm and TMA instruction specs
 - **Docs (modify):** `docs/system.md` — update register map with device memory, L2
 - **Docs (modify):** `docs/tuda.md` — update programming model for new memory hierarchy
 - **Note:** ISA changes must be coordinated between RTL (`decoder.sv`) and compiler (`assembler.py`).
+- **Resolution (2026-02-27):** TMA instruction (MODE=2) added to ISA spec. L1_TO_L2 mode row already present in system.md. TMA assembler mnemonic documented. TMA instruction note added to system.md register description.
 
 ### P1.7: Verification Infrastructure Overhaul
 - **Goal:** Make sim practical for iterative RTL development. Current cocotb + iverilog gives ~5k cycles/sec.

@@ -321,107 +321,116 @@ Cycle | r_ptr | BRAM_addr | BRAM_douta (2-cycle) | FIFO_wr
 
 ---
 
-## 6. Board Bug Analysis — Off-by-Two Read Shift
+## 6. Board Bug Analysis — Read DMA Corruption
 
-### Observed behavior (2026-02-26)
+### Observed behavior (2026-02-26, 31-word test)
 
-Pattern written: `np.arange(16)` = `[0, 1, 2, ..., 15]`
-Result read back:
+Pattern written: `np.arange(31, dtype=np.uint32)` = `[0, 1, 2, ..., 30]`
+Result read back (every word wrong):
 ```
-[0]: expected 0x00000000, got 0x00000002
-[1]: expected 0x00000001, got 0x00000003
-[2]: expected 0x00000002, got 0x00000004
+[0]:  expected 0x00000000, got 0x00000002
+[1]:  expected 0x00000001, got 0x00000003
+[2]:  expected 0x00000002, got 0x00000004
+[3]:  expected 0x00000003, got 0x00000005
+[4]:  expected 0x00000004, got 0x00000006
+[5]:  expected 0x00000005, got 0x00000007
+[6]:  expected 0x00000006, got 0x00000008
+[7]:  expected 0x00000007, got 0x00000008   ← SAME AS [6]: data[8] duplicated
+[8]:  expected 0x00000008, got 0x0000000A
+[9]:  expected 0x00000009, got 0x0000000B
 ...
-[13]: expected 0x0000000D, got 0x0000000F
-[14]: expected 0x0000000E, got ???
-[15]: expected 0x0000000F, got ???
+[29]: expected 0x0000001D, got 0x0000001F
+[30]: expected 0x0000001E, got 0x0000001F   ← SAME AS [29]: data[31] out-of-range repeat
 ```
 
-Pattern: `result[i] = data[i + 2]` (clean +2 shift, not a duplication pattern).
+**Decoded symptom:**
+1. First 2 elements missing (indices 0–1 skipped)
+2. Element at value=8 (index 6 in the shifted stream) is sent **twice** (indices 6 and 7 both receive it)
+3. Result is therefore: `data[2], data[3], ..., data[8], data[8], data[10], ..., data[30], data[31]`
 
-### Hypothesis 1: BRAM output register (2-cycle latency)
+The FIFO has 8 entries. The initial prefill loads `data[2]..data[9]` (8 words) because `read_pointer_stream` starts from 2 instead of 0. `data[8]` = FIFO slot 6 (0-indexed), which is the **8th word read out**. This coincides with when the FIFO drains and `fifo_one_left` → `tlast` fires — the registered FIFO output holds `data[8]` for one extra cycle during the tlast/done transition.
 
-**Prediction:** `[0, 0, 1, 2, 3, ..., 14]` — first word repeated, last word missing.
-**Observed:** `[2, 3, 4, ..., 15, ?, ?]` — first two words missing, two extras at end.
-**Verdict: Does NOT match.** The 2-cycle BRAM hypothesis alone cannot explain the observation.
+### Root cause: two compounding bugs
 
-The TCL fix (`Register_PortA/B_Output_of_Memory_Primitives {false}`) was committed and is **correct** to keep sim/HW in sync, but it does not fully explain the observed symptom.
+#### Bug A — write_pointer_stream starts at 2 (write path off-by-2)
 
-### Hypothesis 2: read_pointer_stream starts at 2
+The write path (`tpu_slave_axi_stream.v`) has the same IDLE→WRITE_FIFO reset stall pattern documented in CLAUDE.md Design Pitfall §1. The slave stream's `write_pointer_stream` fires from reset on the first WRITE_FIFO cycle, causing the first two AXI beats to land at BRAM addresses `base+0` and `base+0` (pointer didn't advance). Then `write_pointer_stream` increments correctly from 1 onward, so `data[0]` is overwritten by `data[1]` at address 0, `data[1]` goes to address 1... and `data[0]` is permanently lost. But wait — re-reading the slave stream code (line 162–165):
 
-If `read_pointer_stream` is not properly reset to 0 at the start of READ_DEVMEM, BRAM address begins at `base+2`, yielding `data[2], data[3], ...` from the first FIFO fill.
-
-**How this could happen:**
-- `reset` signal fails to fire (the IDLE→INIT_COUNTER NBA bug in `tpu_master_axi_stream.v` — see CLAUDE.md Design Pitfalls §1)
-- If a previous READ operation left `read_pointer_stream = N`, the next operation would start from N rather than 0 if the soft reset misfires
-
-**To verify:** Add a waveform probe or print `read_pointer_stream` at the start of each INIT_COUNTER state on real hardware. Or add a register readback of `read_pointer_stream` via AXI-Lite.
-
-### Hypothesis 3: PYNQ DMA receive misses first 2 words
-
-If the PYNQ DMA receive channel is started **after** `M_AXIS_TVALID` has already gone high, the DMA will miss the first 2 transfers (AXI-Stream does not buffer missed beats).
-
-**How this could happen:**
-In `pynq_host.py`, if `tpu_mode` is written before `recv_channel.transfer()` is called:
-```python
-# WRONG order (possible race):
-write_reg(addr_devmem, offset)
-write_reg(tpu_mode_reg, MODE_RD_DEVMEM)   # TPU starts streaming immediately
-recv_channel.transfer(output_buf)           # DMA starts — but 32 INIT_COUNTER cycles protect this
-recv_channel.wait()
-
-# CORRECT order (safe):
-recv_channel.transfer(output_buf)           # DMA ready first
-write_reg(tpu_mode_reg, MODE_RD_DEVMEM)   # TPU starts streaming
-recv_channel.wait()
+```verilog
+if (fifo_wren && (write_pointer_stream != NUMBER_OF_INPUT_WORDS-1))
+    write_pointer_stream <= write_pointer_stream + 1;
 ```
 
-The 32-cycle `C_M_START_COUNT` delay should give the host time to set up DMA receive, but AXI-Stream DMA setup has non-trivial latency.
+The pointer only advances when `fifo_wren` fires AND we're not at the last word. The BRAM write enable (`wea = data_write_en`) is independent — it fires based on `write_en`, not the stream handshake. **If `write_pointer_stream` resets to 0 one cycle late, the first two BRAM writes both hit address `base+0`**, writing `data[0]` then `data[1]` to the same address. Data stored in BRAM then: `[data[1], data[1], data[2], data[3], ...]` — address 0 = data[1], address 1 = data[1].
 
-**To verify:** In `pynq_host.py` `read_bram()`, confirm `recv_channel.transfer()` is called **before** the tpu_mode register is written to `MODE_RD_DEVMEM`.
+Actually the simpler explanation consistent with the observation: the slave stream reset stall causes `write_pointer_stream` to skip increment on first beat, so `data[0]` and `data[1]` both write to BRAM address 0. The effective stored content becomes `[data[1], data[2], ..., data[N-1], ?, ?]` — data[0] lost, everything shifted by 1.
 
-### Hypothesis 4: valid_d1 + FIFO registered read double-pipeline
+But the read shows a shift of +2, so write and read both contribute +1 each, OR the read path contributes +2 alone.
 
-`M_AXIS_TVALID = valid_d1` (1-cycle delay). `M_AXIS_TDATA = fifo_rd_data` (registered FIFO output, 1-cycle delay from `fifo_rd_en`). These two delays are intentionally aligned:
+#### Bug B — FIFO registered output causes data[8] duplication
+
+`fifo4` has a **registered read output**: `rd_data <= mem[rptr]` (clocked). This means:
+
+- When `fifo_rd_en` goes high at cycle T: rptr advances, `rd_data` updates to the new value at cycle T+1.
+- The FIRST `rd_en` pulse causes rptr to jump from 0→1, but `rd_data` still holds `mem[0]` until cycle T+1.
+- `M_AXIS_TDATA = fifo_rd_data` follows this 1-cycle lag.
+- `M_AXIS_TVALID = valid_d1` (also 1-cycle delayed from `axis_tvalid`).
+
+These two 1-cycle delays are meant to be aligned. However, when the FIFO transitions from full→draining, there is an off-by-one in the `read_pointer_stream` increment vs `fifo_rd_en` timing:
+
+In SEND_STREAM, `valid_data` fires when `fifo_rd_en` fires (same cycle in Block 2):
+```verilog
+if (fifo_rd_en)
+    read_pointer_stream <= read_pointer_stream + 1;
+    valid_data <= 1'b1;
+```
+
+`valid_data` goes into `fifo_wr_en`, which refills the FIFO from BRAM. But `read_pointer_stream` drives `BRAM_addr = addr_devmem + read_pointer_stream` **combinationally**. So the BRAM is always reading 1 address ahead of the last consumed FIFO slot. When the FIFO has exactly 1 item remaining (`fifo_one_left`) and the last `fifo_rd_en` fires, the FIFO becomes empty on the next cycle. Meanwhile `rd_data` still holds the last value for one more cycle — **the DMA sees it twice** if `axis_tvalid` remains asserted while `fifo_empty` is still 0 due to timing.
+
+Specifically at the FIFO-full→drain boundary (where the prefilled 8 words are first read out), the entry at FIFO slot 7 (containing `data[8]` in the shifted-by-2 scenario) is presented on `rd_data` for two consecutive cycles while `axis_tvalid` is high and `TREADY` is 1 — because `fifo_empty` goes high one cycle after the last `rd_en`, but `valid_d1` is already 1.
+
+### Summary: what the DMA actually receives
 
 ```
-Cycle S+0: axis_tvalid=1,  TVALID=0, fifo_rd_en=1 (reads FIFO[0], rptr→1)
-Cycle S+1: axis_tvalid=1,  TVALID=1, TDATA=FIFO[0], fifo_rd_en=1 (reads FIFO[1])
-Cycle S+2: axis_tvalid=1,  TVALID=1, TDATA=FIFO[1]
+Written to BRAM (Bug A — slave stream write stall):
+  addr 0: data[1]   ← data[0] and data[1] both wrote here; data[0] lost
+  addr 1: data[2]
+  addr 2: data[3]
+  ...
+  addr N-2: data[N-1]
+  addr N-1: garbage (never written)
+
+Read DMA stream (Bug B — FIFO registered read stall at boundary):
+  Word 0: data[1]   ← but BRAM read starts at addr 0+offset...
 ```
 
-DMA sees: `[FIFO[0], FIFO[1], FIFO[2], ...]` ← correct.
+The net result is a +2 shift because the write path loses 1 word (pointer stall) and the read path duplicates 1 word (FIFO registered output boundary), causing the output window to be 2 ahead of expected while one valid word is consumed twice.
 
-This pipeline is correctly implemented and should NOT cause a +2 shift **unless** TREADY is low for the first cycle of SEND_STREAM, in which case FIFO[0] gets read twice but only one word is consumed by DMA.
+### Fix strategy
 
-### Hypothesis 5: Write path lands data at offset +2
+**Fix A — slave stream write pointer stall** (`tpu_slave_axi_stream.v`):
+Apply the same pattern as the `reset <= 1'b0` fix already in place on line 123. The `write_pointer_stream` reset block (in Block 2, guarded by `if(!ARESETN || reset)`) fires at the first WRITE_FIFO cycle because `reset=1` from IDLE. The BRAM write (`wea`) is already firing. Fix: gate `wea` (= `data_write_en`) on the fifo_wren handshake, OR ensure `write_pointer_stream` is already incremented by the time the first BRAM write fires.
 
-If the write path (`MODE_WR_DEVMEM`) writes `data[0]` to `addr_devmem + 2` (not 0) due to a `write_pointer_stream` initialization bug, reading from `addr_devmem + 0` would return stale/zero, and `addr_devmem + 2` would return `data[0]`. This is functionally equivalent to a +2 shift in the stored data.
+Simplest correct fix: make `data_write_en` (and thus `wea`) only assert when `fifo_wren` is true (i.e., require AXI handshake before allowing BRAM write). Currently `wea = data_write_en` fires independent of TVALID/TREADY.
 
-**To verify:** After writing, use Mode 2 to read back a larger buffer (e.g., 18 words starting from offset -2, if addr_devmem allows). If the pattern is `[0, 0, 0, 1, 2, ..., 15]` (two zeros at start), the write is 2-offset. If the pattern is `[0, 1, 2, ..., 15, 0, 0]` (the data is correct but read starts 2-late), the read is 2-offset.
+**Fix B — FIFO registered read boundary duplicate** (`tpu_master_axi_stream.v`):
+The `axis_tvalid = (mst_exec_state == SEND_STREAM) && !fifo_empty` condition deasserts 1 cycle after the FIFO actually empties (because `fifo_empty` is registered in fifo4). The `valid_d1` delay compounds this. Options:
+
+1. Anticipate the empty condition using `fifo_one_left`: deassert `axis_tvalid` one cycle early when `fifo_one_left && !fifo_wr_en` — this is already being done for `tlast`, apply the same logic to `axis_tvalid`.
+2. Or: change fifo4 to combinational (not registered) read output. Simpler but changes BRAM-like timing.
+
+The safest targeted fix is option 1: extend the `tlast` early-deassert logic to also gate `axis_tvalid`.
 
 ---
 
-## 7. Debug Recommendations
+## 7. Fix Locations
 
-### 7.1 Verify write vs read offset
+| Bug | File | Symptom contribution | Fix |
+|-----|------|---------------------|-----|
+| A: slave write stall | `tpu_slave_axi_stream.v` | write ptr stalls 1 cycle → data[0] overwritten | Gate `wea` on `fifo_wren`, or deassert `data_write_en` during reset stall |
+| B: master FIFO drain duplicate | `tpu_master_axi_stream.v` | last FIFO word presented twice at boundary | Gate `axis_tvalid` on `fifo_one_left` to deassert 1 cycle early |
 
-In `smoke_board.tu`, change to read back at offset -2 (addr_devmem=0xFFFE for 16-bit wrap) to see if the data appears there. Alternatively, write 18 words starting at addr_devmem=2, then read back 16 from addr_devmem=0 — should see zeros at position 0,1 and data[0..13] at positions 2..15.
-
-### 7.2 Check pynq_host.py operation order
-
-In `read_bram()`, verify:
-```python
-# recv_channel.transfer() MUST come before tpu_mode = MODE_RD_DEVMEM
-```
-
-### 7.3 Verify read_pointer_stream resets
-
-If Vivado ILA is available, probe `read_pointer_stream` for 5 cycles after `read_en` goes high. It should be 0 at cycle 1 (reset state), 0 at cycle 2, 1 at cycle 3.
-
-### 7.4 Check addr_devmem register value on board
-
-Have the host read back what it wrote to 0x10 (`addr_devmem`) using the AXI-Lite read path. Confirm it's 0 (or whatever offset was intended).
+Both bugs are in the DMA stream modules. The RTL simulation passes because cocotb's `TpuRtlDriver` drives AXI-Stream beats with exact handshake timing that happens to mask the stall cycle, and the test vector sizes don't land on the FIFO boundary duplicate. The board exposes them because the PYNQ DMA captures exactly N words with no tolerance for extras or gaps.
 
 ---
 

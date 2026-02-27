@@ -5,6 +5,70 @@ See `PLAN.md` for goals and `CLAUDE.md` for agent working notes / hardware quirk
 
 ---
 
+## 2026-02-26 — P1.4: Board Smoke Test Debugging (In Progress)
+
+**Status: Root cause identified, fix pending**
+
+Investigated board DEADBEEF roundtrip failure. Simulation passes. Board shows corrupted DMA reads.
+
+### Work completed this session
+
+**1. FallingEdge VPI fix (`tpu/verification/l2_tile/test_tma.py`)**
+Two TMA tests (`test_host_dm_to_l2`, `test_tma_dm_to_l2`) were failing with wrong data (0 instead of expected values). Root cause: `dut.dm_dout.value = X` after `await RisingEdge` fires in the ReadWrite phase, AFTER the BRAM's `always @(posedge)` already sampled `sram_din_b=0`. Fix: drive `dm_dout` at `FallingEdge` (midpoint), giving VPI a full half-period to propagate before the next posedge. All 5 TMA tests now pass (TESTS=5 PASS=5 FAIL=0).
+
+**2. Board driver fixes (`runtime/pynq_host.py`)**
+- Added `addr_devmem: 0x10` and `addr_l2: 0x14` to `REG_ADDR` (were missing after P1.1 moved device memory from 0x0C to 0x10)
+- Fixed `write_bram`/`read_bram` to use `REG_ADDR["addr_devmem"]` instead of `REG_ADDR["addr_ram"]`
+- Fixed `read_bram`: `recv_channel.transfer()` now called before `tpu_mode = READ_BRAM` (was reversed, risking DMA miss)
+
+**3. smoke_board.tu import fix (`demos/programs/smoke_board.tu`)**
+`runtime.tuda` import chain not deployed to board. Rewrote to import `TpuDriver` directly from `runtime.pynq_host`.
+
+**4. Synthesis (`tpu/scripts/package_tpu_ip.tcl`, `tpu/Makefile`)**
+- Added `blk_mem_gen_2` (device memory) and `blk_mem_gen_3` (L2 SRAM) to IP packaging TCL
+- Added L2 tile RTL (`src/l2_tile/*.sv`) to Vivado IP packaging command
+- Uncommented `PROJ_NAME ?= minitpu`
+- Bitstream built: `minitpu.bit` (5.4 MB), timing slack 0.216 ns
+
+**5. BRAM output register fix (`tpu/scripts/package_tpu_ip.tcl`)**
+All 4 BRAMs had `Register_PortA/B_Output_of_Memory_Primitives {true}` (2-cycle hardware latency) while simulation uses 1-cycle behavioral model. Changed all to `{false}`. Requires bitstream rebuild. Commit: `9d6a58b`.
+
+**6. Memory hierarchy documentation (`tpu/docs/memory_hierarchy.md`)**
+Full reference document covering all 4 BRAMs, all 8 DMA modes, Mode 2 cycle-by-cycle timing, and board bug analysis.
+
+### Board test results
+
+First test (16 words): `result[i] = data[i+2]` — clean +2 shift.
+Second test (31 words, after pynq_host.py fix): same +2 shift plus `data[8]` duplicated:
+```
+[6]:  got 0x08   (expected 0x06)
+[7]:  got 0x08   ← SAME AS [6]: duplicate
+[30]: got 0x1F   ← out-of-range repeat
+```
+
+### Root cause identified: two compounding DMA bugs
+
+**Bug A — `tpu_slave_axi_stream.v` write pointer stall:**
+The IDLE→WRITE_FIFO reset stall (CLAUDE.md Design Pitfall §1) fires on the first WRITE_FIFO cycle. `write_pointer_stream` is held at 0 while `wea` (BRAM write enable) is already asserted — both `data[0]` and `data[1]` write to BRAM address 0. `data[0]` is permanently overwritten. Effective stored content is `[data[1], data[2], ..., data[N-1], garbage]`.
+
+**Bug B — `tpu_master_axi_stream.v` FIFO registered-read boundary duplicate:**
+`fifo4` uses registered (clocked) read output. At the FIFO drain boundary, `rd_data` holds the last value for one extra cycle after `fifo_empty` goes high. `axis_tvalid` deasserts one cycle late (combinatorial from `!fifo_empty`, but empty is itself registered). The DMA sees the last FIFO word twice.
+
+Net effect: write loses 1 word (+1 shift), read repeats 1 word (net +1 shift) = +2 total.
+
+### Fixes needed (P1.4)
+
+| Bug | File | Fix |
+|-----|------|-----|
+| A: slave write stall | `tpu_slave_axi_stream.v` | Gate BRAM `wea` on `fifo_wren` (AXI handshake), not just `data_write_en` |
+| B: master FIFO boundary duplicate | `tpu_master_axi_stream.v` | Gate `axis_tvalid` using `fifo_one_left` (same pattern as `tlast`) |
+
+Both fixes require RTL sim regression after change. Bitstream rebuild required for board validation.
+
+See `tpu/docs/memory_hierarchy.md` §6–7 for full analysis.
+
+---
+
 ## 2026-02-25 — P1.2 + P1.3: L2 Tile and Host-Controlled Memory Hierarchy (Complete)
 
 **Status: Complete**

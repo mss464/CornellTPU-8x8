@@ -37,11 +37,16 @@ See `PROGRESS.md` for current status and `CLAUDE.md` for agent working notes.
          └────┬─────┘                                └─────┬────┘
               │                                            │
               ▼                                            ▼
-         ┌──────────┐                                ┌──────────┐
-         │ L2 Tile  │◄──────────────────────────────►│ Control  │
-         │ (shared  │                                │  Tile    │
-         │  SRAM)   │                                │(host ctl)│
-         └────┬─────┘                                └──┬───┬───┘
+         ┌──────────────────────────────────────────────────────┐
+         │ 			L2 Tile	        		│
+         │ 			(shared           		│
+         │  			  SRAM)            		│
+         └────┬─────────────────────────────────────────────────┘
+              │				     	     ┌──────────┐
+              │ 				     │ Control  │
+              │				     	     │  Tile    │
+              │				             │(host ctl)│
+              │				     	     └──┬───┬───┘
               │                                    DMA  │   │
               │◄───────────────────────────────────────►│   │
               │                                   AXI-S │   │
@@ -138,7 +143,17 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 - **Compiler (modify):** `compiler/assembler.py` — new mnemonic
 - **Dependency:** P1.2 (L2 tile must exist).
 
-### P1.4: L2 ↔ Device Memory TMA Instruction
+### P1.4: RTL Correctness: DMA Write+Read Corruption (Root Cause Known)
+- **Goal:** Fix two compounding DMA bugs causing board smoke test to fail with +2 shift and element duplication.
+- **Root cause (identified 2026-02-26, see PROGRESS.md and docs/memory_hierarchy.md §6–7):**
+  - **Bug A** (`tpu_slave_axi_stream.v`): IDLE→WRITE_FIFO reset stall causes `wea` to fire before `write_pointer_stream` increments. `data[0]` is overwritten by `data[1]` at address 0. Fix: gate `wea` on `fifo_wren` (AXI handshake), not just `data_write_en`.
+  - **Bug B** (`tpu_master_axi_stream.v`): FIFO registered-read boundary duplicate. `axis_tvalid` deasserts 1 cycle late relative to `fifo_empty`, causing DMA to receive last FIFO word twice. Fix: gate `axis_tvalid` using `fifo_one_left` (same early-deassert pattern already used for `tlast`).
+- **RTL (modify):** `src/system/tpu_slave_axi_stream.v` — gate wea on fifo_wren
+- **RTL (modify):** `src/system/tpu_master_axi_stream.v` — gate axis_tvalid on fifo_one_left
+- **Verification (modify):** `verification/system/test_tpu.py` — add boundary-size transfer tests (N=8, N=9, N=16) to catch both bugs in simulation
+- **Board:** rebuild bitstream after RTL fix and re-run `make smoke-board`
+
+### P1.5: L2 ↔ Device Memory TMA Instruction
 - **Goal:** Design a TMA (Tensor Memory Access) instruction for L2↔DevMem transfers.
 - **What:** Handles address generation and burst transfers between L2 SRAM and device memory.
 - **Prototype:** Simple contiguous block transfer (no coalescing). Coalescing and strided access are future (P3.5).
@@ -150,21 +165,7 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 - **Compiler (modify):** `compiler/assembler.py` — TMA mnemonic
 - **Dependency:** P1.1 (device memory) + P1.2 (L2 tile).
 
-### P1.5: MXU Pipelined Burst Mode
-- **Goal:** Refactor `mxu.sv` from per-element `MEM_LATENCY` wait to true pipelined burst reads.
-- **Impact:** ~3x throughput improvement on large matmuls (current ~33% peak utilization).
-- **RTL (modify):** `src/compute_tile/mxu.sv` — pipelined burst FSM
-- **RTL (modify):** `src/compute_tile/l1.sv` — may need burst-ready Port B interface
-- **Verification (modify):** `verification/compute_tile/test_mxu.py` — burst mode tests
-- **Dependency:** Stable L1 interface (P1.3 should not break existing Port B interface).
-
-### P1.6: Scalar VPU Ops (Currently NOPs)
-- **Goal:** Implement real scalar operations in `vpu_simd.sv` instead of watchdog-guarded NOPs.
-- **RTL (modify):** `src/compute_tile/vpu_simd.sv` — scalar dispatch path fix
-- **RTL (modify):** `src/compute_tile/vpu_op.sv` — scalar operation implementation
-- **Verification (modify):** `verification/compute_tile/test_vpu_simd.py` — scalar op tests
-
-### P1.7: ISA Documentation Overhaul
+### P1.6: ISA Documentation Overhaul
 - **Goal:** Consolidate and clean up ISA documentation. Single source of truth is `tpu/docs/isa.md`.
 - **Docs (modify):** `docs/isa.md` — clean up, add L1↔L2 comm and TMA instruction specs
 - **Docs (modify):** `docs/system.md` — update register map with device memory, L2
@@ -174,6 +175,20 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 ---
 
 ## P2 — Medium-Term: Multi-Tile Mesh
+
+### P2.05: MXU Pipelined Burst Mode
+- **Goal:** Refactor `mxu.sv` from per-element `MEM_LATENCY` wait to true pipelined burst reads.
+- **Impact:** ~3x throughput improvement on large matmuls (current ~33% peak utilization).
+- **RTL (modify):** `src/compute_tile/mxu.sv` — pipelined burst FSM
+- **RTL (modify):** `src/compute_tile/l1.sv` — may need burst-ready Port B interface
+- **Verification (modify):** `verification/compute_tile/test_mxu.py` — burst mode tests
+- **Dependency:** Stable L1 interface (P1.3 should not break existing Port B interface).
+
+### P2.06: Scalar VPU Ops (Currently NOPs)
+- **Goal:** Implement real scalar operations in `vpu_simd.sv` instead of watchdog-guarded NOPs.
+- **RTL (modify):** `src/compute_tile/vpu_simd.sv` — scalar dispatch path fix
+- **RTL (modify):** `src/compute_tile/vpu_op.sv` — scalar operation implementation
+- **Verification (modify):** `verification/compute_tile/test_vpu_simd.py` — scalar op tests
 
 ### P2.1: AXI NoC Infrastructure
 - **Goal:** Design the on-chip network connecting compute tiles, L2 tile, and control tile.
@@ -216,10 +231,6 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 
 ## P3 — Longer-Term
 
-### P3.1: RTL Correctness: DMA Off-by-One
-- **Goal:** Fix minor DMA address off-by-one causing numerical mismatches in large matmul results.
-- **RTL (modify):** `src/system/tpu_slave_axi_stream.v` and/or `src/system/tpu_master_axi_stream.v`
-- **Verification (modify):** `verification/system/test_tpu.py` — add large-transfer edge case tests
 
 ### P3.2: FP32 Exception Handling
 - **Goal:** Add flush-to-zero and overflow/underflow detection to FP32 units.

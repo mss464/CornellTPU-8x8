@@ -106,7 +106,8 @@ class TpuRtlDriver:
         await self.wait_for_flag(0x04, 1) # instr_ready
         await self.write_axi_lite(0x10, addr)  # addr_devmem (slv_reg4)
         await self.write_axi_lite(0x18, len(values))
-        await self.write_axi_lite(0x00, 1) # WRITE_DEVMEM
+        # P1.8: combine mode write + doorbell set in one write (bit 4 = doorbell)
+        await self.write_axi_lite(0x00, 1 | 0x10) # WRITE_DEVMEM | doorbell
         
         await self.wait_for_flag(0x08, 1) # stream_ready
         
@@ -126,8 +127,7 @@ class TpuRtlDriver:
         self.dut.s00_axis_tvalid.value = 0
         self.dut.s00_axis_tlast.value = 0
         
-        await self.wait_for_flag(0x04, 1) # instr_ready
-        await self.write_axi_lite(0x00, 0) # IDLE
+        await self.wait_for_flag(0x04, 1) # instr_ready (done — no IDLE write needed)
 
     async def devmem_to_l2(self, devmem_addr, l2_addr, length):
         """Copy length words from device memory to L2 (mode 5)."""
@@ -135,9 +135,8 @@ class TpuRtlDriver:
         await self.write_axi_lite(0x10, devmem_addr)  # addr_devmem
         await self.write_axi_lite(0x14, l2_addr)      # addr_l2
         await self.write_axi_lite(0x18, length)
-        await self.write_axi_lite(0x00, 5)             # DM_TO_L2
-        await self.wait_for_flag(0x04, 1)
-        await self.write_axi_lite(0x00, 0)             # IDLE
+        await self.write_axi_lite(0x00, 5 | 0x10)     # DM_TO_L2 | doorbell
+        await self.wait_for_flag(0x04, 1)              # done — no IDLE write needed
 
     async def l2_to_devmem(self, l2_addr, devmem_addr, length):
         """Copy length words from L2 to device memory (mode 6)."""
@@ -145,9 +144,8 @@ class TpuRtlDriver:
         await self.write_axi_lite(0x10, devmem_addr)  # addr_devmem
         await self.write_axi_lite(0x14, l2_addr)      # addr_l2
         await self.write_axi_lite(0x18, length)
-        await self.write_axi_lite(0x00, 6)             # L2_TO_DM
-        await self.wait_for_flag(0x04, 1)
-        await self.write_axi_lite(0x00, 0)             # IDLE
+        await self.write_axi_lite(0x00, 6 | 0x10)     # L2_TO_DM | doorbell
+        await self.wait_for_flag(0x04, 1)              # done — no IDLE write needed
 
     async def l2_to_l1(self, l2_addr, l1_base_addr, length):
         """Copy length words from L2 to compute tile L1 (mode 7)."""
@@ -155,9 +153,8 @@ class TpuRtlDriver:
         await self.write_axi_lite(0x0C, l1_base_addr) # addr_ram (L1 base)
         await self.write_axi_lite(0x14, l2_addr)      # addr_l2
         await self.write_axi_lite(0x18, length)
-        await self.write_axi_lite(0x00, 7)             # L2_TO_L1
-        await self.wait_for_flag(0x04, 1)
-        await self.write_axi_lite(0x00, 0)             # IDLE
+        await self.write_axi_lite(0x00, 7 | 0x10)     # L2_TO_L1 | doorbell
+        await self.wait_for_flag(0x04, 1)              # done — no IDLE write needed
 
     async def l1_to_l2(self, l1_base_addr, l2_addr, length):
         """Copy length words from compute tile L1 to L2 (mode 8)."""
@@ -165,15 +162,15 @@ class TpuRtlDriver:
         await self.write_axi_lite(0x0C, l1_base_addr) # addr_ram (L1 base)
         await self.write_axi_lite(0x14, l2_addr)      # addr_l2
         await self.write_axi_lite(0x18, length)
-        await self.write_axi_lite(0x00, 8)             # L1_TO_L2
-        await self.wait_for_flag(0x04, 1)
-        await self.write_axi_lite(0x00, 0)             # IDLE
+        await self.write_axi_lite(0x00, 8 | 0x10)     # L1_TO_L2 | doorbell
+        await self.wait_for_flag(0x04, 1)              # done — no IDLE write needed
 
     async def read_bram(self, addr, length):
         await self.wait_for_flag(0x04, 1) # instr_ready
         await self.write_axi_lite(0x10, addr)  # addr_devmem (slv_reg4)
         await self.write_axi_lite(0x18, length)
-        await self.write_axi_lite(0x00, 2) # READ_DEVMEM
+        # P1.8: combine mode write + doorbell set in one write (bit 4 = doorbell)
+        await self.write_axi_lite(0x00, 2 | 0x10) # READ_DEVMEM | doorbell
         
         out_values = []
         self.dut.m00_axis_tready.value = 1
@@ -189,8 +186,7 @@ class TpuRtlDriver:
         
         self.dut.m00_axis_tready.value = 0
         
-        await self.wait_for_flag(0x04, 1) # instr_ready
-        await self.write_axi_lite(0x00, 0) # IDLE
+        await self.wait_for_flag(0x04, 1) # instr_ready (done — no IDLE write needed)
         return out_values
 
 @cocotb.test()

@@ -74,6 +74,11 @@
 
     wire [3:0] tpu_mode = slv_reg0_bus[3:0]; // 4-bit mode field
 
+    // Doorbell mechanism (P1.8)
+    wire        doorbell;       // slv_reg0[4] — goes high when host sets doorbell bit
+    reg         doorbell_clear; // pulse: tpu.sv clears slv_reg0[4] on acceptance
+    reg  [3:0]  latched_mode;   // mode captured at doorbell acceptance (tpu_mode[3:0])
+
     // Mode constants
     localparam MODE_IDLE      = 4'd0;
     localparam MODE_WR_DEVMEM = 4'd1;  // host → device memory (AXI-Stream)
@@ -214,7 +219,9 @@
         .slv_reg3_out(slv_reg3_bus),
         .slv_reg4_out(slv_reg4_bus),
         .slv_reg5_out(slv_reg5_bus),
-        .slv_reg6_out(slv_reg6_bus)
+        .slv_reg6_out(slv_reg6_bus),
+        .doorbell_out(doorbell),
+        .doorbell_clear(doorbell_clear)
     );
 
     // =========================================================================
@@ -292,6 +299,8 @@
             l2l1_rd_issued     <= 16'd0;
             l2l1_rd_valid      <= 1'b0;
             l2l1_wr_ptr        <= 16'd0;
+            doorbell_clear     <= 1'b0;
+            latched_mode       <= 4'd0;
         end else begin
             // Defaults — most control signals are pulses
             data_write_en      <= 1'b0;
@@ -302,69 +311,78 @@
             start_dm_to_l2     <= 1'b0;
             start_l2_to_dm     <= 1'b0;
             l2l1_rd_valid      <= 1'b0;
+            doorbell_clear     <= 1'b0;
 
             case (state)
                 //--------------------------------------------------------------
+                // ST_IDLE: wait for doorbell. When doorbell fires, latch tpu_mode[3:0],
+                // pulse doorbell_clear (clears slv_reg0[4]), then dispatch.
                 ST_IDLE: begin
                     instr_ready <= 1'b1;
-                    case (tpu_mode)
-                        MODE_WR_DEVMEM: begin
-                            instr_ready   <= 1'b0;
-                            data_write_en <= 1'b1;
-                            stream_ready  <= 1'b1;
-                            state         <= ST_EXEC_WRITE;
-                        end
-                        MODE_RD_DEVMEM: begin
-                            instr_ready  <= 1'b0;
-                            read_en      <= 1'b1;
-                            start_stream <= 1'b1;
-                            stream_ready <= 1'b1;
-                            state        <= ST_EXEC_READ;
-                        end
-                        MODE_COMPUTE: begin
-                            instr_ready        <= 1'b0;
-                            start_compute_tile <= 1'b1;
-                            stream_ready       <= 1'b0;
-                            state              <= ST_EXEC_COMPUTE;
-                        end
-                        MODE_WR_IRAM: begin
-                            instr_ready    <= 1'b0;
-                            instr_write_en <= 1'b1;
-                            stream_ready   <= 1'b1;
-                            state          <= ST_EXEC_WRITE;
-                        end
-                        MODE_DM2L2: begin
-                            instr_ready    <= 1'b0;
-                            start_dm_to_l2 <= 1'b1;
-                            state          <= ST_EXEC_DM2L2;
-                        end
-                        MODE_L22DM: begin
-                            instr_ready    <= 1'b0;
-                            start_l2_to_dm <= 1'b1;
-                            state          <= ST_EXEC_L22DM;
-                        end
-                        MODE_L22L1: begin
-                            instr_ready    <= 1'b0;
-                            l2l1_rd_issued <= 16'd0;
-                            l2l1_rd_valid  <= 1'b0;
-                            state          <= ST_EXEC_L22L1;
-                        end
-                        MODE_L12L2: begin
-                            instr_ready    <= 1'b0;
-                            l2l1_rd_issued <= 16'd0;
-                            l2l1_rd_valid  <= 1'b0;
-                            state          <= ST_EXEC_L12L2;
-                        end
-                        default: ; // stay in IDLE
-                    endcase
+                    if (doorbell) begin
+                        latched_mode   <= tpu_mode; // capture before doorbell_clear
+                        doorbell_clear <= 1'b1;     // 1-cycle pulse — clears slv_reg0[4]
+                        case (tpu_mode)
+                            MODE_WR_DEVMEM: begin
+                                instr_ready   <= 1'b0;
+                                data_write_en <= 1'b1;
+                                stream_ready  <= 1'b1;
+                                state         <= ST_EXEC_WRITE;
+                            end
+                            MODE_RD_DEVMEM: begin
+                                instr_ready  <= 1'b0;
+                                read_en      <= 1'b1;
+                                start_stream <= 1'b1;
+                                stream_ready <= 1'b1;
+                                state        <= ST_EXEC_READ;
+                            end
+                            MODE_COMPUTE: begin
+                                instr_ready        <= 1'b0;
+                                start_compute_tile <= 1'b1;
+                                stream_ready       <= 1'b0;
+                                state              <= ST_EXEC_COMPUTE;
+                            end
+                            MODE_WR_IRAM: begin
+                                instr_ready    <= 1'b0;
+                                instr_write_en <= 1'b1;
+                                stream_ready   <= 1'b1;
+                                state          <= ST_EXEC_WRITE;
+                            end
+                            MODE_DM2L2: begin
+                                instr_ready    <= 1'b0;
+                                start_dm_to_l2 <= 1'b1;
+                                state          <= ST_EXEC_DM2L2;
+                            end
+                            MODE_L22DM: begin
+                                instr_ready    <= 1'b0;
+                                start_l2_to_dm <= 1'b1;
+                                state          <= ST_EXEC_L22DM;
+                            end
+                            MODE_L22L1: begin
+                                instr_ready    <= 1'b0;
+                                l2l1_rd_issued <= 16'd0;
+                                l2l1_rd_valid  <= 1'b0;
+                                state          <= ST_EXEC_L22L1;
+                            end
+                            MODE_L12L2: begin
+                                instr_ready    <= 1'b0;
+                                l2l1_rd_issued <= 16'd0;
+                                l2l1_rd_valid  <= 1'b0;
+                                state          <= ST_EXEC_L12L2;
+                            end
+                            default: begin
+                                doorbell_clear <= 1'b0; // invalid mode — ignore doorbell
+                            end
+                        endcase
+                    end
                 end
 
                 //--------------------------------------------------------------
                 ST_EXEC_WRITE: begin
                     stream_ready <= 1'b1;
-                    if (tpu_mode == MODE_WR_DEVMEM)
+                    if (latched_mode == MODE_WR_DEVMEM)
                         data_write_en <= 1'b1;
-                    else if (tpu_mode == MODE_WR_IRAM)
+                    else if (latched_mode == MODE_WR_IRAM)
                         instr_write_en <= 1'b1;
                     if (write_bram_done)
                         state <= ST_WAIT_DONE;
@@ -430,10 +448,11 @@
                 end
 
                 //--------------------------------------------------------------
+                // Auto-return to IDLE: doorbell is already cleared so FSM stays IDLE
+                // until host writes new descriptor and sets doorbell again.
                 ST_WAIT_DONE: begin
                     instr_ready <= 1'b1;
-                    if (tpu_mode == MODE_IDLE)
-                        state <= ST_IDLE;
+                    state <= ST_IDLE;
                 end
 
                 default: state <= ST_IDLE;

@@ -51,7 +51,8 @@ class TpuComputeDriver(TpuRtlDriver):
         # write posedge sees the correct (pre-NBA) address for each instruction.
         await self.write_axi_lite(0x0C, 1)         # addr_ram = 1 (workaround)
         await self.write_axi_lite(0x18, num_words)  # length in 32-bit words
-        await self.write_axi_lite(0x00, 4)          # WRITE_IRAM
+        # P1.8: combine mode write + doorbell set in one write (bit 4 = doorbell)
+        await self.write_axi_lite(0x00, 4 | 0x10)    # WRITE_IRAM | doorbell
 
         await self.wait_for_flag(0x08, 1)  # stream_ready
 
@@ -76,16 +77,15 @@ class TpuComputeDriver(TpuRtlDriver):
         self.dut.s00_axis_tvalid.value = 0
         self.dut.s00_axis_tlast.value = 0
 
-        await self.wait_for_flag(0x04, 1)  # instr_ready
-        await self.write_axi_lite(0x00, 0)  # IDLE
+        await self.wait_for_flag(0x04, 1)  # instr_ready (done — no IDLE write needed)
 
     async def execute(self, timeout_cycles=5000):
         """Execute compute mode (mode 3). Waits for kernel completion."""
         await self.wait_for_flag(0x04, 1)
         await self.write_axi_lite(0x18, 0)  # dma_len=0 (unused for COMPUTE)
-        await self.write_axi_lite(0x00, 3)  # COMPUTE
-        await self.wait_for_flag(0x04, 1, timeout_cycles=timeout_cycles)
-        await self.write_axi_lite(0x00, 0)  # IDLE
+        # P1.8: combine mode write + doorbell set in one write (bit 4 = doorbell)
+        await self.write_axi_lite(0x00, 3 | 0x10)  # COMPUTE | doorbell
+        await self.wait_for_flag(0x04, 1, timeout_cycles=timeout_cycles)  # done — no IDLE write needed
 
 
 def encode_vpu_instr(addr_a=0, addr_b=0, addr_out=0, vpu_type=0,

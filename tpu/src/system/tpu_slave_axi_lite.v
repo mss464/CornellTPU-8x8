@@ -15,7 +15,7 @@
 	)
 	(
 		// Users to add ports here
-		
+
 		input  wire instr_ready_ext,
         input  wire stream_ready_ext,
         output wire [31:0] slv_reg0_out,
@@ -23,6 +23,12 @@
         output wire [31:0] slv_reg4_out,
         output wire [31:0] slv_reg5_out,
         output wire [31:0] slv_reg6_out,
+
+        // Doorbell mechanism (P1.8)
+        // doorbell_out: slv_reg0[4] — host writes 1 to trigger; hardware clears on acceptance
+        output wire        doorbell_out,
+        // doorbell_clear: when asserted by tpu.sv, clears slv_reg0[4] on next posedge
+        input  wire        doorbell_clear,
 
 		// User ports ends
 		// Do not modify the ports beyond this line
@@ -366,6 +372,10 @@
 	                    end
 	        endcase
 	      end
+	    // Doorbell auto-clear: hardware clears bit 4 after tpu.sv latches the command.
+	    // Last NBA wins — doorbell_clear overrides any host write in the same cycle.
+	    if (doorbell_clear)
+	      slv_reg0[4] <= 1'b0;
 	  end
 	end    
 
@@ -439,6 +449,10 @@
     assign slv_reg4_out = slv_reg4;
     assign slv_reg5_out = slv_reg5;
     assign slv_reg6_out = slv_reg6;
+
+    // Doorbell: slv_reg0[4] auto-clear when tpu.sv asserts doorbell_clear
+    // doorbell_clear is handled inside the main register write always block below.
+    assign doorbell_out = slv_reg0[4];
 
 	// User logic ends
 

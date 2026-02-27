@@ -193,7 +193,11 @@ Each compute tile has: MXU, VPU, frontend scalar CPU for scalar ops + instructio
 - Sub-tasks 1, 2, 3, 5, 6 are file-independent → run in parallel worktrees.
 - Sub-task 4 touches `test_tpu.py` (shared with 1) → run sequentially after 1.
 
-### P1.8: Descriptor-Based DMA Engine
+### P1.8: Descriptor-Based DMA Engine (RESOLVED 2026-02-27)
+- **Resolution:** Doorbell mechanism added. `slv_reg0[4]` = doorbell bit. Host writes `mode | 0x10` to arm and trigger atomically. Hardware FSM latches mode in `latched_mode`, pulses `doorbell_clear` (1 cycle), dispatches. `ST_WAIT_DONE` auto-returns to `ST_IDLE` without checking `tpu_mode` — no restart risk since doorbell is cleared. All driver methods updated: removed trailing `write_axi_lite(0x00, 0)` IDLE write. All 11 smoke sim tests pass.
+- **RTL (modified):** `src/system/tpu_slave_axi_lite.v` — `doorbell_out` output, `doorbell_clear` input, doorbell auto-clear in main write always block
+- **RTL (modified):** `src/system/tpu.sv` — `doorbell`/`doorbell_clear`/`latched_mode` wires; ST_IDLE gates on `doorbell`; ST_EXEC_WRITE uses `latched_mode`; ST_WAIT_DONE auto-returns
+- **Driver (modified):** `verification/system/test_tpu.py`, `test_tpu_compute.py` — all methods use `mode | 0x10` write; removed trailing IDLE writes
 - **Goal:** Replace host-polled control flow with autonomous descriptor-driven transfers.
 - **Depends:** P1.4 (DMA correctness).
 - **Problem:** Current design requires O(N) AXI-Lite reads in `wait_for_flag` per transfer. Each burns ~5-10 VPI round-trips in sim and MMIO overhead on board.

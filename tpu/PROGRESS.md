@@ -5,6 +5,31 @@ See `PLAN.md` for goals and `CLAUDE.md` for agent working notes / hardware quirk
 
 ---
 
+## 2026-02-27 — P1.8: Doorbell-Based Descriptor DMA (Complete)
+
+**Status: Complete**
+
+Implemented doorbell mechanism to eliminate `tpu_mode == 0` polling loop in `ST_WAIT_DONE` and reduce VPI crossing overhead per transfer.
+
+### Design
+
+- `slv_reg0[4]` = doorbell bit. Host writes `mode | 0x10` to arm mode and assert doorbell atomically in one AXI-Lite write.
+- `tpu_slave_axi_lite.v`: added `doorbell_out` output (= `slv_reg0[4]`), `doorbell_clear` input (1-cycle pulse from tpu.sv to clear bit 4 on acceptance). Doorbell auto-clear placed inside the main write `always` block — "last NBA wins" semantics correctly override host writes.
+- `tpu.sv`: added `doorbell` wire, `doorbell_clear` reg (pulse), `latched_mode` reg. `ST_IDLE` now gates on `doorbell` (not `tpu_mode`). On doorbell: latches `tpu_mode[3:0]` → `latched_mode`, pulses `doorbell_clear`, dispatches. `ST_EXEC_WRITE` uses `latched_mode` (not live `tpu_mode`). `ST_WAIT_DONE` unconditionally returns to `ST_IDLE` — safe because doorbell is cleared before FSM leaves `ST_IDLE`, so no re-trigger.
+- Driver: `test_tpu.py` and `test_tpu_compute.py` updated — all methods use `write_axi_lite(0x00, mode | 0x10)`. Trailing `write_axi_lite(0x00, 0)` IDLE writes removed.
+
+### Regression results
+
+| Suite | Tests | Result |
+|-------|-------|--------|
+| `test_data_integrity_rtl` | 4 | PASS |
+| `test_device_mem` | 3 | PASS |
+| `test_l2_tile` | 4 | PASS |
+
+Files changed: `src/system/tpu_slave_axi_lite.v`, `src/system/tpu.sv`, `verification/system/test_tpu.py`, `verification/system/test_tpu_compute.py`, `PLAN.md`, `PROGRESS.md`
+
+---
+
 ## 2026-02-27 — P1.5/P1.6/P1.7/P2.07 Parallel Task Completion
 
 **Status: Complete**

@@ -53,7 +53,8 @@ SRC_FP32 = $(TPU_DIR)/fp32_add.sv $(TPU_DIR)/fp32_mul.sv
 SRC_FIFO = ../../src/system/fifo4.sv
 SRC_PC = $(TPU_DIR)/pc.sv
 SRC_DECODER = $(TPU_DIR)/decoder.sv
-SRC_BRAM = $(TPU_DIR)/l1.sv $(WRAPPERS)/blk_mem_models.sv
+SRC_BRAM_MODELS = $(WRAPPERS)/bram_l1_data.sv $(WRAPPERS)/bram_iram.sv $(WRAPPERS)/bram_device_mem.sv $(WRAPPERS)/bram_l2_sram.sv
+SRC_BRAM = $(TPU_DIR)/l1.sv $(SRC_BRAM_MODELS)
 
 # Processing elements
 SRC_PE = $(TPU_DIR)/pe.sv $(SRC_FP32)
@@ -78,7 +79,7 @@ SRC_TENSORCORE = $(TPU_DIR)/tensorcore.sv \
                  $(TPU_DIR)/vpu_op.sv \
                  $(TPU_DIR)/vec_regfile.sv \
                  $(SRC_CORE) \
-                 $(WRAPPERS)/blk_mem_models.sv
+                 $(SRC_BRAM_MODELS)
 
 SRC_COMPUTE_TILE = $(TPU_DIR)/compute_tile.sv $(SRC_TENSORCORE) $(SRC_BRAM)
 

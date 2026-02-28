@@ -61,6 +61,25 @@ These rules govern how work is structured and handed off between agents.
 
 ---
 
+## Context Loading Guide
+
+Every doc, source, and test file is a self-contained module. Load only what you need.
+Do NOT truncate file content to save context — swap entire files in/out instead.
+
+| Working on... | Docs to load | Sources | Tests |
+|---------------|-------------|---------|-------|
+| DMA write/read | data_movement.md, xilinx_block_design.md | system/tpu_master_axi_stream.v, system/tpu_slave_axi_stream.v | system/test_tpu.py, system/test_device_mem.py |
+| Compute (MXU) | isa.md, bram_specs.md | compute_tile/mxu.sv, compute_tile/systolic.sv | compute_tile/test_mxu.py |
+| Compute (VPU) | isa.md, bram_specs.md | compute_tile/vpu_simd.sv, compute_tile/vpu_op.sv | compute_tile/test_vpu_simd.py |
+| L2 hierarchy | data_movement.md, bram_specs.md | l2_tile/*.sv, system/l2_ctrl.sv | system/test_l2_tile.py, l2_tile/test_tma.py |
+| Board debugging | board_bugs.md, xilinx_block_design.md | (failing module) | board_tests/test_board.py |
+| ISA changes | isa.md | compute_tile/decoder.sv, compute_tile/tensorcore.sv | compute_tile/test_decoder.py |
+| System registers | system.md | system/tpu_slave_axi_lite.v | (manual/board) |
+| BRAM timing | bram_specs.md | (relevant mem module) | (relevant test) |
+| Verification | verify_\<module\>.md | (module under test) | (test file) |
+
+---
+
 ## Directory Structure
 
 ```
@@ -71,10 +90,19 @@ tpu/
 ├── Makefile               ← top-level build targets (Vivado, packaging, deploy)
 ├── hw_config.json         ← FPGA IP names for the host driver
 │
-├── docs/                  ← reference documentation (canonical copies, NOT symlinks)
+├── docs/                  ← reference documentation (modular, self-contained files)
 │   ├── isa.md             ← Instruction set specification
-│   ├── system.md          ← AXI register map, programming model
-│   └── tuda.md            ← Host-device programming model (TUDA API)
+│   ├── system.md          ← AXI register map, programming model, doorbell protocol
+│   ├── tuda.md            ← Host-device programming model (TUDA API)
+│   ├── memory_hierarchy.md  ← Overview + ASCII diagram (links to component docs)
+│   ├── bram_specs.md      ← BRAM component specs, latency invariant, sim/HW alignment
+│   ├── data_movement.md   ← Modes 1–8 datapath, cycle traces, TMA instruction flow
+│   ├── board_bugs.md      ← DMA corruption root causes (Bug A + B), fix strategy
+│   ├── xilinx_block_design.md ← Vivado IPI block design, AXI DMA protocol, address map
+│   ├── verify_overview.md ← Module coverage matrix, test infrastructure
+│   ├── verify_<module>.md ← Per-module verification spec (~18 files)
+│   ├── verify_board.md    ← Board test harness, known hardware issues
+│   └── verify_coverage.md ← Verilator coverage collection procedure
 │
 ├── src/                   ← RTL source (synthesizable)
 │   ├── system/            ← Top-level AXI integration
@@ -108,7 +136,11 @@ tpu/
 │   ├── compute_tile/      ← Unit tests for each submodule
 │   │   ├── Makefile                  Targets: test_<module> for each unit
 │   │   ├── wrappers/
-│   │   │   └── blk_mem_models.sv     Behavioral BRAM simulation model (1-cycle latency)
+│   │   │   ├── bram_l1_data.sv       L1 data BRAM model (blk_mem_gen_0, 8192×32)
+│   │   │   ├── bram_iram.sv          Instruction RAM model (blk_mem_gen_1, 256×64)
+│   │   │   ├── bram_device_mem.sv    Device memory model (blk_mem_gen_2, 65536×32)
+│   │   │   ├── bram_l2_sram.sv       L2 shared SRAM model (blk_mem_gen_3, 32768×32)
+│   │   │   └── blk_mem_models.sv     Legacy: all 4 models in one file (still valid)
 │   │   ├── test_decoder.py
 │   │   ├── test_fifo4.py
 │   │   ├── test_fp32_add.py
@@ -284,6 +316,12 @@ Use `/tpu-smoke` for quick PASS/FAIL output. Use `/tpu-test` for verbose output 
 - ISA specification: `docs/isa.md`
 - System architecture & register map: `docs/system.md`
 - Host-device programming model (TUDA): `docs/tuda.md`
+- Memory hierarchy overview: `docs/memory_hierarchy.md`
+- BRAM specs & latency: `docs/bram_specs.md`
+- Data movement modes: `docs/data_movement.md`
+- Board bug analysis: `docs/board_bugs.md`
+- Xilinx block design: `docs/xilinx_block_design.md`
+- Verification overview: `docs/verify_overview.md`
 
 ---
 

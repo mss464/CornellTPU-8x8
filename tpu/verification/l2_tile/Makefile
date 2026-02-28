@@ -17,10 +17,14 @@ export PYGPI_PYTHON_BIN = $(CONDA_PYTHON)
 
 IVFLAGS = -g2012 -Wall
 
-# L2 tile RTL sources (l2_tile + tma_engine + L2 SRAM behavioral model)
+# L2 tile RTL sources (l2_tile + tma_engine + BRAM behavioral models)
+SRC_BRAM_MODELS = ../compute_tile/wrappers/bram_l1_data.sv \
+                  ../compute_tile/wrappers/bram_iram.sv \
+                  ../compute_tile/wrappers/bram_device_mem.sv \
+                  ../compute_tile/wrappers/bram_l2_sram.sv
 SRC_L2 = ../../src/l2_tile/l2_tile.sv \
          ../../src/l2_tile/tma_engine.sv \
-         ../compute_tile/wrappers/blk_mem_models.sv
+         $(SRC_BRAM_MODELS)
 
 test_tma: $(SIM_BUILD)
 	@echo "=== Running TMA Engine Tests ==="

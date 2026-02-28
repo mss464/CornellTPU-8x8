@@ -38,8 +38,8 @@ import struct
 import time
 import numpy as np
 
-# Allow import from parent directory (where pynq_host.py lives)
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+# Allow import from sibling runtime/ directory (deploy layout: board_tests/ and runtime/ are siblings)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'runtime'))
 from pynq_host import TpuDriver
 
 

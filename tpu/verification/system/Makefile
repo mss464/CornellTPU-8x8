@@ -32,6 +32,10 @@ SRC_TPU = ../../src/system/tpu.sv \
           ../../src/system/device_mem.sv \
           ../../src/l2_tile/l2_tile.sv \
           ../../src/l2_tile/tma_engine.sv
+SRC_BRAM_MODELS = ../compute_tile/wrappers/bram_l1_data.sv \
+                  ../compute_tile/wrappers/bram_iram.sv \
+                  ../compute_tile/wrappers/bram_device_mem.sv \
+                  ../compute_tile/wrappers/bram_l2_sram.sv
 SRC_COMPUTE_TILE = ../../src/compute_tile/compute_tile.sv \
                    ../../src/compute_tile/tensorcore.sv \
                    ../../src/compute_tile/l1.sv \
@@ -45,7 +49,7 @@ SRC_COMPUTE_TILE = ../../src/compute_tile/compute_tile.sv \
                    ../../src/compute_tile/decoder.sv \
                    ../../src/compute_tile/fp32_add.sv \
                    ../../src/compute_tile/fp32_mul.sv \
-                   ../compute_tile/wrappers/blk_mem_models.sv
+                   $(SRC_BRAM_MODELS)
 
 SRC_ALL = $(SRC_TPU) $(SRC_COMPUTE_TILE)
 

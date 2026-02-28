@@ -12,12 +12,39 @@ This section documents the architecture, programming model, and instruction set 
 
 ## Architecture
 
-![CornellTPU Architecture diagram](assets/system-v1.jpg)
+```
+  Host (DDR / PYNQ)
+         │
+    ┌────┴────────────────────────────────────────┐
+    │        AXI DMA (MM2S + S2MM)                │
+    │   ┌──────────┐       ┌───────────────┐      │
+    │   │ MM2S     │       │ S2MM          │      │
+    │   │ DDR→PL   │       │ PL→DDR        │      │
+    │   └────┬─────┘       └───────▲───────┘      │
+    └────────┼─────────────────────┼──────────────┘
+             │ AXI-Stream          │ AXI-Stream
+    ┌────────▼─────────────────────┴──────────────┐
+    │                  TPU (tpu.sv)                │
+    │  ┌─────────────────────────────────────────┐│
+    │  │  AXI-Lite regs  │  Doorbell arbiter     ││
+    │  └─────────────────┴───────────────────────┘│
+    │  ┌──────────┐  ┌──────────┐  ┌────────────┐│
+    │  │DMA Engine│  │Compute   │  │L2 Ctrl     ││
+    │  │modes 1245│  │Ctrl (3)  │  │modes 7,8   ││
+    │  └────┬─────┘  └────┬─────┘  └─────┬──────┘│
+    │       │              │              │       │
+    │  ┌────▼──────┐  ┌───▼────────┐ ┌───▼─────┐ │
+    │  │Device Mem │  │Compute Tile│ │L2 Tile   │ │
+    │  │(256KB)    │◄►│  MXU + VPU │ │(128KB)   │ │
+    │  └───────────┘  │  L1 (32KB) │ └──────────┘ │
+    │                 │  IRAM(2KB) │               │
+    │                 └────────────┘               │
+    └─────────────────────────────────────────────┘
+```
 
-
-The Darker lines represent data movement (fp32 data or 64-bit instructions). tpu_mode is sent to BRAM and IRAM as based on the current mode, the appropriate write enable signal must be asserted. 
-
-The diagram is not to scale.
+Data movement: fp32 data or 64-bit instructions flow along the paths shown.
+`tpu_mode` selects which sub-FSM (DMA, Compute, L2) is active.
+Block design details: [`xilinx_block_design.md`](xilinx_block_design.md).
 
 
 ## AXI4-Lite Control Plane
@@ -67,9 +94,16 @@ This register configures the tpu's operating mode. Only bits **[3:0]** are used,
 **Preconditions:**
 - `instr_ready` **must be asserted** before writing a value to `tpu_mode`.
 
-**Mode Transition Requirement:**  
+**Mode Transition Requirement:**
 The TPU **must be placed in `IDLE (0x0)` before transitioning to any other mode**.
-Direct transitions between non-idle modes are not supported. 
+Direct transitions between non-idle modes are not supported.
+
+**Doorbell Protocol (P2.08):**
+The arbiter supports a combined mode+doorbell write: setting bit 4 of `tpu_mode` acts as a doorbell that immediately dispatches the mode in bits [3:0] to the appropriate sub-FSM. This avoids a separate IDLE→mode transition:
+```
+tpu_mode = 0x13   // bit 4 = doorbell, bits[3:0] = COMPUTE (3)
+```
+The arbiter clears the doorbell bit after dispatching. `instr_ready` goes LOW when any sub-FSM starts and returns HIGH only when all three sub-FSMs (dma_engine, compute_ctrl, l2_ctrl) are idle.
 
 ---
 
@@ -172,3 +206,13 @@ A typical TPU program execution proceeds as follows:
 5. Wait for completion
 
 6. Read data (results) from device memory
+
+---
+
+## Related Documents
+
+- [ISA Specification](isa.md) — instruction encoding, field layout
+- [Block Design Reference](xilinx_block_design.md) — Xilinx IPI block design, DMA protocol, address map
+- [Memory Hierarchy](memory_hierarchy.md) — BRAM hierarchy overview
+- [Data Movement Modes](data_movement.md) — modes 1–8, cycle traces
+- [Host-Device Programming Model (TUDA)](tuda.md) — TUDA API

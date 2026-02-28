@@ -9,31 +9,28 @@
 
 This document provides a high-level overview of the verification infrastructure for the Mini-TPU project. Detailed module-specific verification specs have been split into per-module files:
 
-1. [System-Level Modules](#system-level-modules)
-   - [verify_tpu.md](verify_tpu.md) — top-level TPU integration
-   - [verify_dma.md](verify_dma.md) — DMA engine (modes 1/2/4/5/6)
-   - [verify_compute_ctrl.md](verify_compute_ctrl.md) — compute control FSM
-   - [verify_l2_ctrl.md](verify_l2_ctrl.md) — L2 tile control (modes 7/8)
-   - [verify_axi_lite.md](verify_axi_lite.md) — AXI-Lite register slave
-   - [verify_axi_stream.md](verify_axi_stream.md) — AXI-Stream sink and source
+1. **System-Level Modules**
+   - [verify_tpu_system.md](verify_tpu_system.md) — tpu.sv top, dma_engine, compute_ctrl, l2_ctrl, concurrent execution
+   - [verify_slave_stream.md](verify_slave_stream.md) — AXI-Stream sink + AXI-Lite register slave
+   - [verify_master_stream.md](verify_master_stream.md) — AXI-Stream source (DMA read path)
    - [verify_fifo4.md](verify_fifo4.md) — synchronous FIFO
    - [verify_device_mem.md](verify_device_mem.md) — device memory BRAM
 
-2. [Tile-Level Modules](#tile-level-modules)
-   - [verify_l2_tile.md](verify_l2_tile.md) — L2 SRAM tile and TMA engine
-   - [verify_tma.md](verify_tma.md) — tensor memory accelerator
-   - [verify_compute_tile.md](verify_compute_tile.md) — compute tile integration
-   - [verify_tensorcore.md](verify_tensorcore.md) — instruction fetch/dispatch
+2. **Tile-Level Modules**
+   - [verify_l2_tile.md](verify_l2_tile.md) — L2 SRAM tile + TMA engine
+   - [verify_tensorcore.md](verify_tensorcore.md) — instruction fetch/dispatch + compute_tile + l1
+   - [verify_tpu_compute.md](verify_tpu_compute.md) — compute mode end-to-end (mode 3)
 
-3. [Compute Tile Sub-Modules](#compute-tile-sub-modules)
+3. **Compute Tile Sub-Modules**
    - [verify_decoder.md](verify_decoder.md) — ISA instruction decoder
-   - [verify_l1.md](verify_l1.md) — L1 data BRAM
    - [verify_mxu.md](verify_mxu.md) — matrix unit controller
-   - [verify_systolic.md](verify_systolic.md) — systolic array and processing element
+   - [verify_systolic.md](verify_systolic.md) — systolic array tile
+   - [verify_pe.md](verify_pe.md) — processing element (MAC)
    - [verify_vpu_simd.md](verify_vpu_simd.md) — SIMD vector unit
    - [verify_vpu_op.md](verify_vpu_op.md) — per-lane vector operations
    - [verify_vec_regfile.md](verify_vec_regfile.md) — vector register file
-   - [verify_fp32.md](verify_fp32.md) — FP32 adder and multiplier
+   - [verify_fp32_add.md](verify_fp32_add.md) — FP32 adder
+   - [verify_fp32_mul.md](verify_fp32_mul.md) — FP32 multiplier
    - [verify_pc.md](verify_pc.md) — program counter
 
 ---
@@ -47,7 +44,7 @@ This document provides a high-level overview of the verification infrastructure 
 - Results reported in `results.xml` (JUnit format)
 
 **BRAM Behavioral Model:**
-- Location: `tpu/verification/wrappers/blk_mem_models.sv`
+- Location: `tpu/verification/compute_tile/wrappers/` (split into `bram_l1_data.sv`, `bram_iram.sv`, `bram_device_mem.sv`, `bram_l2_sram.sv`)
 - Latency: 1 cycle (address captured on posedge → data valid next posedge)
 - Replaces: `blk_mem_gen_0` (Data BRAM), `blk_mem_gen_1` (IRAM), `blk_mem_gen_2` (Device Mem), `blk_mem_gen_3` (L2)
 

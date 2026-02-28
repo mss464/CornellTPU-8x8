@@ -9,3 +9,13 @@ Then read in order:
 
 That is sufficient context to start working. Do not ask for more orientation — pick the
 highest-priority unresolved task in PLAN.md and follow the Execution Rules in CLAUDE.md.
+
+## Context Management
+
+Files are organized as modular, composable units for selective context loading.
+Agents MUST swap in only the specific doc/src/test files relevant to the current task.
+Do NOT truncate or skip content within files to save context — instead, choose which
+files to load. Every file is designed to be self-contained and independently useful.
+
+Load order: tpu/CLAUDE.md (always) → relevant docs/*.md → relevant src/ → relevant test/.
+See tpu/CLAUDE.md §Context Loading Guide for the mapping table.

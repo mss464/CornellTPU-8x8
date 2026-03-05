@@ -9,13 +9,13 @@
 		// Do not modify the parameters beyond this line
 
 		// AXI4Stream sink: Data Width
-		parameter integer C_S_AXIS_TDATA_WIDTH	= 64
+		parameter integer C_S_AXIS_TDATA_WIDTH	= 256
 	)
 	(
 		// Users to add ports here
 		
 		input wire [31:0] len,
-		output wire [31:0] data_to_bram,
+		output wire [255:0] data_to_bram,
 		output wire [63:0] data_to_iram,
 		output reg [15:0] write_pointer_stream,
 		output wire done,
@@ -77,7 +77,7 @@
 	// sink has accepted all the streaming data and stored in FIFO
 	  reg writes_done;
 	// I/O Connections assignments
-	reg [31:0] data_bram;
+	reg [255:0] data_bram;
 	reg [63:0] data_iram;
 	reg reset;
 	reg t_last_pipelined;
@@ -98,7 +98,7 @@
 	end  
 
 	assign S_AXIS_TREADY	= axis_tready;
-	assign data_to_iram = (tpu_mode_stream == 3'd4) ? {S_AXIS_TDATA, data_iram[31:0]} : 64'b0;
+    assign data_to_iram = (tpu_mode_stream == 3'd4) ? S_AXIS_TDATA[63:0] : 64'b0;
     assign data_to_bram = S_AXIS_TDATA;
 	assign done = writes_done;
 	// Control state machine implementation
@@ -198,23 +198,16 @@ assign data_valid = fifo_wren;
 	reg [C_S_AXIS_TDATA_WIDTH-1 : 0] S_AXIS_TDATA_PIPELINED;
 	always @( posedge S_AXIS_ACLK )
 	    begin
-	      if (fifo_wren || fifo_wren_pipelined)// && S_AXIS_TSTRB[byte_index])
+	      if (fifo_wren || fifo_wren_pipelined)
 	        begin
 //	          stream_data_fifo[write_pointer] <= S_AXIS_TDATA[(byte_index*8+7) -: 8];
               S_AXIS_TDATA_PIPELINED <= S_AXIS_TDATA;
 	          // write to the correct memory based on mode
                 case (tpu_mode_stream)
                     3'd4: begin // instruction memory (64-bit)
-                        if (write_pointer_stream[0] == 1'b0) begin
-                            // Buffer the lower 32 bits
-                            data_iram[31:0] <= S_AXIS_TDATA;
-                        end else begin
-                            // Assembly complete: current TDATA is the upper 32 bits
-                            // Lower 32 bits are already in data_iram[31:0]
-                            data_iram[63:32] <= S_AXIS_TDATA;
-                        end
+                        data_iram[63:0] <= S_AXIS_TDATA[63:0];
                     end
-                    3'd1: data_bram <= S_AXIS_TDATA;  // data memory (32-bit)
+                    3'd1: data_bram <= S_AXIS_TDATA;  // data memory (256-bit)
                     default: ;
                 endcase 
 	        end  

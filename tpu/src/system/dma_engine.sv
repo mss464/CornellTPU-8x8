@@ -149,11 +149,10 @@ module dma_engine (
                         data_write_en <= 1'b1;
                     end else if (latched_mode == MODE_WR_IRAM) begin
                         instr_write_en <= 1'b1;
-                        // Update IRAM address: addr_ram + upper bits of write_pointer.
-                        // write_pointer advances by 1 per 32-bit word; IRAM is 64-bit,
-                        // so pairs map to one address. write_pointer[0] toggles each pair.
-                        if (instr_write_en && write_pointer[0])
-                            iram_addr <= addr_ram_in + write_pointer[7:1];
+                        // IRAM is 64-bit, AXI bus is now 256-bit.
+                        // We take one 64-bit instruction per 256-bit beat.
+                        if (instr_write_en)
+                            iram_addr <= addr_ram_in + write_pointer_stream[7:0];
                     end
                     if (write_bram_done) begin
                         state <= DE_IDLE;

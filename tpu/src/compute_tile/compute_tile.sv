@@ -7,7 +7,8 @@
 
 module compute_tile #(
     parameter ADDR_WIDTH = 13,
-    parameter DATA_WIDTH = 32
+    parameter DATA_WIDTH = 32,
+    parameter COMP_DATA_WIDTH = 256
 )(
     input  logic clk,
     input  logic rst_n,
@@ -22,7 +23,7 @@ module compute_tile #(
     input  logic [63:0] dma_iram_din,
 
     // DMA Data Interface
-    input  logic [ADDR_WIDTH-1:0] base_addr,
+    input  logic [15:0]           base_addr,
     input  logic                  dma_wr_en,
     input  logic [DATA_WIDTH-1:0] dma_wr_data,
     input  logic [15:0]           dma_write_pointer,
@@ -41,15 +42,16 @@ module compute_tile #(
 
     // Internal BRAM connection
     logic [ADDR_WIDTH-1:0] pc_addr_b;
-    logic [DATA_WIDTH-1:0] pc_din_b;
-    logic [DATA_WIDTH-1:0] pc_dout_b;
+    logic [COMP_DATA_WIDTH-1:0] pc_din_b;
+    logic [COMP_DATA_WIDTH-1:0] pc_dout_b;
     logic                  pc_en_b;
     logic                  pc_we_b;
 
     // Instantiate TensorCore
     tensorcore #(
         .ADDR_WIDTH(ADDR_WIDTH),
-        .DATA_WIDTH(DATA_WIDTH)
+        .DATA_WIDTH(DATA_WIDTH),
+        .COMP_DATA_WIDTH(COMP_DATA_WIDTH)
     ) u_tensorcore (
         .clk(clk),
         .rst_n(rst_n),
@@ -73,8 +75,10 @@ module compute_tile #(
 
     // Instantiate L1
     l1 #(
-        .ADDR_WIDTH(ADDR_WIDTH),
-        .DATA_WIDTH(DATA_WIDTH)
+        .COMP_ADDR_WIDTH(ADDR_WIDTH),
+        .COMP_DATA_WIDTH(COMP_DATA_WIDTH),
+        .DMA_ADDR_WIDTH(16),
+        .DMA_DATA_WIDTH(DATA_WIDTH)
     ) u_l1 (
         .clk(clk),
         .rst_n(rst_n),

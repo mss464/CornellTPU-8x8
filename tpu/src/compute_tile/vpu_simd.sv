@@ -11,7 +11,8 @@
 module vpu_simd #(
     parameter int DATA_W = 32,
     parameter int ADDR_W = 13,
-    parameter int NUM_LANES = 8
+    parameter int NUM_LANES = 8,
+    parameter int COMP_DATA_WIDTH = 256
 )(
     input logic clk,
     input logic rst_n,
@@ -30,8 +31,8 @@ module vpu_simd #(
 
     // BRAM interface
     output logic [ADDR_W-1:0] bram_addr,
-    output logic [DATA_W-1:0] bram_din,
-    input logic [DATA_W-1:0] bram_dout,
+    output logic [COMP_DATA_WIDTH-1:0] bram_din,
+    input logic [COMP_DATA_WIDTH-1:0] bram_dout,
     output logic bram_en,
     output logic bram_we,
 
@@ -42,7 +43,7 @@ module vpu_simd #(
     logic start_simd;
     logic done_simd;
     logic [ADDR_W-1:0] bram_addr_simd;
-    logic [DATA_W-1:0] bram_din_simd;
+    logic [COMP_DATA_WIDTH-1:0] bram_din_simd;
     logic bram_en_simd;
     logic bram_we_simd;
 
@@ -62,11 +63,7 @@ module vpu_simd #(
         IDLE,
         VLOAD_REQ,
         VLOAD_WAIT1,
-        VLOAD_WAIT2,
-        VLOAD_WAIT3,
         VLOAD_CAPTURE,
-        VLOAD_SETTLE,
-        VLOAD_WRITEBACK,
         VSTORE_REQ,
         VCOMPUTE_READ,
         VCOMPUTE_EXEC,
@@ -79,7 +76,6 @@ module vpu_simd #(
     } state_t;
 
     state_t state;
-    logic [3:0] elem_idx;  // 0-7 for 8 elements
 
     // Vector register file
     logic [2:0] rf_rd_addr_a, rf_rd_addr_b, rf_wr_addr;
@@ -125,9 +121,6 @@ module vpu_simd #(
         end
     endgenerate
 
-    // Load buffer for VLOAD (stores elements during 8 sequential reads)
-    logic [NUM_LANES-1:0][DATA_W-1:0] load_buffer;
-
     // Saved instruction fields for multi-cycle operations
     logic [12:0] saved_addr_a;
     logic [12:0] saved_addr_b;
@@ -142,7 +135,7 @@ module vpu_simd #(
     // During SCALAR_COMPUTE, use bram_dout directly as operand B so we avoid
     // an extra pipeline cycle.  At all other times scalar_b_reg is used (it
     // holds the last latched value and keeps the combinational logic stable).
-    assign scalar_op_b = (state == SCALAR_COMPUTE) ? bram_dout : scalar_b_reg;
+    assign scalar_op_b = (state == SCALAR_COMPUTE) ? bram_dout[DATA_W-1:0] : scalar_b_reg;
 
     vpu_op #(.DATA_W(DATA_W), .OP_W(3)) scalar_alu (
         .start(1'b1),
@@ -156,7 +149,6 @@ module vpu_simd #(
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= IDLE;
-            elem_idx <= '0;
             bram_en_simd <= 1'b0;
             bram_we_simd <= 1'b0;
             bram_addr_simd <= '0;
@@ -167,7 +159,6 @@ module vpu_simd #(
             rf_rd_addr_a <= '0;
             rf_rd_addr_b <= '0;
             done_simd <= 1'b0;
-            load_buffer <= '0;
             saved_addr_a <= '0;
             saved_addr_b <= '0;
             saved_addr_out <= '0;
@@ -185,7 +176,6 @@ module vpu_simd #(
             case (state)
                 IDLE: begin
                     if (start_simd) begin
-                        elem_idx <= '0;
                         // Save instruction fields
                         saved_addr_a   <= addr_a;
                         saved_addr_b   <= addr_b;
@@ -214,68 +204,35 @@ module vpu_simd #(
                     end
                 end
 
-                // VLOAD: Read 8 elements from BRAM sequentially
+                // VLOAD: Read 8 elements from BRAM concurrently
                 VLOAD_REQ: begin
                     bram_en_simd <= 1'b1;
                     bram_we_simd <= 1'b0;
-                    bram_addr_simd <= saved_addr_a + {{(ADDR_W-4){1'b0}}, elem_idx};
+                    bram_addr_simd <= saved_addr_a;
                     state <= VLOAD_WAIT1;
                 end
 
                 VLOAD_WAIT1: begin
-                    bram_en_simd <= 1'b1;  // Keep BRAM enabled during read
-                    state <= VLOAD_WAIT2;
-                end
-
-                VLOAD_WAIT2: begin
-                    bram_en_simd <= 1'b1;  // Keep BRAM enabled during read
-                    state <= VLOAD_WAIT3;
-                end
-
-                VLOAD_WAIT3: begin
-                    bram_en_simd <= 1'b1;  // Keep BRAM enabled during read
+                    bram_en_simd <= 1'b0;  // BRAM address/en already issued in REQ
                     state <= VLOAD_CAPTURE;
                 end
 
                 VLOAD_CAPTURE: begin
-                    // Capture current element
-                    load_buffer[elem_idx] <= bram_dout;
-
-                    if (elem_idx < 7) begin
-                        elem_idx <= elem_idx + 1;
-                        state <= VLOAD_REQ;
-                    end else begin
-                        // On last element, wait one cycle for buffer update to settle
-                        state <= VLOAD_SETTLE;
-                    end
-                end
-
-                VLOAD_SETTLE: begin
-                    // Wait cycle for load_buffer[7] assignment to complete
-                    state <= VLOAD_WRITEBACK;
-                end
-
-                VLOAD_WRITEBACK: begin
-                    // Write all loaded data to register file (buffer is now complete)
+                    // Capture row and write to regfile
                     rf_wr_en <= 1'b1;
                     rf_wr_addr <= saved_vreg_dst;
-                    rf_wr_data <= load_buffer;
+                    rf_wr_data <= bram_dout;
                     state <= DONE_STATE;
                 end
 
-                // VSTORE: Write 8 elements to BRAM sequentially
+                // VSTORE: Write 8 elements to BRAM concurrently
                 VSTORE_REQ: begin
                     bram_en_simd <= 1'b1;
                     bram_we_simd <= 1'b1;
-                    bram_addr_simd <= saved_addr_out + {{(ADDR_W-4){1'b0}}, elem_idx};
-                    bram_din_simd <= rf_rd_data_a[elem_idx];
+                    bram_addr_simd <= saved_addr_out;
+                    bram_din_simd <= rf_rd_data_a; // 256 bits
 
-                    if (elem_idx < 7) begin
-                        elem_idx <= elem_idx + 1;
-                        state <= VSTORE_REQ;
-                    end else begin
-                        state <= DONE_STATE;
-                    end
+                    state <= DONE_STATE;
                 end
 
                 // VCOMPUTE: Wait one cycle for register read
@@ -301,13 +258,13 @@ module vpu_simd #(
 
                 // SCALAR: extra wait — bram_dout for A becomes valid next cycle
                 SCALAR_WAIT_A: begin
-                    bram_en_simd   <= 1'b1;
+                    bram_en_simd   <= 1'b0;
                     state          <= SCALAR_LATCH_A;
                 end
 
                 // SCALAR: bram_dout carries A; latch and issue read for B
                 SCALAR_LATCH_A: begin
-                    scalar_a_reg   <= bram_dout;
+                    scalar_a_reg   <= bram_dout[DATA_W-1:0];
                     bram_en_simd   <= 1'b1;
                     bram_we_simd   <= 1'b0;
                     bram_addr_simd <= saved_addr_b;
@@ -316,7 +273,7 @@ module vpu_simd #(
 
                 // SCALAR: extra wait — bram_dout for B becomes valid next cycle
                 SCALAR_WAIT_B: begin
-                    bram_en_simd   <= 1'b1;
+                    bram_en_simd   <= 1'b0;
                     state          <= SCALAR_COMPUTE;
                 end
 
@@ -326,7 +283,7 @@ module vpu_simd #(
                     bram_en_simd   <= 1'b1;
                     bram_we_simd   <= 1'b1;
                     bram_addr_simd <= saved_addr_out;
-                    bram_din_simd  <= scalar_result;
+                    bram_din_simd  <= {{ (COMP_DATA_WIDTH - DATA_W) {1'b0} }, scalar_result}; 
                     state          <= DONE_STATE;
                 end
 

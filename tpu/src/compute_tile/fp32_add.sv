@@ -38,7 +38,7 @@ generate
         assign a_zero = (a_exp == 8'h00) && (a_mant == 0);
         assign b_zero = (b_exp == 8'h00) && (b_mant == 0);
         
-        always_comb begin
+        always @(*) begin
             // defaults to avoid latches
             result = '0;
             result_sign = 1'b0;

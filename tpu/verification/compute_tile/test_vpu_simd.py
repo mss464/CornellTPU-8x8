@@ -11,6 +11,17 @@ def float_to_fp32(f):
 def fp32_to_float(bits):
     return struct.unpack('>f', struct.pack('>I', bits))[0]
 
+def pack_8x32(vals):
+    """Pack 8 32-bit values into a 256-bit integer."""
+    res = 0
+    for i, v in enumerate(vals):
+        res |= (int(v) & 0xFFFFFFFF) << (i * 32)
+    return res
+
+def unpack_8x32(val):
+    """Unpack a 256-bit integer into 8 32-bit values."""
+    return [(val >> (i * 32)) & 0xFFFFFFFF for i in range(8)]
+
 
 @cocotb.test()
 async def test_vpu_simd_reset(dut):
@@ -91,15 +102,15 @@ async def test_vcompute_simple(dut):
 
 
 @cocotb.test()
-async def test_vload_sequential(dut):
-    """Test VLOAD reading 8 sequential elements from BRAM."""
+async def test_vload_single_cycle(dut):
+    """Test VLOAD reading 8 elements in a single cycle from 256-bit bus."""
     clock = Clock(dut.clk, 10, unit="ns")
     cocotb.start_soon(clock.start())
 
-    # Simple BRAM model
-    bram = {}
-    for i in range(8):
-        bram[100 + i] = float_to_fp32(float(i + 10))
+    # Simple BRAM model (now stores 256-bit words)
+    # VLOAD address 100 corresponds to bank address 100 (which contains 8 elements)
+    vload_data = [float_to_fp32(float(i + 10)) for i in range(8)]
+    bram = {100: pack_8x32(vload_data)}
 
     # Reset
     dut.rst_n.value = 0
@@ -117,7 +128,7 @@ async def test_vload_sequential(dut):
     dut.rst_n.value = 1
     await RisingEdge(dut.clk)
 
-    # Trigger VLOAD: V0 = BRAM[100:107]
+    # Trigger VLOAD: V0 = BRAM[100] (256 bits)
     dut.vpu_type.value = 1  # VLOAD
     dut.addr_a.value = 100
     dut.vreg_dst.value = 0
@@ -126,11 +137,10 @@ async def test_vload_sequential(dut):
     await RisingEdge(dut.clk)
     dut.start.value = 0
 
-    # Simulate BRAM reads over multiple cycles
+    # Simulate BRAM reads
     cycle_count = 0
     read_count = 0
-    last_addr = None
-    while cycle_count < 100:
+    while cycle_count < 20:
         await RisingEdge(dut.clk)
 
         # Check if BRAM read is active
@@ -138,23 +148,22 @@ async def test_vload_sequential(dut):
             addr = int(dut.bram_addr.value)
             if addr in bram:
                 dut.bram_dout.value = bram[addr]
-                if addr != last_addr:
-                    read_count += 1
-                    last_addr = addr
+                read_count += 1
 
         if int(dut.done.value) == 1:
             break
         cycle_count += 1
 
-    assert cycle_count < 100, "VLOAD timeout"
-    assert read_count == 8, f"Expected 8 BRAM reads, got {read_count}"
+    assert cycle_count < 20, "VLOAD timeout"
+    # In 8-bank parallel mode, we only expect 1 BRAM read request for the whole vector
+    assert read_count == 1, f"Expected 1 parallel BRAM read, got {read_count}"
 
-    dut._log.info(f"PASS: VLOAD completed in {cycle_count} cycles with {read_count} reads")
+    dut._log.info(f"PASS: VLOAD completed in {cycle_count} cycles with {read_count} parallel read")
 
 
 @cocotb.test()
-async def test_vstore_sequential(dut):
-    """Test VSTORE writing 8 sequential elements to BRAM."""
+async def test_vstore_single_cycle(dut):
+    """Test VSTORE writing 8 elements in a single cycle to 256-bit bus."""
     clock = Clock(dut.clk, 10, unit="ns")
     cocotb.start_soon(clock.start())
 
@@ -177,7 +186,7 @@ async def test_vstore_sequential(dut):
     dut.rst_n.value = 1
     await RisingEdge(dut.clk)
 
-    # Trigger VSTORE: BRAM[200:207] = V1 (register V1 starts at zero)
+    # Trigger VSTORE: BRAM[200] = V1 (256 bits)
     dut.vpu_type.value = 2  # VSTORE
     dut.addr_out.value = 200
     dut.vreg_a.value = 1
@@ -189,7 +198,7 @@ async def test_vstore_sequential(dut):
     # Capture BRAM writes
     cycle_count = 0
     write_count = 0
-    while cycle_count < 100:
+    while cycle_count < 20:
         await RisingEdge(dut.clk)
 
         # Check if BRAM write is active
@@ -203,14 +212,12 @@ async def test_vstore_sequential(dut):
             break
         cycle_count += 1
 
-    assert cycle_count < 100, "VSTORE timeout"
-    assert write_count == 8, f"Expected 8 BRAM writes, got {write_count}"
+    assert cycle_count < 20, "VSTORE timeout"
+    # In 8-bank parallel mode, we only expect 1 BRAM write request for the whole vector
+    assert write_count == 1, f"Expected 1 parallel BRAM write, got {write_count}"
+    assert 200 in bram_writes, "Missing write to address 200"
 
-    # Verify writes went to correct addresses
-    for i in range(8):
-        assert (200 + i) in bram_writes, f"Missing write to address {200 + i}"
-
-    dut._log.info(f"PASS: VSTORE completed in {cycle_count} cycles with {write_count} writes")
+    dut._log.info(f"PASS: VSTORE completed in {cycle_count} cycles with {write_count} parallel write")
 
 
 @cocotb.test()
@@ -307,7 +314,7 @@ async def test_vpu_simd_data_correctness(dut):
     """Verify data correctness: VLOAD V0, VLOAD V1, VADD V2=V0+V1, VSTORE V2.
 
     This test validates that vpu_simd.sv correctly pipelines data through the
-    load→compute→store path, not just that control signals fire.
+    load→compute→store path with the new 256-bit bus.
     """
     clock = Clock(dut.clk, 10, unit="ns")
     cocotb.start_soon(clock.start())
@@ -328,14 +335,14 @@ async def test_vpu_simd_data_correctness(dut):
     dut.rst_n.value = 1
     await RisingEdge(dut.clk)
 
-    # Build BRAM model with known float values
+    # Build BRAM model with known float values packed into 256-bit words
     bram = {}
     v0_vals = [float(i + 1) for i in range(8)]    # [1.0, 2.0, ..., 8.0]
     v1_vals = [float(i * 2 + 1) for i in range(8)]  # [1.0, 3.0, 5.0, ..., 15.0]
-    for i in range(8):
-        bram[50 + i] = float_to_fp32(v0_vals[i])
-    for i in range(8):
-        bram[60 + i] = float_to_fp32(v1_vals[i])
+    
+    bram[50] = pack_8x32([float_to_fp32(v) for v in v0_vals])
+    bram[60] = pack_8x32([float_to_fp32(v) for v in v1_vals])
+    
     expected = [v0_vals[i] + v1_vals[i] for i in range(8)]
 
     async def run_op(vpu_type, addr_a=0, addr_out=0, vreg_dst=0,
@@ -353,7 +360,7 @@ async def test_vpu_simd_data_correctness(dut):
         await RisingEdge(dut.clk)
         dut.start.value = 0
 
-        for _ in range(200):
+        for _ in range(50):
             await RisingEdge(dut.clk)
             if int(dut.bram_en.value) == 1 and int(dut.bram_we.value) == 0:
                 # Serve BRAM read: drive dout from model
@@ -365,32 +372,32 @@ async def test_vpu_simd_data_correctness(dut):
                 return
         raise AssertionError(f"VPU op (vpu_type={vpu_type}) timed out")
 
-    # Step 1: VLOAD V0 from BRAM[50:57]
+    # Step 1: VLOAD V0 from BRAM[50] (gets all 8 elements)
     await run_op(vpu_type=1, addr_a=50, vreg_dst=0)
 
-    # Step 2: VLOAD V1 from BRAM[60:67]
+    # Step 2: VLOAD V1 from BRAM[60]
     await run_op(vpu_type=1, addr_a=60, vreg_dst=1)
 
     # Step 3: VCOMPUTE V2 = V0 + V1 (vadd, opcode=0)
     await run_op(vpu_type=3, vreg_a=0, vreg_b=1, vreg_dst=2, vpu_opcode=0)
 
-    # Step 4: VSTORE V2 to BRAM[70:77]
+    # Step 4: VSTORE V2 to BRAM[70]
     await run_op(vpu_type=2, addr_out=70, vreg_a=2)
 
-    # Verify: BRAM[70:77] == expected element-wise sums (FP32 bit-exact)
+    # Verify: BRAM[70] == expected element-wise sums
+    assert 70 in bram, "Missing BRAM write at address 70"
+    got_bits = unpack_8x32(bram[70])
     for i in range(8):
-        addr = 70 + i
-        assert addr in bram, f"Missing BRAM write at address {addr}"
-        got = fp32_to_float(bram[addr])
+        got = fp32_to_float(got_bits[i])
         exp = expected[i]
         assert abs(got - exp) < 1e-4, \
             f"Data mismatch at V2[{i}]: expected {exp}, got {got}"
 
-    dut._log.info("PASS: test_vpu_simd_data_correctness — VLOAD→VADD→VSTORE data verified")
+    dut._log.info("PASS: test_vpu_simd_data_correctness — Parallel VLOAD→VADD→VSTORE verified")
 
 
 # ---------------------------------------------------------------------------
-# P2.06 — SCALAR VPU tests
+# Scalar VPU tests (should remain compatible as they use lower 32 bits)
 # ---------------------------------------------------------------------------
 
 def _reset_signals(dut):
@@ -409,7 +416,7 @@ async def _run_scalar_op(dut, vpu_type, vpu_opcode, addr_a, addr_b, addr_out,
     Run one SCALAR VPU operation and return (written_addr, written_bits).
 
     bram_init: dict {addr: uint32_bits}
-    Returns: (addr_written, data_written_as_int) or (None, None) on timeout.
+    Note: Scalar operations read/write from bank 0 (bits [31:0] of 256-bit bus).
     """
     dut.vpu_type.value  = vpu_type
     dut.vpu_opcode.value = vpu_opcode
@@ -426,15 +433,17 @@ async def _run_scalar_op(dut, vpu_type, vpu_opcode, addr_a, addr_b, addr_out,
     for _ in range(timeout):
         await RisingEdge(dut.clk)
 
-        # Serve BRAM reads
+        # Serve BRAM reads (providing 256-bit word, with scalar in low bits)
         if int(dut.bram_en.value) and not int(dut.bram_we.value):
             addr = int(dut.bram_addr.value)
-            dut.bram_dout.value = bram_init.get(addr, 0)
+            val = bram_init.get(addr, 0)
+            # Scalar VPU expects data on low 32 bits of 256-bit bus
+            dut.bram_dout.value = int(val) & 0xFFFFFFFF
 
         # Capture BRAM writes
         if int(dut.bram_en.value) and int(dut.bram_we.value):
             written_addr[0] = int(dut.bram_addr.value)
-            written_data[0] = int(dut.bram_din.value)
+            written_data[0] = int(dut.bram_din.value) & 0xFFFFFFFF
 
         if int(dut.done.value):
             break

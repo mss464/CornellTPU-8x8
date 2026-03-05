@@ -19,7 +19,8 @@ module tensorcore #(
     parameter VPU_DATA_W  = 32,
     parameter VPU_ADDR_W  = 13,
     parameter VPU_OP_W    = 4,
-    parameter VPU_IADDR_W = 5
+    parameter VPU_IADDR_W = 5,
+    parameter COMP_DATA_WIDTH = 256
 )(
     input  logic clk,
     input  logic rst_n,
@@ -35,8 +36,8 @@ module tensorcore #(
 
     // BRAM Port B Interface (for data access)
     output logic [ADDR_WIDTH-1:0]    bram_addr_b,
-    output logic [DATA_WIDTH-1:0]    bram_din_b,
-    input  logic [DATA_WIDTH-1:0]    bram_dout_b,
+    output logic [COMP_DATA_WIDTH-1:0] bram_din_b,
+    input  logic [COMP_DATA_WIDTH-1:0] bram_dout_b,
     output logic                     bram_en_b,
     output logic                     bram_we_b,
 
@@ -78,11 +79,11 @@ module tensorcore #(
     logic systolic_done, vpu_done;
 
     // Arbitrated BRAM signals from units
-    logic [ADDR_WIDTH-1:0] systolic_addr, vpu_addr;
-    logic [DATA_WIDTH-1:0] systolic_din_b, vpu_din_b;
-    logic [DATA_WIDTH-1:0] systolic_dout_b, vpu_dout_b;
-    logic                  systolic_en_b, vpu_en_b;
-    logic                  systolic_we_b, vpu_we_b;
+    logic [ADDR_WIDTH-1:0]            systolic_addr, vpu_addr;
+    logic [COMP_DATA_WIDTH-1:0]       systolic_din_b, vpu_din_b;
+    logic [COMP_DATA_WIDTH-1:0]       systolic_dout_b, vpu_dout_b;
+    logic                             systolic_en_b, vpu_en_b;
+    logic                             systolic_we_b, vpu_we_b;
 
     //---------------------------------------------
     // FSM for Instruction Orchestration
@@ -249,9 +250,10 @@ module tensorcore #(
     mxu #(
         .N(4),
         .DATA_WIDTH(DATA_WIDTH),
-        .BANKING_FACTOR(1),
+        .BANKING_FACTOR(8),
         .ADDRESS_WIDTH(ADDR_WIDTH),
-        .MEM_LATENCY(1)
+        .MEM_LATENCY(1),
+        .COMP_DATA_WIDTH(COMP_DATA_WIDTH)
     ) u_mxu (
         .clk(clk),
         .rst_n(rst_n),
@@ -271,7 +273,8 @@ module tensorcore #(
     vpu_simd #(
         .DATA_W(VPU_DATA_W),
         .ADDR_W(VPU_ADDR_W),
-        .NUM_LANES(8)
+        .NUM_LANES(8),
+        .COMP_DATA_WIDTH(COMP_DATA_WIDTH)
     ) u_vpu_simd (
         .clk(clk),
         .rst_n(rst_n),

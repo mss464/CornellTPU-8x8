@@ -48,23 +48,13 @@ fp32_mul #(.FORMAT("FP32")) fp32_multiplier (
 );
 
 // ReLU operation 
-always_comb begin
-  relu_result = {DATA_W{1'b0}};
-  if (!operand0[DATA_W-1]) begin
-    relu_result = operand0;
-  end
-end
+assign relu_result = (!operand0[DATA_W-1]) ? operand0 : {DATA_W{1'b0}};
 
 // ReLU deriv
-always_comb begin
-  d_relu_result = 32'h3f800000; // 1.0 in fp32
-  if (operand0[DATA_W-1] || operand0 == 32'h00000000) begin
-    d_relu_result = '0;
-  end
-end
+assign d_relu_result = (operand0[DATA_W-1] || operand0 == 32'h00000000) ? '0 : 32'h3f800000;
 
 // opcode decoding + proper operation
-always_comb begin
+always @(*) begin
     case (opcode)
       ADD: begin
         result = adder_result;

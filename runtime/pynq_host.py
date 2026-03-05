@@ -167,11 +167,15 @@ class TpuDriver:
         Doorbell triggers dma_engine. Waits for stream_ready before DMA transfer.
         """
         values = np.asarray(values, dtype=np.float32).reshape(-1)
+        pad_len = (8 - (values.size % 8)) % 8
+        if pad_len > 0:
+            values = np.pad(values, (0, pad_len), 'constant', constant_values=0)
+            
         buf = allocate(shape=values.shape, dtype=np.float32)
         try:
             self.wait_for_flag("instr_ready")
-            self.mmio.write(REG_ADDR["addr_devmem"], addr)
-            self.mmio.write(REG_ADDR["length"], values.size)
+            self.mmio.write(REG_ADDR["addr_devmem"], addr // 8)
+            self.mmio.write(REG_ADDR["length"], values.size // 8)
             self._doorbell(TpuMode.WRITE_BRAM)
             self.wait_for_flag("stream_ready")
             buf[:] = values
@@ -186,16 +190,19 @@ class TpuDriver:
 
         DMA recv channel armed before doorbell to avoid missing first beats.
         """
-        buf = allocate(shape=(length,), dtype=np.float32)
+        beat_length = (length + 7) // 8
+        padded_len = beat_length * 8
+        
+        buf = allocate(shape=(padded_len,), dtype=np.float32)
         try:
             self.wait_for_flag("instr_ready")
-            self.mmio.write(REG_ADDR["addr_devmem"], addr)
-            self.mmio.write(REG_ADDR["length"], length)
+            self.mmio.write(REG_ADDR["addr_devmem"], addr // 8)
+            self.mmio.write(REG_ADDR["length"], beat_length)
             self.dma.recvchannel.transfer(buf)   # arm DMA before TPU starts streaming
             self._doorbell(TpuMode.READ_BRAM)
             self.dma.recvchannel.wait()
             self.wait_for_flag("instr_ready")
-            return np.copy(buf)
+            return np.copy(buf[:length])
         finally:
             buf.freebuffer()
 
@@ -212,14 +219,18 @@ class TpuDriver:
         See docs/verification.md §Known Issues §1 for full analysis.
         """
         instructions = np.asarray(instructions, dtype=np.uint64)
-        buf = allocate(shape=instructions.shape, dtype=np.uint64)
+        padded_insts = np.zeros((len(instructions), 4), dtype=np.uint64)
+        padded_insts[:, 0] = instructions
+        padded_insts = padded_insts.reshape(-1)
+        
+        buf = allocate(shape=padded_insts.shape, dtype=np.uint64)
         try:
             self.wait_for_flag("instr_ready")
             self.mmio.write(REG_ADDR["addr_ram"], base_addr)
-            self.mmio.write(REG_ADDR["length"], 2 * len(instructions))
+            self.mmio.write(REG_ADDR["length"], len(instructions))
             self._doorbell(TpuMode.WRITE_IRAM)
             self.wait_for_flag("stream_ready")
-            buf[:] = instructions
+            buf[:] = padded_insts
             self.dma.sendchannel.transfer(buf)
             self.dma.sendchannel.wait()
             self.wait_for_flag("instr_ready")

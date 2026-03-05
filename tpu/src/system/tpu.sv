@@ -29,8 +29,8 @@ module tpu #
 (
     parameter integer C_S00_AXI_DATA_WIDTH  = 32,
     parameter integer C_S00_AXI_ADDR_WIDTH  = 6,
-    parameter integer C_S00_AXIS_TDATA_WIDTH = 32,
-    parameter integer C_M00_AXIS_TDATA_WIDTH = 32
+    parameter integer C_S00_AXIS_TDATA_WIDTH = 256,
+    parameter integer C_M00_AXIS_TDATA_WIDTH = 256
 )
 (
     // AXI-Lite slave
@@ -159,12 +159,12 @@ module tpu #
     // =========================================================================
     wire [15:0] write_pointer;
     wire [15:0] read_pointer;
-    wire [31:0] dma_dram_din;
+    wire [255:0] dma_dram_din;
     wire [63:0] dma_iram_din;
     wire        stream_data_valid;
     wire        write_bram_done;
     wire        read_bram_done;
-    wire [31:0] devmem_rd_data;
+    wire [255:0] devmem_rd_data;
 
     // TMA signals
     wire        ct_tma_req;
@@ -417,19 +417,19 @@ module tpu #
     // Device Memory (host DMA target, modes 1/2)
     // =========================================================================
     device_mem #(
-        .ADDR_WIDTH(16),
-        .DATA_WIDTH(32)
+        .ADDR_WIDTH(19),
+        .DATA_WIDTH(256)
     ) u_device_mem (
         .clk(s00_axi_aclk),
         .rst_n(s00_axi_aresetn),
         // Port A — host DMA (dma_engine controls enable signals)
-        .base_addr          (addr_devmem),
+        .base_addr          ({addr_devmem[18:3], 3'b000}),
         .dma_wr_en          (dma_data_write_en && stream_data_valid),
         .dma_wr_data        (dma_dram_din),
-        .dma_write_pointer  (write_pointer),
+        .dma_write_pointer  ({3'b000, write_pointer}),
         .dma_rd_en          (dma_read_en),
         .dma_rd_data        (devmem_rd_data),
-        .dma_read_pointer   (read_pointer),
+        .dma_read_pointer   ({3'b000, read_pointer}),
         // Port B — L2 tile DevMem FSM
         .l2_addr_b          (dm_l2_addr),
         .l2_din_b           (dm_l2_din),
@@ -481,26 +481,26 @@ module tpu #
     // =========================================================================
     compute_tile #(
         .ADDR_WIDTH(13),
-        .DATA_WIDTH(32)
+        .N(4), // Maintaining 4x4 array
+        .DMA_ADDR_WIDTH(13),
+        .DMA_DATA_WIDTH(256),
+        .COMP_ADDR_WIDTH(13),
+        .COMP_DATA_WIDTH(256)
     ) u_compute_tile (
         .clk(s00_axi_aclk),
         .rst_n(s00_axi_aresetn),
-        // Control (from compute_ctrl sub-FSM)
-        .start          (cc_start_compute_tile),
-        .done           (compute_tile_done),
-        // DMA Instruction (from dma_engine, mode 4)
-        .instr_write_en (dma_instr_write_en && write_pointer[0]),
-        .iram_addr      (dma_iram_addr),
-        .dma_iram_din   (dma_iram_din),
-        // DMA Data — L1 Port A (from l2_ctrl, modes 7/8)
-        .base_addr      (addr_ram),
-        .dma_wr_en      (lc_l1_dma_wr_en),
-        .dma_wr_data    (lc_l1_dma_wr_data),
-        .dma_write_pointer(lc_l1_dma_write_ptr),
-        .dma_rd_en      (lc_l1_dma_rd_en),
-        .dma_rd_data    (lc_l1_dma_rd_data),
-        .dma_read_pointer(lc_l1_dma_read_ptr),
-        // TMA signals (tensorcore → l2_tile)
+        .start(cc_start_compute_tile),
+        .done(compute_tile_done),
+        .base_addr({addr_ram[12:0]}),
+        .dma_wr_en(lc_l1_dma_wr_en),
+        .dma_wr_data(lc_l1_dma_wr_data),
+        .dma_write_pointer(lc_l1_dma_write_ptr[12:0]),
+        .dma_rd_en(lc_l1_dma_rd_en),
+        .dma_rd_data(lc_l1_dma_rd_data),
+        .dma_read_pointer(lc_l1_dma_read_ptr[12:0]),
+        .iram_addr(dma_iram_addr),
+        .dma_iram_din(dma_iram_din),
+        .instr_write_en(dma_instr_write_en && stream_data_valid),
         .tma_req        (ct_tma_req),
         .tma_dir        (ct_tma_dir),
         .tma_dm_base    (ct_tma_dm_base),

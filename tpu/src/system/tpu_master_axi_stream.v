@@ -27,10 +27,10 @@
 `timescale 1 ns / 1 ps
 
 module tpu_master_axi_stream #(
-    parameter integer C_M_AXIS_TDATA_WIDTH = 32
+    parameter integer C_M_AXIS_TDATA_WIDTH = 256
 )(
     // User ports
-    input  wire [31:0] data_to_ddr,
+    input  wire [255:0] data_to_ddr,
     input  wire [31:0] len,
     input  wire        read_en,
     output wire        done,
@@ -73,15 +73,15 @@ module tpu_master_axi_stream #(
     // FIFO instance (FWFT, depth=64, synchronous flush)
     // =========================================================================
     wire        fifo_wr_en;
-    wire [31:0] fifo_wr_data;
+    wire [255:0] fifo_wr_data;
     wire        fifo_rd_en;
-    wire [31:0] fifo_rd_data;
+    wire [255:0] fifo_rd_data;
     wire        fifo_full;
     wire        fifo_empty;
     wire        fifo_almost_full;
     reg         fifo_flush;
 
-    fifo4 #(.WIDTH(32), .DEPTH(64)) u_fifo (
+    fifo4 #(.WIDTH(256), .DEPTH(64)) u_fifo (
         .clk         (M_AXIS_ACLK),
         .rst_n       (M_AXIS_ARESETN),
         .flush       (fifo_flush),

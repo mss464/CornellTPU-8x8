@@ -10,14 +10,16 @@
 //                   data connection with memory.
 //  - ADDRESS_WIDTH: The size in bits of each memory address.
 //  - MEM_LATENCY: The response latency of memory. Assume a fixed latency.
+//  - COMP_DATA_WIDTH: Compute bus width (256 bits for 8 banks)
 // -----------------------------------------------------------------------------
 
 module mxu #(
     parameter int N = 4,
     parameter int DATA_WIDTH = 32,
-    parameter int BANKING_FACTOR = 1,
+    parameter int BANKING_FACTOR = 8,
     parameter int ADDRESS_WIDTH = 13,
-    parameter int MEM_LATENCY = 3
+    parameter int MEM_LATENCY = 2,
+    parameter int COMP_DATA_WIDTH = 256
 )(
     // --- Control Signals (Standard) ---
     input  logic clk,   // Clock signal
@@ -36,9 +38,9 @@ module mxu #(
     // mem_req_addr: Address of memory access request
     output logic [ADDRESS_WIDTH-1:0] mem_req_addr,
     // mem_req_data: Data of memory access request (meaningless for reads; data to write for writes)
-    output logic [BANKING_FACTOR*DATA_WIDTH-1 : 0] mem_req_data,
+    output logic [COMP_DATA_WIDTH-1 : 0] mem_req_data,
     // mem_resp_data: Data of memory access response (meaningless for writes; requested data for reads)
-    input  logic [BANKING_FACTOR*DATA_WIDTH-1 : 0] mem_resp_data,
+    input  logic [COMP_DATA_WIDTH-1 : 0] mem_resp_data,
     // mem_read_en: Memory read enable. Driven high when a memory read request is sent.
     output logic mem_read_en,
     // mem_write_en: Memory write enable. Driven high when a memory write request is sent.
@@ -56,12 +58,11 @@ module mxu #(
     logic signed [DATA_WIDTH-1:0] x_matrix [N*N-1:0];
 
     localparam int TOTAL_ELEMS = N*N;
-    localparam int BYTES_PER_BEAT = BANKING_FACTOR * (DATA_WIDTH / 8);
 
     // Registers to latch matrix addresses
     logic [ADDRESS_WIDTH-1:0] base_addr_x_reg, base_addr_w_reg, base_addr_out_reg;
 
-    // Index for load progress (indexes loading beats)
+    // Index for load progress (indexes loading rows)
     logic [5:0] load_idx;  // Changed from integer for better synthesis/sim compatibility
     wire [ADDRESS_WIDTH-1:0] load_idx_addr =
         {{(ADDRESS_WIDTH-$bits(load_idx)){1'b0}}, load_idx};
@@ -123,17 +124,6 @@ module mxu #(
 
     // -------------------------------------------------------------------------
     // Finite State Machine (FSM)
-    // -------------------------------------------------------------------------
-    // The flow of the FSM is as follows:
-    // IDLE -> LOAD_W_REQ <--> LOAD_W_WAIT -> LOAD_X_REQ <--> LOAD_X_WAIT 
-    //      -> RUN -> CAPTURE -> STORE_REQ <--> STORE_WAIT -> DONE
-    //
-    // During the req states (load_w_req, load_x_req, store_req), the FSM sends 
-    // a request to memory and enters the corresponding wait state. 
-    // In the wait state, the FSM waits the parameterized MEM_LATENCY before 
-    // accepting a read response or assuming a write was successful.
-    // The FSM then moves to the next state or returns to the request state 
-    // depending on whether the matrix has been fully loaded/stored.
     // -------------------------------------------------------------------------
     typedef enum logic [3:0] {
         S_IDLE,
@@ -286,14 +276,11 @@ module mxu #(
 
                 S_LOAD_W_WAIT: begin
                     if (mem_latency_timer >= (MEM_LATENCY - 1)) begin
-                        for (int b = 0; b < BANKING_FACTOR; b++) begin
-                            int flat_index;
-                            flat_index = load_idx * BANKING_FACTOR + b;
-                            if (flat_index < TOTAL_ELEMS) begin
-                                weight_matrix[flat_index] <= mem_resp_data[b*DATA_WIDTH +: DATA_WIDTH];
-                            end
+                        // Load full row of W: BRAM[addr] contains weight[load_idx][0:N-1]
+                        for (int i = 0; i < N; i++) begin
+                            weight_matrix[load_idx*N + i] <= mem_resp_data[i*DATA_WIDTH +: DATA_WIDTH];
                         end
-                        if ((int'(load_idx) + 1) * BANKING_FACTOR >= TOTAL_ELEMS) begin
+                        if (load_idx >= N - 1) begin
                             load_idx <= '0;
                             state <= S_LOAD_X_REQ;
                         end else begin
@@ -314,14 +301,11 @@ module mxu #(
 
                 S_LOAD_X_WAIT: begin
                     if (mem_latency_timer >= (MEM_LATENCY - 1)) begin
-                        for (int b = 0; b < BANKING_FACTOR; b++) begin
-                            int flat_index;
-                            flat_index = load_idx * BANKING_FACTOR + b;
-                            if (flat_index < TOTAL_ELEMS) begin
-                                x_matrix[flat_index] <= mem_resp_data[b*DATA_WIDTH +: DATA_WIDTH];
-                            end
+                        // Load full row of X: BRAM[addr] contains X[load_idx][0:N-1]
+                        for (int i = 0; i < N; i++) begin
+                            x_matrix[load_idx*N + i] <= mem_resp_data[i*DATA_WIDTH +: DATA_WIDTH];
                         end
-                        if ((int'(load_idx) + 1) * BANKING_FACTOR >= TOTAL_ELEMS) begin
+                        if (load_idx >= N - 1) begin
                             load_idx <= '0;
                             phase_counter <= '0;
                             state <= S_RUN;
@@ -338,54 +322,60 @@ module mxu #(
                     // Increment phase counter
                     phase_counter <= phase_counter + 1;
 
-                    // ---- Weight pipeline: column-major, reversed along rows ----
+                    // ---- Weight pipeline: Loading Column-i weights into systolic array ----
+                    // The systolic array (systolic.sv) expects weights loaded from the top.
+                    // If we load Row 0, then Row 1, Row 1 pushes Row 0 down.
+                    // At the end, PE3j (bottom) will have the FIRST row loaded.
+                    // To have Row 0 in PE0j (top), we must load Row 3, 2, 1, 0.
+                    
                     // Column 0
                     if (phase_counter < N) begin
-                        sys_weight_in_11 <= weight_matrix[(0*N + N-1-phase_counter)];
+                        sys_weight_in_11 <= weight_matrix[0*N + (N-1-phase_counter)];
                         sys_accept_w_1   <= 1;
                     end else sys_accept_w_1 <= 0;
 
                     // Column 1
                     if (phase_counter >= 1 && phase_counter < N+1) begin
-                        sys_weight_in_12 <= weight_matrix[(1*N + N-1-(phase_counter-1))];
+                        sys_weight_in_12 <= weight_matrix[1*N + (N-1-(phase_counter-1))];
                         sys_accept_w_2   <= 1;
                     end else sys_accept_w_2 <= 0;
 
                     // Column 2
                     if (phase_counter >= 2 && phase_counter < N+2) begin
-                        sys_weight_in_13 <= weight_matrix[(2*N + N-1-(phase_counter-2))];
+                        sys_weight_in_13 <= weight_matrix[2*N + (N-1-(phase_counter-2))];
                         sys_accept_w_3   <= 1;
                     end else sys_accept_w_3 <= 0;
 
                     // Column 3
                     if (phase_counter >= 3 && phase_counter < N+3) begin
-                        sys_weight_in_14 <= weight_matrix[(3*N + N-1-(phase_counter-3))];
+                        sys_weight_in_14 <= weight_matrix[3*N + (N-1-(phase_counter-3))];
                         sys_accept_w_4   <= 1;
                     end else sys_accept_w_4 <= 0;
 
-                    // ---- Switch X input when last weight of column 1 is loaded ----
-                    if (phase_counter == N-1)
+                    // ---- Switch X input (Cycle N+3 for full weight promotion and switch) ----
+                    if (phase_counter == N+3)
                         sys_switch_in <= 1;
                     else
                         sys_switch_in <= 0;
 
-                    // ---- X input stream: staggered along rows ----
-                    // Each PE row gets a different column of X
+                    // ---- X input stream: X[row][col] ----
+                    // Elements of row i are fed column 0, then 1, 2, 3.
+                    // Staggered: row i starts at cycle N+4 + i
                     for (int row = 0; row < N; row++) begin
                         int ph;
-                        ph = int'(phase_counter) - (N + row);
+                        ph = int'(phase_counter) - (N + 4 + row);
                         if (ph >= 0 && ph < N) begin
                             case (row)
-                                0: begin sys_start_1 <= 1; sys_data_in_11 <= x_matrix[(ph*N + 0)]; end
-                                1: begin sys_start_2 <= 1; sys_data_in_21 <= x_matrix[(ph*N + 1)]; end
-                                2: begin sys_start_3 <= 1; sys_data_in_31 <= x_matrix[(ph*N + 2)]; end
-                                3: begin sys_start_4 <= 1; sys_data_in_41 <= x_matrix[(ph*N + 3)]; end
+                                0: begin sys_start_1 <= 1; sys_data_in_11 <= x_matrix[ph*N + 0]; end
+                                1: begin sys_start_2 <= 1; sys_data_in_21 <= x_matrix[ph*N + 1]; end
+                                2: begin sys_start_3 <= 1; sys_data_in_31 <= x_matrix[ph*N + 2]; end
+                                3: begin sys_start_4 <= 1; sys_data_in_41 <= x_matrix[ph*N + 3]; end
                             endcase
                         end
                     end
 
-                    // ---- Stop when weight and input sequences done ----
-                    if (phase_counter >= 3*N - 2) begin
+                    // ---- Stop when all sequences done ----
+                    if (phase_counter >= 5*N) begin
                         phase_counter <= '0;
                         state <= S_CAPTURE;
                     end
@@ -409,13 +399,13 @@ module mxu #(
                 S_STORE_REQ: begin
                     mem_req_addr <= base_addr_out_reg + load_idx_addr;
 
-                    for (int b = 0; b < BANKING_FACTOR; b++) begin
-                        int flat_index;
-                        flat_index = load_idx * BANKING_FACTOR + b;
-                        if (flat_index < TOTAL_ELEMS)
-                            mem_req_data[b*DATA_WIDTH +: DATA_WIDTH] <= out_matrix[flat_index];
-                        else
-                            mem_req_data[b*DATA_WIDTH +: DATA_WIDTH] <= '0;
+                    // Write out_matrix[load_idx][0:N-1] as a single 256-bit word
+                    for (int i = 0; i < N; i++) begin
+                        mem_req_data[i*DATA_WIDTH +: DATA_WIDTH] <= out_matrix[load_idx*N + i];
+                    end
+                    // Fill remaining upper bits with 0s
+                    for (int i = N; i < BANKING_FACTOR; i++) begin
+                        mem_req_data[i*DATA_WIDTH +: DATA_WIDTH] <= '0;
                     end
 
                     mem_write_en <= 1;
@@ -425,7 +415,7 @@ module mxu #(
 
                 S_STORE_WAIT: begin
                     if (mem_latency_timer >= (MEM_LATENCY - 1)) begin
-                        if ((int'(load_idx) + 1) * BANKING_FACTOR >= TOTAL_ELEMS) begin
+                        if (load_idx >= N - 1) begin
                             state <= S_DONE;
                         end else begin
                             load_idx <= load_idx + 1;

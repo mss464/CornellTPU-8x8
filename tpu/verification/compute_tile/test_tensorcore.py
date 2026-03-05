@@ -6,6 +6,21 @@ import struct
 def float_to_fp32(f):
     return struct.unpack('>I', struct.pack('>f', f))[0]
 
+def fp32_to_float(bits):
+    return struct.unpack('>f', struct.pack('>I', bits))[0]
+
+def pack_8x32(vals):
+    """Pack 8 32-bit values into a 256-bit integer."""
+    res = 0
+    for i, v in enumerate(vals):
+        res |= (int(v) & 0xFFFFFFFF) << (i * 32)
+    return res
+
+def unpack_8x32(val):
+    """Unpack a 256-bit integer into 8 32-bit values."""
+    return [(val >> (i * 32)) & 0xFFFFFFFF for i in range(8)]
+
+
 @cocotb.test()
 async def test_tensorcore_halt(dut):
     """Test that TensorCore can fetch and execute a HALT instruction."""
@@ -62,6 +77,7 @@ async def test_tensorcore_vload_vhalt(dut):
     dut.rst_n.value = 0
     dut.start.value = 0
     dut.instr_write_en.value = 0
+    dut.bram_dout_b.value = 0
     await RisingEdge(dut.clk)
     dut.rst_n.value = 1
     await RisingEdge(dut.clk)
@@ -108,8 +124,8 @@ async def test_tensorcore_vpu_data_flow(dut):
     """Test VLOAD→VSTORE identity: data loaded and stored without modification.
 
     Program: [vload(V0, addr=100), vstore(V0, addr=200), halt]
-    BRAM[100:107] pre-populated with known values.
-    Verifies BRAM[200:207] == original BRAM[100:107] after execution.
+    BRAM[100] pre-populated with 8 elements in parallel (256 bits).
+    Verifies BRAM[200] == original BRAM[100] after execution.
 
     Instruction encoding uses decoder.sv hardware format ([63:62]=mode):
       VLOAD  V0, addr=100: mode=0, addr_a=100, vpu_type=1, vreg_dst=0
@@ -130,15 +146,16 @@ async def test_tensorcore_vpu_data_flow(dut):
     dut.rst_n.value = 1
     await RisingEdge(dut.clk)
 
-    # BRAM model: pre-populate addresses 100–107 with known values
+    # BRAM model: pre-populate address 100 with 256 bits of packed data
     bram = {}
     src_vals = [float(i * 3 + 1) for i in range(8)]  # [1.0, 4.0, 7.0, ...]
-    for i in range(8):
-        bram[100 + i] = float_to_fp32(src_vals[i])
+    bram[100] = pack_8x32([float_to_fp32(v) for v in src_vals])
 
     # Encode instructions (decoder.sv hardware format: mode=[63:62])
-    vload_instr  = (100 << 49) | (1 << 20)          # addr_a=100, vpu_type=1, vreg_dst=0
-    vstore_instr = (200 << 23) | (2 << 20)           # addr_out=200, vpu_type=2, vreg_a=0
+    # VLOAD addr_a=100, vpu_type=1, vreg_dst=0
+    vload_instr  = (100 << 49) | (1 << 20)          
+    # VSTORE addr_out=200, vpu_type=2, vreg_a=0
+    vstore_instr = (200 << 23) | (2 << 20)           
     halt_instr   = 3 << 62
 
     # Load program into IRAM
@@ -158,7 +175,7 @@ async def test_tensorcore_vpu_data_flow(dut):
 
     # Run until done, serving BRAM Port B requests from the model
     done_found = False
-    for _ in range(1000):
+    for _ in range(500):
         await RisingEdge(dut.clk)
         if int(dut.bram_en_b.value) == 1 and int(dut.bram_we_b.value) == 0:
             addr = int(dut.bram_addr_b.value)
@@ -171,13 +188,15 @@ async def test_tensorcore_vpu_data_flow(dut):
 
     assert done_found, "TensorCore should complete within timeout"
 
-    # Verify identity: BRAM[200:207] == original BRAM[100:107]
+    # Verify identity: BRAM[200] == original BRAM[100] (all 8 elements)
+    assert 200 in bram, "Missing BRAM write at address 200 (VSTORE did not fire)"
+    got_packed = bram[200]
+    unpacked_got = unpack_8x32(got_packed)
+    
     for i in range(8):
-        addr = 200 + i
-        assert addr in bram, f"Missing BRAM write at address {addr} (VSTORE did not fire)"
-        got = fp32_to_float(bram[addr])
+        got = fp32_to_float(unpacked_got[i])
         exp = src_vals[i]
         assert abs(got - exp) < 1e-4, \
-            f"Data mismatch at BRAM[{addr}]: expected {exp}, got {got}"
+            f"Data mismatch at BRAM[200] element {i}: expected {exp}, got {got}"
 
-    dut._log.info("PASS: test_tensorcore_vpu_data_flow — VLOAD→VSTORE identity verified")
+    dut._log.info("PASS: test_tensorcore_vpu_data_flow — Parallel VLOAD→VSTORE identity verified")

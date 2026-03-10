@@ -167,10 +167,11 @@
 	            write_pointer_stream <= write_pointer_stream + 1;
 	            writes_done <= 1'b0;
 	          end
-	          if ((write_pointer_stream == NUMBER_OF_INPUT_WORDS-1)|| t_last_pipelined)
+	          // Gate completion with fifo_wren: only assert writes_done when
+	          // the last beat is ACTUALLY received, not just when the pointer
+	          // happens to equal len-1 during an idle gap between DMA beats.
+	          if ((fifo_wren && write_pointer_stream == NUMBER_OF_INPUT_WORDS-1) || t_last_pipelined)
 	            begin
-	              // reads_done is asserted when NUMBER_OF_INPUT_WORDS numbers of streaming data 
-	              // has been written to the FIFO which is also marked by S_AXIS_TLAST(kept for optional usage).
 	              writes_done <= 1'b1;
 	            end
 	      end  

@@ -12,6 +12,7 @@ Usage:
 
 import argparse
 import sys
+import time
 import os
 import numpy as np
 
@@ -74,6 +75,7 @@ def test_burst_boundaries(tpu):
     all_pass = True
 
     for size in sizes:
+        time.sleep(0.05)  # Allow DMA/CMA to settle between iterations
         pattern = np.arange(size, dtype=np.float32) + 100  # Offset to distinguish from addr
         tpu.write_bram(0, pattern)
         result = tpu.read_bram(0, size)

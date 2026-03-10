@@ -89,10 +89,11 @@ def test_burst_boundaries(tpu):
 
 def main():
     parser = argparse.ArgumentParser(description="TPU Data Integrity Test")
+    parser.add_argument("bitstream", help="Path to the .bit file to program")
     args = parser.parse_args()
 
-    # Initialize TPU (auto-detects hardware)
-    tpu = TpuDriver()
+    # Initialize TPU and program FPGA
+    tpu = TpuDriver(bitstream=args.bitstream, program=True)
 
     all_passed = True
 

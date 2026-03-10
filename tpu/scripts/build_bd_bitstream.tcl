@@ -179,8 +179,7 @@ puts "\n>>> Step 6: Adding AXI DMA..."
 set dma [create_bd_cell -type ip -vlnv xilinx.com:ip:axi_dma:7.1 axi_dma_0]
 
 # Configure DMA for both MM2S and S2MM
-# MM2S: Memory to Stream (input to TPU) - 64-bit width
-# S2MM: Stream to Memory (output from TPU) - 32-bit width
+# Both MM2S and S2MM paths are set to 256-bit wide AXI/Stream.
 set_property -dict [list \
     CONFIG.c_include_sg {0} \
     CONFIG.c_sg_include_stscntrl_strm {0} \
@@ -188,6 +187,10 @@ set_property -dict [list \
     CONFIG.c_include_s2mm {1} \
     CONFIG.c_mm2s_burst_size {16} \
     CONFIG.c_s2mm_burst_size {16} \
+    CONFIG.c_m_axi_mm2s_data_width {256} \
+    CONFIG.c_m_axis_mm2s_tdata_width {256} \
+    CONFIG.c_m_axi_s2mm_data_width {256} \
+    CONFIG.c_s_axis_s2mm_tdata_width {256} \
 ] $dma
 
 ################################################################################
@@ -247,13 +250,13 @@ connect_bd_intf_net [get_bd_intf_pins axi_dma_0/M_AXIS_MM2S] \
 connect_bd_intf_net [get_bd_intf_pins tpu_0/m00_axis] \
                     [get_bd_intf_pins axi_dma_0/S_AXIS_S2MM]
 
-# Force 256-bit widths (sometimes Vivado resets these during connection)
+# Verify widths (propagation should keep them at 256)
 set_property -dict [list \
     CONFIG.c_m_axi_mm2s_data_width {256} \
     CONFIG.c_m_axis_mm2s_tdata_width {256} \
     CONFIG.c_m_axi_s2mm_data_width {256} \
     CONFIG.c_s_axis_s2mm_tdata_width {256} \
-] $dma
+] [get_bd_cells axi_dma_0]
 
 ################################################################################
 # Step 12: Connect DMA Memory Interfaces

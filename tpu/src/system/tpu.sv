@@ -423,7 +423,7 @@ module tpu #
         .clk(s00_axi_aclk),
         .rst_n(s00_axi_aresetn),
         // Port A — host DMA (dma_engine controls enable signals)
-        .base_addr          ({addr_devmem[18:3], 3'b000}),
+        .base_addr          (addr_devmem[15:0]),
         .dma_wr_en          (dma_data_write_en && stream_data_valid),
         .dma_wr_data        (dma_dram_din),
         .dma_write_pointer  ({3'b000, write_pointer}),

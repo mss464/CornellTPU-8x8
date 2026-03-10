@@ -86,7 +86,7 @@ module tpu #
     wire [31:0] slv_reg6_bus;
 
     wire [12:0] addr_ram    = slv_reg3_bus[12:0];
-    wire [15:0] addr_devmem = slv_reg4_bus[15:0];
+    wire [31:0] addr_devmem = slv_reg4_bus;
     wire [14:0] addr_l2     = slv_reg5_bus[14:0];
     wire [31:0] dma_len     = slv_reg6_bus;
 
@@ -463,7 +463,7 @@ module tpu #
         // Host-controlled DevMem↔L2 transfer (dma_engine triggers, modes 5/6)
         .start_dm_to_l2 (dma_start_dm_to_l2),
         .start_l2_to_dm (dma_start_l2_to_dm),
-        .xfer_dm_base   (addr_devmem),
+        .xfer_dm_base   (addr_devmem[15:0]),
         .xfer_l2_base   (addr_l2),
         .xfer_len       (dma_len[15:0]),
         .xfer_done      (xfer_l2_done),

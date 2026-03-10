@@ -152,7 +152,7 @@ module dma_engine (
                         // IRAM is 64-bit, AXI bus is now 256-bit.
                         // We take one 64-bit instruction per 256-bit beat.
                         if (instr_write_en)
-                            iram_addr <= addr_ram_in + write_pointer_stream[7:0];
+                            iram_addr <= addr_ram_in + write_pointer[7:0];
                     end
                     if (write_bram_done) begin
                         state <= DE_IDLE;

@@ -6,9 +6,14 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 module compute_tile #(
+    parameter N = 4,
     parameter ADDR_WIDTH = 13,
     parameter DATA_WIDTH = 32,
-    parameter COMP_DATA_WIDTH = 256
+    parameter COMP_DATA_WIDTH = 256,
+    parameter DMA_ADDR_WIDTH = 13,
+    parameter DMA_DATA_WIDTH = 256,
+    parameter COMP_ADDR_WIDTH = 13,
+    parameter MEM_LATENCY = 2
 )(
     input  logic clk,
     input  logic rst_n,
@@ -51,7 +56,9 @@ module compute_tile #(
     tensorcore #(
         .ADDR_WIDTH(ADDR_WIDTH),
         .DATA_WIDTH(DATA_WIDTH),
-        .COMP_DATA_WIDTH(COMP_DATA_WIDTH)
+        .COMP_DATA_WIDTH(COMP_DATA_WIDTH),
+        .N(N),
+        .MEM_LATENCY(MEM_LATENCY)
     ) u_tensorcore (
         .clk(clk),
         .rst_n(rst_n),
@@ -75,10 +82,10 @@ module compute_tile #(
 
     // Instantiate L1
     l1 #(
-        .COMP_ADDR_WIDTH(ADDR_WIDTH),
+        .COMP_ADDR_WIDTH(COMP_ADDR_WIDTH),
         .COMP_DATA_WIDTH(COMP_DATA_WIDTH),
-        .DMA_ADDR_WIDTH(16),
-        .DMA_DATA_WIDTH(DATA_WIDTH)
+        .DMA_ADDR_WIDTH(DMA_ADDR_WIDTH),
+        .DMA_DATA_WIDTH(DMA_DATA_WIDTH)
     ) u_l1 (
         .clk(clk),
         .rst_n(rst_n),

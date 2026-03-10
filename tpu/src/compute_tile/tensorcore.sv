@@ -12,6 +12,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 module tensorcore #(
+    parameter N = 4,
     parameter ADDR_WIDTH = 13,
     parameter DATA_WIDTH = 32,
 
@@ -20,7 +21,8 @@ module tensorcore #(
     parameter VPU_ADDR_W  = 13,
     parameter VPU_OP_W    = 4,
     parameter VPU_IADDR_W = 5,
-    parameter COMP_DATA_WIDTH = 256
+    parameter COMP_DATA_WIDTH = 256,
+    parameter MEM_LATENCY = 2
 )(
     input  logic clk,
     input  logic rst_n,
@@ -248,11 +250,11 @@ module tensorcore #(
 
     // MXU: Matrix Unit
     mxu #(
-        .N(4),
+        .N(N),
         .DATA_WIDTH(DATA_WIDTH),
         .BANKING_FACTOR(8),
         .ADDRESS_WIDTH(ADDR_WIDTH),
-        .MEM_LATENCY(1),
+        .MEM_LATENCY(MEM_LATENCY),
         .COMP_DATA_WIDTH(COMP_DATA_WIDTH)
     ) u_mxu (
         .clk(clk),

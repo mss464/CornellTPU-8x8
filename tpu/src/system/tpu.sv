@@ -485,7 +485,8 @@ module tpu #
         .DMA_ADDR_WIDTH(13),
         .DMA_DATA_WIDTH(256),
         .COMP_ADDR_WIDTH(13),
-        .COMP_DATA_WIDTH(256)
+        .COMP_DATA_WIDTH(256),
+        .MEM_LATENCY(2)
     ) u_compute_tile (
         .clk(s00_axi_aclk),
         .rst_n(s00_axi_aresetn),

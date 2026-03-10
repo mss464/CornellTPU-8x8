@@ -188,10 +188,6 @@ set_property -dict [list \
     CONFIG.c_include_s2mm {1} \
     CONFIG.c_mm2s_burst_size {16} \
     CONFIG.c_s2mm_burst_size {16} \
-    CONFIG.c_m_axi_mm2s_data_width {32} \
-    CONFIG.c_m_axis_mm2s_tdata_width {32} \
-    CONFIG.c_m_axi_s2mm_data_width {32} \
-    CONFIG.c_s_axis_s2mm_tdata_width {32} \
 ] $dma
 
 ################################################################################
@@ -250,6 +246,14 @@ connect_bd_intf_net [get_bd_intf_pins axi_dma_0/M_AXIS_MM2S] \
 # TPU Output Stream -> DMA S2MM (32-bit)
 connect_bd_intf_net [get_bd_intf_pins tpu_0/m00_axis] \
                     [get_bd_intf_pins axi_dma_0/S_AXIS_S2MM]
+
+# Force 256-bit widths (sometimes Vivado resets these during connection)
+set_property -dict [list \
+    CONFIG.c_m_axi_mm2s_data_width {256} \
+    CONFIG.c_m_axis_mm2s_tdata_width {256} \
+    CONFIG.c_m_axi_s2mm_data_width {256} \
+    CONFIG.c_s_axis_s2mm_tdata_width {256} \
+] $dma
 
 ################################################################################
 # Step 12: Connect DMA Memory Interfaces

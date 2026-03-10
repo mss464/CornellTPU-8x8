@@ -417,7 +417,7 @@ module tpu #
     // Device Memory (host DMA target, modes 1/2)
     // =========================================================================
     device_mem #(
-        .ADDR_WIDTH(19),
+        .ADDR_WIDTH(16),
         .DATA_WIDTH(256)
     ) u_device_mem (
         .clk(s00_axi_aclk),
@@ -480,11 +480,11 @@ module tpu #
     // Compute Tile
     // =========================================================================
     compute_tile #(
-        .ADDR_WIDTH(13),
+        .ADDR_WIDTH(10),
         .N(4), // Maintaining 4x4 array
-        .DMA_ADDR_WIDTH(13),
+        .DMA_ADDR_WIDTH(10),
         .DMA_DATA_WIDTH(256),
-        .COMP_ADDR_WIDTH(13),
+        .COMP_ADDR_WIDTH(10),
         .COMP_DATA_WIDTH(256),
         .MEM_LATENCY(2)
     ) u_compute_tile (

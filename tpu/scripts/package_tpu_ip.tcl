@@ -172,7 +172,7 @@ create_ip -name blk_mem_gen -vendor xilinx.com -library ip -version 8.4 \
 set_property -dict [list \
     CONFIG.Memory_Type {True_Dual_Port_RAM} \
     CONFIG.Write_Width_A {32} \
-    CONFIG.Write_Depth_A {8192} \
+    CONFIG.Write_Depth_A {1024} \
     CONFIG.Read_Width_A {32} \
     CONFIG.Write_Width_B {32} \
     CONFIG.Read_Width_B {32} \
@@ -226,7 +226,7 @@ create_ip -name blk_mem_gen -vendor xilinx.com -library ip -version 8.4 \
 set_property -dict [list \
     CONFIG.Memory_Type {True_Dual_Port_RAM} \
     CONFIG.Write_Width_A {32} \
-    CONFIG.Write_Depth_A {65536} \
+    CONFIG.Write_Depth_A {8192} \
     CONFIG.Read_Width_A {32} \
     CONFIG.Write_Width_B {32} \
     CONFIG.Read_Width_B {32} \

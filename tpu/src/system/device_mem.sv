@@ -39,10 +39,10 @@ module device_mem #(
     wire [ADDR_WIDTH-1:0] dma_addr;
     assign dma_addr = base_addr + (dma_wr_en ? dma_write_pointer : dma_read_pointer);
 
-    wire [15:0] dma_bram_addr = dma_addr[15:0];
+    wire [12:0] dma_bram_addr = dma_addr[12:0];
     
     wire [2:0] l2_bank_sel = l2_addr_b[2:0];
-    wire [15:0] l2_bram_addr = l2_addr_b[18:3];
+    wire [12:0] l2_bram_addr = l2_addr_b[15:3];
 
     wire [31:0] l2_dout_b_arr [8];
 

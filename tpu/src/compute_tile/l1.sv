@@ -42,7 +42,7 @@ module l1 #(
     wire [15:0] dma_addr;
     assign dma_addr = base_addr + (dma_wr_en ? dma_write_pointer : dma_read_pointer);
 
-    wire [12:0] dma_bram_addr = dma_addr[12:0];
+    wire [9:0] dma_bram_addr = dma_addr[9:0];
 
     //-----------------------------------------------
     // BRAM instantiation (true dual-port)

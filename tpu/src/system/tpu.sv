@@ -147,12 +147,12 @@ module tpu #
     wire [31:0] lc_l2_ct_din;
     wire [31:0] lc_l2_ct_dout;
 
-    wire        lc_l1_dma_wr_en;
-    wire [31:0] lc_l1_dma_wr_data;
-    wire [15:0] lc_l1_dma_write_ptr;
-    wire        lc_l1_dma_rd_en;
-    wire [31:0] lc_l1_dma_rd_data;
-    wire [15:0] lc_l1_dma_read_ptr;
+    wire         lc_l1_dma_wr_en;
+    wire [255:0] lc_l1_dma_wr_data;
+    wire [15:0]  lc_l1_dma_write_ptr;
+    wire         lc_l1_dma_rd_en;
+    wire [255:0] lc_l1_dma_rd_data;
+    wire [15:0]  lc_l1_dma_read_ptr;
 
     // =========================================================================
     // AXI-Stream plumbing wires
@@ -396,6 +396,7 @@ module tpu #
         .start           (l2_start),
         .mode            (tpu_mode),
         .addr_l2_in      (addr_l2),
+        .addr_l1_in      ({3'b000, addr_ram}),
         .length_in       (dma_len),
         .done            (l2_done),
         // L2 tile Port A

@@ -193,7 +193,10 @@ module tensorcore #(
         end
     end
 
-    assign pc_enable = (state == FETCH_1); // Increment PC when moving to next fetch
+    // Increment PC only after the current instruction has fully completed execution
+    // to ensure combinational decoders provide stable fields to execution units.
+    assign pc_enable = (state == WAIT_COMPUTE && ((mode == 2'b00 && vpu_done) || (mode == 2'b01 && systolic_done))) ||
+                       (state == WAIT_TMA && tma_done);
 
     //---------------------------------------------
     // Submodule Instantiations

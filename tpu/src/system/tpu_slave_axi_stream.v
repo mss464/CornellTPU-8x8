@@ -157,24 +157,30 @@
 	      write_pointer_stream <= 0;
 	      writes_done <= 1'b0;
 	    end  
+	  // Pre-clear writes_done on the IDLE→WRITE_FIFO transition so that
+	  // axis_tready is asserted on the very first beat of the new transfer.
+	  else if (mst_exec_state == IDLE && S_AXIS_TVALID && write_en)
+	    begin
+	      writes_done <= 1'b0;
+	      write_pointer_stream <= 0;
+	    end
 	  else
-	    if (write_pointer_stream <= NUMBER_OF_INPUT_WORDS-1)
+	    if (fifo_wren)
 	      begin
-	        if (fifo_wren && (write_pointer_stream != NUMBER_OF_INPUT_WORDS-1))
+	        if (write_pointer_stream < NUMBER_OF_INPUT_WORDS-1)
 	          begin
-	            // write pointer is incremented after every write to the FIFO
-	            // when FIFO write signal is enabled.
 	            write_pointer_stream <= write_pointer_stream + 1;
 	            writes_done <= 1'b0;
 	          end
-	          // Gate completion with fifo_wren: only assert writes_done when
-	          // the last beat is ACTUALLY received, not just when the pointer
-	          // happens to equal len-1 during an idle gap between DMA beats.
-	          if ((fifo_wren && write_pointer_stream == NUMBER_OF_INPUT_WORDS-1) || t_last_pipelined)
-	            begin
-	              writes_done <= 1'b1;
-	            end
+	        else if (write_pointer_stream == NUMBER_OF_INPUT_WORDS-1 || S_AXIS_TLAST)
+	          begin
+	            writes_done <= 1'b1;
+	          end
 	      end  
+	    else if (t_last_pipelined)
+	      begin
+	        writes_done <= 1'b1;
+	      end
 	end
 
 	// FIFO write enable generation

@@ -31,17 +31,19 @@ module l2_ctrl (
     output reg  [14:0] l2_ct_addr,
     output reg         l2_ct_en,
     output reg         l2_ct_we,
-    output reg  [31:0] l2_ct_din,
+    output reg [31:0]  l2_ct_din,
     input  wire [31:0] l2_ct_dout,
 
     // L1 DMA port (256-bit, via compute_tile)
     output reg          l1_dma_wr_en,
-    output reg  [255:0] l1_dma_wr_data,
+    output logic [255:0] l1_dma_wr_data,
     output reg  [15:0]  l1_dma_write_ptr,
     output reg          l1_dma_rd_en,
     input  wire [255:0] l1_dma_rd_data,
     output reg  [15:0]  l1_dma_read_ptr
 );
+
+    assign l1_dma_wr_data = pack_reg;
 
     localparam MODE_L22L1 = 4'd7;
     localparam MODE_L12L2 = 4'd8;
@@ -88,7 +90,6 @@ module l2_ctrl (
             l2_ct_we        <= 1'b0;
             l2_ct_din       <= 32'd0;
             l1_dma_wr_en    <= 1'b0;
-            l1_dma_wr_data  <= 256'd0;
             l1_dma_write_ptr<= 16'd0;
             l1_dma_rd_en    <= 1'b0;
             l1_dma_read_ptr <= 16'd0;
@@ -165,10 +166,8 @@ module l2_ctrl (
                     end else if (!prev_l2_rd) begin
                         // All 8 words now in pack_reg — write to L1
                         l1_dma_wr_en    <= 1'b1;
-                        l1_dma_wr_data  <= pack_reg;
                         l1_dma_write_ptr<= l1_addr;
                         l1_addr         <= l1_addr + 16'd1;
-                        pack_reg        <= 256'd0;
 
                         if (word_cnt >= latched_length) begin
                             state <= S_IDLE;

@@ -30,10 +30,10 @@ module compute_tile #(
     // DMA Data Interface
     input  logic [15:0]           base_addr,
     input  logic                  dma_wr_en,
-    input  logic [DATA_WIDTH-1:0] dma_wr_data,
+    input  logic [DMA_DATA_WIDTH-1:0] dma_wr_data,
     input  logic [15:0]           dma_write_pointer,
     input  logic                  dma_rd_en,
-    output logic [DATA_WIDTH-1:0] dma_rd_data,
+    output logic [DMA_DATA_WIDTH-1:0] dma_rd_data,
     input  logic [15:0]           dma_read_pointer,
 
     // TMA signals (tensorcore → l2_tile via tpu.sv)

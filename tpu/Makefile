@@ -228,6 +228,8 @@ board-test:
 	for extra in $(EXTRA_FILES); do \
 		if [[ -f "$$extra" ]]; then cp "$$extra" "$$DEPLOY_TMP/"; fi; \
 	done; \
+	find "$$DEPLOY_TMP" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true; \
+	find "$$DEPLOY_TMP" -name "*.pyc" -delete 2>/dev/null || true; \
 	sshpass -p "$(BOARD_PASS)" ssh $$SSH_OPTS "$(BOARD_USER)@$(BOARD_IP)" "mkdir -p $(DEPLOY_DIR)"; \
 	sshpass -p "$(BOARD_PASS)" scp -r $$SSH_OPTS "$$DEPLOY_TMP"/* "$(BOARD_USER)@$(BOARD_IP):$(DEPLOY_DIR)/"; \
 	echo "== Running $$PROGRAM_RELPATH on board =="; \
@@ -271,6 +273,8 @@ board-tests:
 	mkdir -p "$$DEPLOY_TMP/runtime" "$$DEPLOY_TMP/board_tests"; \
 	cp -r runtime/. "$$DEPLOY_TMP/runtime/"; \
 	cp -r tpu/board_tests/. "$$DEPLOY_TMP/board_tests/"; \
+	if [[ -f "$(abspath $(ULTRA96_BITSTREAM))" ]]; then cp "$(abspath $(ULTRA96_BITSTREAM))" "$$DEPLOY_TMP/"; fi; \
+	if [[ -f "$(abspath $(ULTRA96_HWH))" ]]; then cp "$(abspath $(ULTRA96_HWH))" "$$DEPLOY_TMP/"; fi; \
 	find "$$DEPLOY_TMP" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true; \
 	find "$$DEPLOY_TMP" -name '*.pyc' -delete 2>/dev/null || true; \
 	if [[ -f "$(ROOT)/hw_config.json" ]]; then cp "$(ROOT)/hw_config.json" "$$DEPLOY_TMP/"; fi; \

@@ -212,12 +212,11 @@ module tpu_master_axi_stream #(
 
                     // Count AXI handshakes
                     if (M_AXIS_TVALID && M_AXIS_TREADY) begin
-                        beats_sent <= beats_sent + 1'b1;
-
-                        // Check if this was the last beat
                         if (beats_sent == len - 1) begin
                             done_reg <= 1'b1;
                             state    <= S_IDLE;
+                        end else begin
+                            beats_sent <= beats_sent + 1'b1;
                         end
                     end
                 end

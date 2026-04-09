@@ -1,0 +1,654 @@
+#-----------------------------------------------------------
+# Vivado v2023.2 (64-bit)
+# SW Build 4029153 on Fri Oct 13 20:13:54 MDT 2023
+# IP Build 4028589 on Sat Oct 14 00:45:43 MDT 2023
+# SharedData Build 4025554 on Tue Oct 10 17:18:54 MDT 2023
+# Start of session at: Mon Apr  6 13:36:05 2026
+# Process ID: 2011461
+# Current directory: /home/mss464/minitpu/tpu/build/mem_system/mem_system.runs/mem_bd_axi_smc_full_0_synth_1
+# Command line: vivado -log mem_bd_axi_smc_full_0.vds -product Vivado -mode batch -messageDb vivado.pb -notrace -source mem_bd_axi_smc_full_0.tcl
+# Log file: /home/mss464/minitpu/tpu/build/mem_system/mem_system.runs/mem_bd_axi_smc_full_0_synth_1/mem_bd_axi_smc_full_0.vds
+# Journal file: /home/mss464/minitpu/tpu/build/mem_system/mem_system.runs/mem_bd_axi_smc_full_0_synth_1/vivado.jou
+# Running On: brg-zhang-xcel.ece.cornell.edu, OS: Linux, CPU Frequency: 2741.912 MHz, CPU Physical cores: 21, Host memory: 235732 MB
+#-----------------------------------------------------------
+source mem_bd_axi_smc_full_0.tcl -notrace
+create_project: Time (s): cpu = 00:00:07 ; elapsed = 00:00:07 . Memory (MB): peak = 1567.383 ; gain = 0.023 ; free physical = 12628 ; free virtual = 161371
+INFO: [IP_Flow 19-234] Refreshing IP repositories
+INFO: [IP_Flow 19-1700] Loaded user IP repository '/home/mss464/minitpu/tpu/ip_repo'.
+INFO: [IP_Flow 19-2313] Loaded Vivado IP repository '/opt/xilinx/Vivado/2023.2/data/ip'.
+INFO: [IP_Flow 19-6924] IPCACHE: Running cache check for IP inst: mem_bd_axi_smc_full_0
+Command: synth_design -top mem_bd_axi_smc_full_0 -part xczu3eg-sbva484-1-i -incremental_mode off -mode out_of_context
+Starting synth_design
+Attempting to get a license for feature 'Synthesis' and/or device 'xczu3eg'
+INFO: [Common 17-349] Got license for feature 'Synthesis' and/or device 'xczu3eg'
+INFO: [Device 21-403] Loading part xczu3eg-sbva484-1-i
+INFO: [Synth 8-7079] Multithreading enabled for synth_design using a maximum of 4 processes.
+INFO: [Synth 8-7078] Launching helper process for spawning children vivado processes
+INFO: [Synth 8-7075] Helper process launched with PID 2012098
+---------------------------------------------------------------------------------
+Starting RTL Elaboration : Time (s): cpu = 00:00:05 ; elapsed = 00:00:06 . Memory (MB): peak = 2753.559 ; gain = 289.777 ; free physical = 6764 ; free virtual = 155523
+---------------------------------------------------------------------------------
+INFO: [Synth 8-6157] synthesizing module 'mem_bd_axi_smc_full_0' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/synth/mem_bd_axi_smc_full_0.v:53]
+INFO: [Synth 8-6157] synthesizing module 'bd_3238' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:10]
+INFO: [Synth 8-6157] synthesizing module 'clk_map_imp_E24UP1' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:804]
+INFO: [Synth 8-6157] synthesizing module 'bd_3238_one_0' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_0/synth/bd_3238_one_0.v:53]
+INFO: [Synth 8-6157] synthesizing module 'xlconstant_v1_1_8_xlconstant' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/d390/hdl/xlconstant_v1_1_vl_rfs.v:68]
+INFO: [Synth 8-6155] done synthesizing module 'xlconstant_v1_1_8_xlconstant' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/d390/hdl/xlconstant_v1_1_vl_rfs.v:68]
+INFO: [Synth 8-6155] done synthesizing module 'bd_3238_one_0' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_0/synth/bd_3238_one_0.v:53]
+INFO: [Synth 8-638] synthesizing module 'bd_3238_psr_aclk_0' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_1/synth/bd_3238_psr_aclk_0.vhd:74]
+	Parameter C_FAMILY bound to: zynquplus - type: string 
+	Parameter C_EXT_RST_WIDTH bound to: 4 - type: integer 
+	Parameter C_AUX_RST_WIDTH bound to: 1 - type: integer 
+	Parameter C_EXT_RESET_HIGH bound to: 1'b0 
+	Parameter C_AUX_RESET_HIGH bound to: 1'b0 
+	Parameter C_NUM_BUS_RST bound to: 1 - type: integer 
+	Parameter C_NUM_PERP_RST bound to: 1 - type: integer 
+	Parameter C_NUM_INTERCONNECT_ARESETN bound to: 1 - type: integer 
+	Parameter C_NUM_PERP_ARESETN bound to: 1 - type: integer 
+INFO: [Synth 8-3491] module 'proc_sys_reset' declared at '/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/408c/hdl/proc_sys_reset_v5_0_vh_rfs.vhd:1271' bound to instance 'U0' of component 'proc_sys_reset' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_1/synth/bd_3238_psr_aclk_0.vhd:129]
+INFO: [Synth 8-638] synthesizing module 'proc_sys_reset' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/408c/hdl/proc_sys_reset_v5_0_vh_rfs.vhd:1330]
+	Parameter INIT bound to: 1'b1 
+INFO: [Synth 8-113] binding component instance 'FDRE_inst' to cell 'FDRE' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/408c/hdl/proc_sys_reset_v5_0_vh_rfs.vhd:1399]
+	Parameter INIT bound to: 1'b1 
+INFO: [Synth 8-113] binding component instance 'FDRE_BSR' to cell 'FDRE' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/408c/hdl/proc_sys_reset_v5_0_vh_rfs.vhd:1415]
+	Parameter INIT bound to: 1'b0 
+INFO: [Synth 8-113] binding component instance 'FDRE_BSR_N' to cell 'FDRE' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/408c/hdl/proc_sys_reset_v5_0_vh_rfs.vhd:1441]
+	Parameter INIT bound to: 1'b1 
+INFO: [Synth 8-113] binding component instance 'FDRE_PER' to cell 'FDRE' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/408c/hdl/proc_sys_reset_v5_0_vh_rfs.vhd:1464]
+	Parameter INIT bound to: 1'b0 
+INFO: [Synth 8-113] binding component instance 'FDRE_PER_N' to cell 'FDRE' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/408c/hdl/proc_sys_reset_v5_0_vh_rfs.vhd:1488]
+INFO: [Synth 8-638] synthesizing module 'lpf' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/408c/hdl/proc_sys_reset_v5_0_vh_rfs.vhd:821]
+INFO: [Synth 8-3491] module 'SRL16' declared at '/opt/xilinx/Vivado/2023.2/scripts/rt/data/unisim_comp.v:133721' bound to instance 'POR_SRL_I' of component 'SRL16' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/408c/hdl/proc_sys_reset_v5_0_vh_rfs.vhd:873]
+INFO: [Synth 8-6157] synthesizing module 'SRL16' [/opt/xilinx/Vivado/2023.2/scripts/rt/data/unisim_comp.v:133721]
+INFO: [Synth 8-6155] done synthesizing module 'SRL16' (0#1) [/opt/xilinx/Vivado/2023.2/scripts/rt/data/unisim_comp.v:133721]
+INFO: [Synth 8-638] synthesizing module 'cdc_sync' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/ef1e/hdl/lib_cdc_v1_0_rfs.vhd:106]
+	Parameter INIT bound to: 1'b0 
+INFO: [Synth 8-113] binding component instance 'CROSS_PLEVEL_IN2SCNDRY_IN_cdc_to' to cell 'FDR' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/ef1e/hdl/lib_cdc_v1_0_rfs.vhd:514]
+	Parameter INIT bound to: 1'b0 
+INFO: [Synth 8-113] binding component instance 'CROSS_PLEVEL_IN2SCNDRY_s_level_out_d2' to cell 'FDR' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/ef1e/hdl/lib_cdc_v1_0_rfs.vhd:545]
+	Parameter INIT bound to: 1'b0 
+INFO: [Synth 8-113] binding component instance 'CROSS_PLEVEL_IN2SCNDRY_s_level_out_d3' to cell 'FDR' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/ef1e/hdl/lib_cdc_v1_0_rfs.vhd:554]
+	Parameter INIT bound to: 1'b0 
+INFO: [Synth 8-113] binding component instance 'CROSS_PLEVEL_IN2SCNDRY_s_level_out_d4' to cell 'FDR' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/ef1e/hdl/lib_cdc_v1_0_rfs.vhd:564]
+	Parameter INIT bound to: 1'b0 
+INFO: [Synth 8-113] binding component instance 'CROSS_PLEVEL_IN2SCNDRY_s_level_out_d5' to cell 'FDR' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/ef1e/hdl/lib_cdc_v1_0_rfs.vhd:574]
+	Parameter INIT bound to: 1'b0 
+INFO: [Synth 8-113] binding component instance 'CROSS_PLEVEL_IN2SCNDRY_s_level_out_d6' to cell 'FDR' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/ef1e/hdl/lib_cdc_v1_0_rfs.vhd:584]
+INFO: [Synth 8-256] done synthesizing module 'cdc_sync' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/ef1e/hdl/lib_cdc_v1_0_rfs.vhd:106]
+INFO: [Synth 8-256] done synthesizing module 'lpf' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/408c/hdl/proc_sys_reset_v5_0_vh_rfs.vhd:821]
+INFO: [Synth 8-638] synthesizing module 'sequence_psr' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/408c/hdl/proc_sys_reset_v5_0_vh_rfs.vhd:304]
+INFO: [Synth 8-638] synthesizing module 'upcnt_n' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/408c/hdl/proc_sys_reset_v5_0_vh_rfs.vhd:126]
+INFO: [Synth 8-256] done synthesizing module 'upcnt_n' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/408c/hdl/proc_sys_reset_v5_0_vh_rfs.vhd:126]
+INFO: [Synth 8-256] done synthesizing module 'sequence_psr' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/408c/hdl/proc_sys_reset_v5_0_vh_rfs.vhd:304]
+INFO: [Synth 8-256] done synthesizing module 'proc_sys_reset' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ipshared/408c/hdl/proc_sys_reset_v5_0_vh_rfs.vhd:1330]
+INFO: [Synth 8-256] done synthesizing module 'bd_3238_psr_aclk_0' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_1/synth/bd_3238_psr_aclk_0.vhd:74]
+WARNING: [Synth 8-7071] port 'mb_reset' of module 'bd_3238_psr_aclk_0' is unconnected for instance 'psr_aclk' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:839]
+WARNING: [Synth 8-7071] port 'bus_struct_reset' of module 'bd_3238_psr_aclk_0' is unconnected for instance 'psr_aclk' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:839]
+WARNING: [Synth 8-7071] port 'peripheral_reset' of module 'bd_3238_psr_aclk_0' is unconnected for instance 'psr_aclk' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:839]
+WARNING: [Synth 8-7071] port 'peripheral_aresetn' of module 'bd_3238_psr_aclk_0' is unconnected for instance 'psr_aclk' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:839]
+WARNING: [Synth 8-7023] instance 'psr_aclk' of module 'bd_3238_psr_aclk_0' has 10 connections declared, but only 6 given [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:839]
+INFO: [Synth 8-6155] done synthesizing module 'clk_map_imp_E24UP1' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:804]
+INFO: [Synth 8-6157] synthesizing module 'm00_exit_pipeline_imp_1K1WBZY' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:848]
+INFO: [Synth 8-6157] synthesizing module 'bd_3238_m00e_0' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_12/synth/bd_3238_m00e_0.sv:53]
+INFO: [Synth 8-6157] synthesizing module 'xpm_cdc_async_rst' [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_cdc/hdl/xpm_cdc.sv:1175]
+INFO: [Synth 8-6155] done synthesizing module 'xpm_cdc_async_rst' (0#1) [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_cdc/hdl/xpm_cdc.sv:1175]
+INFO: [Synth 8-6155] done synthesizing module 'bd_3238_m00e_0' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_12/synth/bd_3238_m00e_0.sv:53]
+INFO: [Synth 8-6155] done synthesizing module 'm00_exit_pipeline_imp_1K1WBZY' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:848]
+INFO: [Synth 8-6157] synthesizing module 'bd_3238_m00s2a_0' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_11/synth/bd_3238_m00s2a_0.sv:53]
+INFO: [Synth 8-6155] done synthesizing module 'bd_3238_m00s2a_0' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_11/synth/bd_3238_m00s2a_0.sv:53]
+INFO: [Synth 8-6157] synthesizing module 'bd_3238_s00a2s_0' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_5/synth/bd_3238_s00a2s_0.sv:53]
+INFO: [Synth 8-6155] done synthesizing module 'bd_3238_s00a2s_0' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_5/synth/bd_3238_s00a2s_0.sv:53]
+INFO: [Synth 8-6157] synthesizing module 's00_entry_pipeline_imp_KAY4L9' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:1229]
+INFO: [Synth 8-6157] synthesizing module 'bd_3238_s00mmu_0' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_2/synth/bd_3238_s00mmu_0.sv:53]
+INFO: [Synth 8-6155] done synthesizing module 'bd_3238_s00mmu_0' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_2/synth/bd_3238_s00mmu_0.sv:53]
+INFO: [Synth 8-6157] synthesizing module 'bd_3238_s00sic_0' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_4/synth/bd_3238_s00sic_0.sv:53]
+INFO: [Synth 8-6155] done synthesizing module 'bd_3238_s00sic_0' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_4/synth/bd_3238_s00sic_0.sv:53]
+INFO: [Synth 8-6157] synthesizing module 'bd_3238_s00tr_0' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_3/synth/bd_3238_s00tr_0.sv:53]
+INFO: [Synth 8-6155] done synthesizing module 'bd_3238_s00tr_0' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_3/synth/bd_3238_s00tr_0.sv:53]
+INFO: [Synth 8-6155] done synthesizing module 's00_entry_pipeline_imp_KAY4L9' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:1229]
+INFO: [Synth 8-6157] synthesizing module 's00_nodes_imp_POQRAF' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:1888]
+INFO: [Synth 8-6157] synthesizing module 'bd_3238_sarn_0' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_6/synth/bd_3238_sarn_0.sv:53]
+INFO: [Synth 8-6157] synthesizing module 'xpm_memory_sdpram' [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:8548]
+INFO: [Synth 8-6157] synthesizing module 'xpm_memory_base' [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:54]
+INFO: [Synth 8-6155] done synthesizing module 'xpm_memory_base' (0#1) [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:54]
+INFO: [Synth 8-6155] done synthesizing module 'xpm_memory_sdpram' (0#1) [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:8548]
+INFO: [Synth 8-6155] done synthesizing module 'bd_3238_sarn_0' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_6/synth/bd_3238_sarn_0.sv:53]
+INFO: [Synth 8-6157] synthesizing module 'bd_3238_sawn_0' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_8/synth/bd_3238_sawn_0.sv:53]
+INFO: [Synth 8-6155] done synthesizing module 'bd_3238_sawn_0' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_8/synth/bd_3238_sawn_0.sv:53]
+INFO: [Synth 8-6157] synthesizing module 'bd_3238_sbn_0' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_10/synth/bd_3238_sbn_0.sv:53]
+INFO: [Synth 8-6157] synthesizing module 'xpm_memory_sdpram__parameterized0' [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:8548]
+INFO: [Synth 8-6157] synthesizing module 'xpm_memory_base__parameterized0' [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:54]
+INFO: [Synth 8-6155] done synthesizing module 'xpm_memory_base__parameterized0' (0#1) [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:54]
+INFO: [Synth 8-6155] done synthesizing module 'xpm_memory_sdpram__parameterized0' (0#1) [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:8548]
+INFO: [Synth 8-6155] done synthesizing module 'bd_3238_sbn_0' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_10/synth/bd_3238_sbn_0.sv:53]
+INFO: [Synth 8-6157] synthesizing module 'bd_3238_srn_0' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_7/synth/bd_3238_srn_0.sv:53]
+INFO: [Synth 8-6157] synthesizing module 'xpm_memory_sdpram__parameterized1' [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:8548]
+INFO: [Synth 8-6157] synthesizing module 'xpm_memory_base__parameterized1' [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:54]
+INFO: [Synth 8-6155] done synthesizing module 'xpm_memory_base__parameterized1' (0#1) [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:54]
+INFO: [Synth 8-6155] done synthesizing module 'xpm_memory_sdpram__parameterized1' (0#1) [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:8548]
+INFO: [Synth 8-6155] done synthesizing module 'bd_3238_srn_0' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_7/synth/bd_3238_srn_0.sv:53]
+INFO: [Synth 8-6157] synthesizing module 'bd_3238_swn_0' [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_9/synth/bd_3238_swn_0.sv:53]
+INFO: [Synth 8-6157] synthesizing module 'xpm_memory_sdpram__parameterized2' [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:8548]
+INFO: [Synth 8-6157] synthesizing module 'xpm_memory_base__parameterized2' [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:54]
+INFO: [Synth 8-6155] done synthesizing module 'xpm_memory_base__parameterized2' (0#1) [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:54]
+INFO: [Synth 8-6155] done synthesizing module 'xpm_memory_sdpram__parameterized2' (0#1) [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv:8548]
+INFO: [Synth 8-6155] done synthesizing module 'bd_3238_swn_0' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_9/synth/bd_3238_swn_0.sv:53]
+INFO: [Synth 8-6155] done synthesizing module 's00_nodes_imp_POQRAF' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:1888]
+INFO: [Synth 8-6155] done synthesizing module 'bd_3238' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:10]
+INFO: [Synth 8-6155] done synthesizing module 'mem_bd_axi_smc_full_0' (0#1) [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/synth/mem_bd_axi_smc_full_0.v:53]
+WARNING: [Synth 8-3848] Net aresetn_out in module/entity clk_map_imp_E24UP1 does not have driver. [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/synth/bd_3238.v:820]
+WARNING: [Synth 8-7129] Port din[0] in module sc_util_v1_0_4_onehot_to_binary is either unconnected or has no load
+WARNING: [Synth 8-7129] Port aclk in module sc_util_v1_0_4_pipeline__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port aclken in module sc_util_v1_0_4_pipeline__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port areset in module sc_util_v1_0_4_pipeline__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port sleep in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port rsta in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port regcea in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port injectsbiterra in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port injectdbiterra in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port clkb in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port regceb in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port web[0] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[178] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[177] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[176] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[175] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[174] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[173] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[172] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[171] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[170] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[169] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[168] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[167] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[166] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[165] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[164] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[163] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[162] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[161] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[160] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[159] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[158] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[157] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[156] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[155] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[154] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[153] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[152] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[151] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[150] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[149] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[148] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[147] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[146] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[145] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[144] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[143] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[142] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[141] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[140] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[139] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[138] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[137] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[136] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[135] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[134] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[133] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[132] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[131] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[130] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[129] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[128] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[127] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[126] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[125] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[124] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[123] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[122] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[121] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[120] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[119] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[118] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[117] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[116] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[115] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[114] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[113] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[112] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[111] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[110] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[109] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[108] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[107] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[106] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[105] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[104] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[103] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[102] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[101] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[100] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[99] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[98] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[97] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[96] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[95] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[94] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[93] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[92] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port dinb[91] in module xpm_memory_base__parameterized2 is either unconnected or has no load
+INFO: [Common 17-14] Message 'Synth 8-7129' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings.
+---------------------------------------------------------------------------------
+Finished RTL Elaboration : Time (s): cpu = 00:00:12 ; elapsed = 00:00:13 . Memory (MB): peak = 2947.496 ; gain = 483.715 ; free physical = 5822 ; free virtual = 154586
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:00:12 ; elapsed = 00:00:13 . Memory (MB): peak = 2950.465 ; gain = 486.684 ; free physical = 5810 ; free virtual = 154574
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 1 : Time (s): cpu = 00:00:12 ; elapsed = 00:00:13 . Memory (MB): peak = 2950.465 ; gain = 486.684 ; free physical = 5810 ; free virtual = 154574
+---------------------------------------------------------------------------------
+Netlist sorting complete. Time (s): cpu = 00:00:01 ; elapsed = 00:00:01 . Memory (MB): peak = 2964.402 ; gain = 0.000 ; free physical = 5736 ; free virtual = 154413
+INFO: [Netlist 29-17] Analyzing 13 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-570] Preparing netlist for logic optimization
+
+Processing XDC Constraints
+Initializing timing engine
+Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/ooc.xdc] for cell 'inst'
+Finished Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/ooc.xdc] for cell 'inst'
+Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_1/bd_3238_psr_aclk_0_board.xdc] for cell 'inst/clk_map/psr_aclk/U0'
+Finished Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_1/bd_3238_psr_aclk_0_board.xdc] for cell 'inst/clk_map/psr_aclk/U0'
+Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_1/bd_3238_psr_aclk_0.xdc] for cell 'inst/clk_map/psr_aclk/U0'
+Finished Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_1/bd_3238_psr_aclk_0.xdc] for cell 'inst/clk_map/psr_aclk/U0'
+INFO: [Project 1-236] Implementation specific constraints were found while reading constraint file [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_1/bd_3238_psr_aclk_0.xdc]. These constraints will be ignored for synthesis but will be used in implementation. Impacted constraints are listed in the file [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc].
+Resolution: To avoid this warning, move constraints listed in [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc] to another XDC file and exclude this new file from synthesis with the used_in_synthesis property (File Properties dialog in GUI) and re-run elaboration/synthesis.
+Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_6/bd_3238_sarn_0_clocks.xdc] for cell 'inst/s00_nodes/s00_ar_node/inst'
+Finished Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_6/bd_3238_sarn_0_clocks.xdc] for cell 'inst/s00_nodes/s00_ar_node/inst'
+INFO: [Project 1-236] Implementation specific constraints were found while reading constraint file [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_6/bd_3238_sarn_0_clocks.xdc]. These constraints will be ignored for synthesis but will be used in implementation. Impacted constraints are listed in the file [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc].
+Resolution: To avoid this warning, move constraints listed in [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc] to another XDC file and exclude this new file from synthesis with the used_in_synthesis property (File Properties dialog in GUI) and re-run elaboration/synthesis.
+Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_7/bd_3238_srn_0_clocks.xdc] for cell 'inst/s00_nodes/s00_r_node/inst'
+Finished Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_7/bd_3238_srn_0_clocks.xdc] for cell 'inst/s00_nodes/s00_r_node/inst'
+INFO: [Project 1-236] Implementation specific constraints were found while reading constraint file [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_7/bd_3238_srn_0_clocks.xdc]. These constraints will be ignored for synthesis but will be used in implementation. Impacted constraints are listed in the file [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc].
+Resolution: To avoid this warning, move constraints listed in [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc] to another XDC file and exclude this new file from synthesis with the used_in_synthesis property (File Properties dialog in GUI) and re-run elaboration/synthesis.
+Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_8/bd_3238_sawn_0_clocks.xdc] for cell 'inst/s00_nodes/s00_aw_node/inst'
+Finished Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_8/bd_3238_sawn_0_clocks.xdc] for cell 'inst/s00_nodes/s00_aw_node/inst'
+INFO: [Project 1-236] Implementation specific constraints were found while reading constraint file [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_8/bd_3238_sawn_0_clocks.xdc]. These constraints will be ignored for synthesis but will be used in implementation. Impacted constraints are listed in the file [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc].
+Resolution: To avoid this warning, move constraints listed in [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc] to another XDC file and exclude this new file from synthesis with the used_in_synthesis property (File Properties dialog in GUI) and re-run elaboration/synthesis.
+Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_9/bd_3238_swn_0_clocks.xdc] for cell 'inst/s00_nodes/s00_w_node/inst'
+Finished Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_9/bd_3238_swn_0_clocks.xdc] for cell 'inst/s00_nodes/s00_w_node/inst'
+INFO: [Project 1-236] Implementation specific constraints were found while reading constraint file [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_9/bd_3238_swn_0_clocks.xdc]. These constraints will be ignored for synthesis but will be used in implementation. Impacted constraints are listed in the file [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc].
+Resolution: To avoid this warning, move constraints listed in [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc] to another XDC file and exclude this new file from synthesis with the used_in_synthesis property (File Properties dialog in GUI) and re-run elaboration/synthesis.
+Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_10/bd_3238_sbn_0_clocks.xdc] for cell 'inst/s00_nodes/s00_b_node/inst'
+Finished Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_10/bd_3238_sbn_0_clocks.xdc] for cell 'inst/s00_nodes/s00_b_node/inst'
+INFO: [Project 1-236] Implementation specific constraints were found while reading constraint file [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/bd_0/ip/ip_10/bd_3238_sbn_0_clocks.xdc]. These constraints will be ignored for synthesis but will be used in implementation. Impacted constraints are listed in the file [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc].
+Resolution: To avoid this warning, move constraints listed in [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc] to another XDC file and exclude this new file from synthesis with the used_in_synthesis property (File Properties dialog in GUI) and re-run elaboration/synthesis.
+Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/smartconnect.xdc] for cell 'inst'
+Finished Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/smartconnect.xdc] for cell 'inst'
+INFO: [Project 1-236] Implementation specific constraints were found while reading constraint file [/home/mss464/minitpu/tpu/build/mem_system/mem_system.gen/sources_1/bd/mem_bd/ip/mem_bd_axi_smc_full_0/smartconnect.xdc]. These constraints will be ignored for synthesis but will be used in implementation. Impacted constraints are listed in the file [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc].
+Resolution: To avoid this warning, move constraints listed in [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc] to another XDC file and exclude this new file from synthesis with the used_in_synthesis property (File Properties dialog in GUI) and re-run elaboration/synthesis.
+Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.runs/mem_bd_axi_smc_full_0_synth_1/dont_touch.xdc]
+Finished Parsing XDC File [/home/mss464/minitpu/tpu/build/mem_system/mem_system.runs/mem_bd_axi_smc_full_0_synth_1/dont_touch.xdc]
+INFO: [Project 1-236] Implementation specific constraints were found while reading constraint file [/opt/xilinx/Vivado/2023.2/data/ip/xpm/xpm_memory/tcl/xpm_memory_xdc.tcl]. These constraints will be ignored for synthesis but will be used in implementation. Impacted constraints are listed in the file [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc].
+Resolution: To avoid this warning, move constraints listed in [.Xil/mem_bd_axi_smc_full_0_propImpl.xdc] to another XDC file and exclude this new file from synthesis with the used_in_synthesis property (File Properties dialog in GUI) and re-run elaboration/synthesis.
+INFO: [Project 1-1714] 19 XPM XDC files have been applied to the design.
+Completed Processing XDC Constraints
+
+Netlist sorting complete. Time (s): cpu = 00:00:00.01 ; elapsed = 00:00:00.01 . Memory (MB): peak = 3223.902 ; gain = 0.000 ; free physical = 5732 ; free virtual = 154285
+INFO: [Project 1-111] Unisim Transformation Summary:
+  A total of 13 instances were transformed.
+  FDR => FDRE: 12 instances
+  SRL16 => SRL16E: 1 instance 
+
+Constraint Validation Runtime : Time (s): cpu = 00:00:00.97 ; elapsed = 00:00:00.42 . Memory (MB): peak = 3232.809 ; gain = 8.871 ; free physical = 5734 ; free virtual = 154279
+INFO: [Designutils 20-5008] Incremental synthesis strategy off
+---------------------------------------------------------------------------------
+Finished Constraint Validation : Time (s): cpu = 00:00:38 ; elapsed = 00:00:36 . Memory (MB): peak = 3232.809 ; gain = 769.027 ; free physical = 5748 ; free virtual = 154090
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Loading Part and Timing Information
+---------------------------------------------------------------------------------
+Loading part: xczu3eg-sbva484-1-i
+INFO: [Synth 8-6742] Reading net delay rules and data
+---------------------------------------------------------------------------------
+Finished Loading Part and Timing Information : Time (s): cpu = 00:00:38 ; elapsed = 00:00:36 . Memory (MB): peak = 3232.809 ; gain = 769.027 ; free physical = 5748 ; free virtual = 154090
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Applying 'set_property' XDC Constraints
+---------------------------------------------------------------------------------
+Applied set_property KEEP_HIERARCHY = SOFT for inst. (constraint file  /home/mss464/minitpu/tpu/build/mem_system/mem_system.runs/mem_bd_axi_smc_full_0_synth_1/dont_touch.xdc, line 86).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_nodes/s00_ar_node/inst/m_sc_xpm_cdc_async_rst_inst. (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_nodes/s00_aw_node/inst/m_sc_xpm_cdc_async_rst_inst. (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_nodes/s00_b_node/inst/m_sc_xpm_cdc_async_rst_inst. (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_nodes/s00_r_node/inst/m_sc_xpm_cdc_async_rst_inst. (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_nodes/s00_w_node/inst/m_sc_xpm_cdc_async_rst_inst. (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_nodes/s00_ar_node/inst/s_sc_xpm_cdc_async_rst_inst. (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_nodes/s00_aw_node/inst/s_sc_xpm_cdc_async_rst_inst. (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_nodes/s00_b_node/inst/s_sc_xpm_cdc_async_rst_inst. (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_nodes/s00_r_node/inst/s_sc_xpm_cdc_async_rst_inst. (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_nodes/s00_w_node/inst/s_sc_xpm_cdc_async_rst_inst. (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/m00_exit_pipeline/m00_exit/inst/xpm_cdc_async_rst_inst. (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_entry_pipeline/s00_mmu/inst/xpm_cdc_async_rst_inst. (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_entry_pipeline/s00_si_converter/inst/xpm_cdc_async_rst_inst. (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_entry_pipeline/s00_transaction_regulator/inst/xpm_cdc_async_rst_inst. (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_nodes/s00_ar_node/inst/inst_mi_handler/\gen_normal_area.inst_fifo_node_payld /\gen_xpm_memory_fifo.inst_fifo /\gen_mem_rep[0].inst_xpm_memory . (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_nodes/s00_aw_node/inst/inst_mi_handler/\gen_normal_area.inst_fifo_node_payld /\gen_xpm_memory_fifo.inst_fifo /\gen_mem_rep[0].inst_xpm_memory . (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_nodes/s00_b_node/inst/inst_mi_handler/\gen_normal_area.inst_fifo_node_payld /\gen_xpm_memory_fifo.inst_fifo /\gen_mem_rep[0].inst_xpm_memory . (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_nodes/s00_r_node/inst/inst_mi_handler/\gen_normal_area.inst_fifo_node_payld /\gen_xpm_memory_fifo.inst_fifo /\gen_mem_rep[0].inst_xpm_memory . (constraint file  auto generated constraint).
+Applied set_property KEEP_HIERARCHY = SOFT for inst/s00_nodes/s00_w_node/inst/inst_mi_handler/\gen_normal_area.inst_fifo_node_payld /\gen_xpm_memory_fifo.inst_fifo /\gen_mem_rep[0].inst_xpm_memory . (constraint file  auto generated constraint).
+---------------------------------------------------------------------------------
+Finished applying 'set_property' XDC Constraints : Time (s): cpu = 00:00:38 ; elapsed = 00:00:36 . Memory (MB): peak = 3232.809 ; gain = 769.027 ; free physical = 5718 ; free virtual = 154060
+---------------------------------------------------------------------------------
+INFO: [Synth 8-4490] FSM extraction disabled for register 'gen_pipelined.state_reg' through user attribute
+INFO: [Synth 8-4490] FSM extraction disabled for register 'gen_pipelined.state_reg' through user attribute
+INFO: [Synth 8-802] inferred FSM for state register 'gen_axi.gen_write.write_cs_reg' in module 'sc_mmu_v1_0_12_decerr_slave'
+INFO: [Synth 8-4490] FSM extraction disabled for register 'gen_pipelined.state_reg' through user attribute
+INFO: [Synth 8-4490] FSM extraction disabled for register 'gen_pipelined.state_reg' through user attribute
+INFO: [Synth 8-4490] FSM extraction disabled for register 'gen_pipelined.state_reg' through user attribute
+INFO: [Synth 8-4490] FSM extraction disabled for register 'gen_pipelined.state_reg' through user attribute
+INFO: [Synth 8-4490] FSM extraction disabled for register 'gen_pipelined.state_reg' through user attribute
+INFO: [Synth 8-4490] FSM extraction disabled for register 'gen_pipelined.state_reg' through user attribute
+INFO: [Synth 8-4490] FSM extraction disabled for register 'gen_pipelined.state_reg' through user attribute
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+            P_WRITE_IDLE |                              001 |                               00
+            P_WRITE_DATA |                              010 |                               01
+            P_WRITE_RESP |                              100 |                               10
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'gen_axi.gen_write.write_cs_reg' using encoding 'one-hot' in module 'sc_mmu_v1_0_12_decerr_slave'
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 2 : Time (s): cpu = 00:00:42 ; elapsed = 00:00:40 . Memory (MB): peak = 3232.809 ; gain = 769.027 ; free physical = 5741 ; free virtual = 153935
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start RTL Component Statistics 
+---------------------------------------------------------------------------------
+Detailed RTL Component Info : 
++---Adders : 
+	   2 Input   32 Bit       Adders := 1     
+	   2 Input    8 Bit       Adders := 11    
+	   3 Input    8 Bit       Adders := 2     
+	   4 Input    8 Bit       Adders := 4     
+	   2 Input    7 Bit       Adders := 4     
+	   3 Input    6 Bit       Adders := 2     
+	   2 Input    6 Bit       Adders := 31    
+	   2 Input    5 Bit       Adders := 7     
+	   3 Input    5 Bit       Adders := 4     
+	   4 Input    5 Bit       Adders := 2     
+	   2 Input    4 Bit       Adders := 24    
+	   3 Input    4 Bit       Adders := 2     
+	   2 Input    3 Bit       Adders := 1     
+	   2 Input    2 Bit       Adders := 3     
+	   3 Input    2 Bit       Adders := 1     
+	   3 Input    1 Bit       Adders := 1     
++---XORs : 
+	   2 Input      1 Bit         XORs := 53    
++---Registers : 
+	             2178 Bit    Registers := 12    
+	              512 Bit    Registers := 2     
+	              224 Bit    Registers := 1     
+	              181 Bit    Registers := 2     
+	              179 Bit    Registers := 1     
+	              166 Bit    Registers := 1     
+	              148 Bit    Registers := 2     
+	              128 Bit    Registers := 2     
+	               64 Bit    Registers := 5     
+	               47 Bit    Registers := 1     
+	               33 Bit    Registers := 1     
+	               24 Bit    Registers := 1     
+	               23 Bit    Registers := 1     
+	               20 Bit    Registers := 1     
+	               18 Bit    Registers := 1     
+	               16 Bit    Registers := 11    
+	               12 Bit    Registers := 2     
+	                9 Bit    Registers := 1     
+	                8 Bit    Registers := 32    
+	                7 Bit    Registers := 6     
+	                6 Bit    Registers := 16    
+	                5 Bit    Registers := 9     
+	                4 Bit    Registers := 27    
+	                3 Bit    Registers := 33    
+	                2 Bit    Registers := 9     
+	                1 Bit    Registers := 205   
++---Muxes : 
+	   2 Input 2178 Bit        Muxes := 6     
+	   2 Input  512 Bit        Muxes := 2     
+	   2 Input  148 Bit        Muxes := 1     
+	   2 Input  128 Bit        Muxes := 11    
+	   2 Input   64 Bit        Muxes := 4     
+	   2 Input   47 Bit        Muxes := 1     
+	   2 Input   40 Bit        Muxes := 6     
+	   2 Input   33 Bit        Muxes := 1     
+	   2 Input   32 Bit        Muxes := 4     
+	   2 Input   23 Bit        Muxes := 1     
+	   2 Input   20 Bit        Muxes := 1     
+	   2 Input   16 Bit        Muxes := 18    
+	   4 Input   16 Bit        Muxes := 1     
+	   2 Input   12 Bit        Muxes := 2     
+	   2 Input    9 Bit        Muxes := 1     
+	   2 Input    8 Bit        Muxes := 97    
+	   7 Input    8 Bit        Muxes := 4     
+	   4 Input    8 Bit        Muxes := 4     
+	   2 Input    7 Bit        Muxes := 22    
+	   4 Input    7 Bit        Muxes := 8     
+	   2 Input    6 Bit        Muxes := 6     
+	   2 Input    5 Bit        Muxes := 7     
+	   2 Input    4 Bit        Muxes := 27    
+	   5 Input    4 Bit        Muxes := 1     
+	   4 Input    4 Bit        Muxes := 2     
+	   2 Input    3 Bit        Muxes := 12    
+	   4 Input    3 Bit        Muxes := 15    
+	  11 Input    3 Bit        Muxes := 13    
+	   2 Input    2 Bit        Muxes := 44    
+	   4 Input    2 Bit        Muxes := 1     
+	   6 Input    1 Bit        Muxes := 89    
+	   4 Input    1 Bit        Muxes := 19    
+	  10 Input    1 Bit        Muxes := 18    
+	   7 Input    1 Bit        Muxes := 12    
+	   3 Input    1 Bit        Muxes := 12    
+	   2 Input    1 Bit        Muxes := 221   
+	  12 Input    1 Bit        Muxes := 13    
+	   5 Input    1 Bit        Muxes := 1     
+---------------------------------------------------------------------------------
+Finished RTL Component Statistics 
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Part Resource Summary
+---------------------------------------------------------------------------------
+Part Resources:
+DSPs: 360 (col length:72)
+BRAMs: 432 (col length: RAMB18 72 RAMB36 36)
+---------------------------------------------------------------------------------
+Finished Part Resource Summary
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Cross Boundary and Area Optimization
+---------------------------------------------------------------------------------
+WARNING: [Synth 8-7080] Parallel synthesis criteria is not met
+---------------------------------------------------------------------------------
+Finished Cross Boundary and Area Optimization : Time (s): cpu = 00:01:19 ; elapsed = 00:01:18 . Memory (MB): peak = 3232.809 ; gain = 769.027 ; free physical = 8850 ; free virtual = 157019
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+
+Distributed RAM: Preliminary Mapping Report (see note below)
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------------------------------+----------------+----------------------+----------------+
+|Module Name                                                                                                                                                                    | RTL Object                       | Inference      | Size (Depth x Width) | Primitives     | 
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------------------------------+----------------+----------------------+----------------+
+|inst/i_0/\s00_nodes/s00_ar_node/inst /\inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_xpm_memory_fifo.inst_fifo/gen_mem_rep[0].inst_xpm_memory /xpm_memory_base_inst | gen_wr_a.gen_word_narrow.mem_reg | User Attribute | 32 x 181             | RAM32M16 x 13  | 
+|inst/i_0/\s00_nodes/s00_aw_node/inst /\inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_xpm_memory_fifo.inst_fifo/gen_mem_rep[0].inst_xpm_memory /xpm_memory_base_inst | gen_wr_a.gen_word_narrow.mem_reg | User Attribute | 32 x 181             | RAM32M16 x 13  | 
+|inst/i_0/\s00_nodes/s00_b_node/inst /\inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_xpm_memory_fifo.inst_fifo/gen_mem_rep[0].inst_xpm_memory /xpm_memory_base_inst  | gen_wr_a.gen_word_narrow.mem_reg | User Attribute | 32 x 24              | RAM32M16 x 2   | 
+|inst/i_0/\s00_nodes/s00_r_node/inst /\inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_xpm_memory_fifo.inst_fifo/gen_mem_rep[0].inst_xpm_memory /xpm_memory_base_inst  | gen_wr_a.gen_word_narrow.mem_reg | User Attribute | 32 x 166             | RAM32M16 x 12  | 
+|inst/i_0/\s00_nodes/s00_w_node/inst /\inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_xpm_memory_fifo.inst_fifo/gen_mem_rep[0].inst_xpm_memory /xpm_memory_base_inst  | gen_wr_a.gen_word_narrow.mem_reg | User Attribute | 32 x 179             | RAM32M16 x 13  | 
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------------------------------+----------------+----------------------+----------------+
+
+Note: The table above is a preliminary report that shows the Distributed RAMs at the current stage of the synthesis flow. Some Distributed RAMs may be reimplemented as non Distributed RAM primitives later in the synthesis flow. Multiple instantiated RAMs are reported only once.
+---------------------------------------------------------------------------------
+Finished ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Applying XDC Timing Constraints
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Applying XDC Timing Constraints : Time (s): cpu = 00:01:28 ; elapsed = 00:01:27 . Memory (MB): peak = 3484.168 ; gain = 1020.387 ; free physical = 9912 ; free virtual = 158082
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Timing Optimization
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Timing Optimization : Time (s): cpu = 00:01:30 ; elapsed = 00:01:30 . Memory (MB): peak = 3519.199 ; gain = 1055.418 ; free physical = 9510 ; free virtual = 157680
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+
+Distributed RAM: Final Mapping Report
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------------------------------+----------------+----------------------+----------------+
+|Module Name                                                                                                                                                                    | RTL Object                       | Inference      | Size (Depth x Width) | Primitives     | 
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------------------------------+----------------+----------------------+----------------+
+|inst/i_0/\s00_nodes/s00_ar_node/inst /\inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_xpm_memory_fifo.inst_fifo/gen_mem_rep[0].inst_xpm_memory /xpm_memory_base_inst | gen_wr_a.gen_word_narrow.mem_reg | User Attribute | 32 x 181             | RAM32M16 x 13  | 
+|inst/i_0/\s00_nodes/s00_aw_node/inst /\inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_xpm_memory_fifo.inst_fifo/gen_mem_rep[0].inst_xpm_memory /xpm_memory_base_inst | gen_wr_a.gen_word_narrow.mem_reg | User Attribute | 32 x 181             | RAM32M16 x 13  | 
+|inst/i_0/\s00_nodes/s00_b_node/inst /\inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_xpm_memory_fifo.inst_fifo/gen_mem_rep[0].inst_xpm_memory /xpm_memory_base_inst  | gen_wr_a.gen_word_narrow.mem_reg | User Attribute | 32 x 24              | RAM32M16 x 2   | 
+|inst/i_0/\s00_nodes/s00_r_node/inst /\inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_xpm_memory_fifo.inst_fifo/gen_mem_rep[0].inst_xpm_memory /xpm_memory_base_inst  | gen_wr_a.gen_word_narrow.mem_reg | User Attribute | 32 x 166             | RAM32M16 x 12  | 
+|inst/i_0/\s00_nodes/s00_w_node/inst /\inst_mi_handler/gen_normal_area.inst_fifo_node_payld/gen_xpm_memory_fifo.inst_fifo/gen_mem_rep[0].inst_xpm_memory /xpm_memory_base_inst  | gen_wr_a.gen_word_narrow.mem_reg | User Attribute | 32 x 179             | RAM32M16 x 13  | 
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+----------------------------------+----------------+----------------------+----------------+
+
+---------------------------------------------------------------------------------
+Finished ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Technology Mapping
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Technology Mapping : Time (s): cpu = 00:01:33 ; elapsed = 00:01:33 . Memory (MB): peak = 3535.215 ; gain = 1071.434 ; free physical = 8987 ; free virtual = 157158
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Final Netlist Cleanup
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Final Netlist Cleanup
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished IO Insertion : Time (s): cpu = 00:01:38 ; elapsed = 00:01:38 . Memory (MB): peak = 3535.215 ; gain = 1071.434 ; free physical = 8225 ; free virtual = 156396
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Instances
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Instances : Time (s): cpu = 00:01:38 ; elapsed = 00:01:38 . Memory (MB): peak = 3535.215 ; gain = 1071.434 ; free physical = 8217 ; free virtual = 156388
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Rebuilding User Hierarchy
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Rebuilding User Hierarchy : Time (s): cpu = 00:01:39 ; elapsed = 00:01:38 . Memory (MB): peak = 3535.215 ; gain = 1071.434 ; free physical = 8022 ; free virtual = 156193
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Ports
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Ports : Time (s): cpu = 00:01:39 ; elapsed = 00:01:38 . Memory (MB): peak = 3535.215 ; gain = 1071.434 ; free physical = 8021 ; free virtual = 156192
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:01:39 ; elapsed = 00:01:39 . Memory (MB): peak = 3535.215 ; gain = 1071.434 ; free physical = 7958 ; free virtual = 156128
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Nets
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Nets : Time (s): cpu = 00:01:39 ; elapsed = 00:01:39 . Memory (MB): peak = 3535.215 ; gain = 1071.434 ; free physical = 7951 ; free virtual = 156121
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+
+Dynamic Shift Register Report:
++------------+---------------+--------+------------+--------+---------+--------+--------+--------+
+|Module Name | RTL Name      | Length | Data Width | SRL16E | SRLC32E | Mux F7 | Mux F8 | Mux F9 | 
++------------+---------------+--------+------------+--------+---------+--------+--------+--------+
+|dsrl        | shift_reg_reg | 16     | 1          | 1      | 0       | 0      | 0      | 0      | 
+|dsrl__1     | shift_reg_reg | 32     | 1          | 0      | 1       | 0      | 0      | 0      | 
++------------+---------------+--------+------------+--------+---------+--------+--------+--------+
+
+---------------------------------------------------------------------------------
+Finished ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Writing Synthesis Report
+---------------------------------------------------------------------------------
+
+Report BlackBoxes: 
++-+--------------+----------+
+| |BlackBox name |Instances |
++-+--------------+----------+
++-+--------------+----------+
+
+Report Cell Usage: 
++------+---------+------+
+|      |Cell     |Count |
++------+---------+------+
+|1     |CARRY8   |     8|
+|2     |LUT1     |    89|
+|3     |LUT2     |   292|
+|4     |LUT3     |   858|
+|5     |LUT4     |   442|
+|6     |LUT5     |   553|
+|7     |LUT6     |   683|
+|8     |RAM32M16 |    38|
+|9     |SRL16    |     1|
+|10    |SRL16E   |   121|
+|11    |SRLC32E  |   274|
+|12    |FDCE     |    42|
+|13    |FDR      |     4|
+|14    |FDRE     |  3118|
+|15    |FDSE     |   103|
++------+---------+------+
+---------------------------------------------------------------------------------
+Finished Writing Synthesis Report : Time (s): cpu = 00:01:39 ; elapsed = 00:01:39 . Memory (MB): peak = 3535.215 ; gain = 1071.434 ; free physical = 7948 ; free virtual = 156119
+---------------------------------------------------------------------------------
+Synthesis finished with 0 errors, 0 critical warnings and 4713 warnings.
+Synthesis Optimization Runtime : Time (s): cpu = 00:01:20 ; elapsed = 00:01:22 . Memory (MB): peak = 3535.215 ; gain = 789.090 ; free physical = 7942 ; free virtual = 156112
+Synthesis Optimization Complete : Time (s): cpu = 00:01:40 ; elapsed = 00:01:39 . Memory (MB): peak = 3535.223 ; gain = 1071.434 ; free physical = 7940 ; free virtual = 156111
+INFO: [Project 1-571] Translating synthesized netlist
+Netlist sorting complete. Time (s): cpu = 00:00:00.2 ; elapsed = 00:00:00.2 . Memory (MB): peak = 3535.223 ; gain = 0.000 ; free physical = 8034 ; free virtual = 156205
+INFO: [Netlist 29-17] Analyzing 51 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-570] Preparing netlist for logic optimization
+INFO: [Opt 31-138] Pushed 0 inverter(s) to 0 load pin(s).
+Netlist sorting complete. Time (s): cpu = 00:00:00.01 ; elapsed = 00:00:00.01 . Memory (MB): peak = 3588.043 ; gain = 0.000 ; free physical = 7746 ; free virtual = 155917
+INFO: [Project 1-111] Unisim Transformation Summary:
+  A total of 43 instances were transformed.
+  FDR => FDRE: 4 instances
+  RAM32M16 => RAM32M16 (RAMD32(x14), RAMS32(x2)): 38 instances
+  SRL16 => SRL16E: 1 instance 
+
+Synth Design complete | Checksum: 6a29eb3b
+INFO: [Common 17-83] Releasing license: Synthesis
+126 Infos, 107 Warnings, 0 Critical Warnings and 0 Errors encountered.
+synth_design completed successfully
+synth_design: Time (s): cpu = 00:01:50 ; elapsed = 00:01:47 . Memory (MB): peak = 3588.078 ; gain = 1982.789 ; free physical = 7488 ; free virtual = 155659
+INFO: [Common 17-2834] synth_design peak Physical Memory [PSS] (MB): overall = 2750.621; main = 2432.394; forked = 321.785
+INFO: [Common 17-2834] synth_design peak Virtual Memory [VSS] (MB): overall = 5148.473; main = 3588.047; forked = 1613.254
+Write ShapeDB Complete: Time (s): cpu = 00:00:00.03 ; elapsed = 00:00:00.01 . Memory (MB): peak = 3612.055 ; gain = 0.000 ; free physical = 7448 ; free virtual = 155620
+INFO: [Common 17-1381] The checkpoint '/home/mss464/minitpu/tpu/build/mem_system/mem_system.runs/mem_bd_axi_smc_full_0_synth_1/mem_bd_axi_smc_full_0.dcp' has been generated.
+INFO: [Coretcl 2-1648] Added synthesis output to IP cache for IP mem_bd_axi_smc_full_0, cache-ID = a4db51dc1e904300
+INFO: [Coretcl 2-1174] Renamed 517 cell refs.
+Write ShapeDB Complete: Time (s): cpu = 00:00:00.02 ; elapsed = 00:00:00.01 . Memory (MB): peak = 3612.055 ; gain = 0.000 ; free physical = 7044 ; free virtual = 155230
+INFO: [Common 17-1381] The checkpoint '/home/mss464/minitpu/tpu/build/mem_system/mem_system.runs/mem_bd_axi_smc_full_0_synth_1/mem_bd_axi_smc_full_0.dcp' has been generated.
+INFO: [runtcl-4] Executing : report_utilization -file mem_bd_axi_smc_full_0_utilization_synth.rpt -pb mem_bd_axi_smc_full_0_utilization_synth.pb
+INFO: [Common 17-206] Exiting Vivado at Mon Apr  6 13:38:12 2026...

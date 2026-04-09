@@ -78,6 +78,14 @@ make -C tests board-test \
     PROGRAM=tests/fpga/test_comprehensive.py
 ```
 
+## Documentation
+
+Detailed documentation for the system architecture and memory design can be found in the `docs/` directory:
+
+- [System Architecture](docs/system_architecture.md): Overview of the interconnect and tile-based design.
+- [Memory Design](docs/memory_design.md): Deep dive into the memory hierarchy, AXI interfaces, and DMA flow.
+- [Test Explanation](docs/test_explanation.md): Details of the board-level verification suite.
+
 ## Notes
 
 - Source Vivado settings before building:

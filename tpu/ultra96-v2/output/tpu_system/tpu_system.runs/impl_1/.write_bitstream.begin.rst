@@ -1,5 +1,0 @@
-<?xml version="1.0"?>
-<ProcessHandle Version="1" Minor="0">
-    <Process Command=".planAhead." Owner="mss464" Host="brg-zhang-xcel.ece.cornell.edu" Pid="4107507">
-    </Process>
-</ProcessHandle>

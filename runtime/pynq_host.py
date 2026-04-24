@@ -349,17 +349,20 @@ class MemDriver:
             # 3. Set destination address
             self.dma.write(0x48, buf.physical_address & 0xFFFFFFFF)
             self.dma.write(0x4C, (buf.physical_address >> 32) & 0xFFFFFFFF)
-            # 4. Set transfer length (triggers S2MM)
+
+            # CRITICAL: Fire TPU doorbell BEFORE S2MM length register.
+            # This prevents interconnect deadlocks where S2MM asserts AWVALID
+            # and stalls for data, blocking the TPU's ARVALID reads.
+            self._write_reg("addr_sys", addr)
+            self._write_reg("length", padded_len)
+            self._doorbell(Mode.DMA_READ)
+
+            # 4. Set transfer length (triggers S2MM) — TPU is already streaming
             self.dma.write(0x58, nbytes)
             time.sleep(0.001)
 
             s2mm_sr = self.dma.read(0x34)
             print(f"DEBUG READ: S2MM started, SR=0x{s2mm_sr:08X}")
-
-            # Now tell FPGA to start streaming
-            self._write_reg("addr_sys", addr)
-            self._write_reg("length", length)
-            self._doorbell(Mode.DMA_READ)
 
             # Poll S2MM status for completion (IOC_Irq = bit 12, or Idle = bit 1)
             deadline = time.time() + DMA_TRANSFER_TIMEOUT

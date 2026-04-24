@@ -62,3 +62,4 @@ graph TD
 - **AXI-Stream (S_AXIS/M_AXIS):** Synchronous data streaming between PYNQ and the PL memory controller.
 - **AXI4-Master (M_AXI):** 128-bit/256-bit burst-capable interface connecting the TPU directly to the Zynq PS HP0 port for DDR access.
 - **Cache Coherency:** Managed by the PS (ARMv8) and enforced by the driver using explicit cache maintenance operations (sync/invalidate).
+[text](../rtl)

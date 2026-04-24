@@ -122,7 +122,7 @@ bitstream: tpu-ip $(ULTRA96_BIT_DEPS)
 
 _ultra96_package_ip: $(ULTRA96_COMPONENT_XML)
 
-$(ULTRA96_COMPONENT_XML): $(TENSORCORE_DIR)/*.sv $(ULTRA96_FPGA_RTL_DIR)/*.v $(ULTRA96_FPGA_RTL_DIR)/*.sv
+$(ULTRA96_COMPONENT_XML): $(TENSORCORE_DIR)/*.sv $(ULTRA96_FPGA_RTL_DIR)/*.v $(ULTRA96_FPGA_RTL_DIR)/*.sv src/system/*.v src/system/*.sv src/compute_tile/*.sv src/l2_tile/*.sv
 	@echo "=========================================="
 	@echo "Packaging TPU IP: $(IP_NAME) v$(IP_VERSION)"
 	@echo "=========================================="
@@ -135,6 +135,9 @@ $(ULTRA96_COMPONENT_XML): $(TENSORCORE_DIR)/*.sv $(ULTRA96_FPGA_RTL_DIR)/*.v $(U
 		-part $(PART) \
 		-rtl_dir $(TENSORCORE_DIR) \
 		-rtl_dir $(ULTRA96_FPGA_RTL_DIR) \
+		-rtl_dir src/system \
+		-rtl_dir src/compute_tile \
+		-rtl_dir src/l2_tile \
 		-repo_out $(ULTRA96_IP_REPO_DIR))
 	@echo ""
 	@echo "IP packaged successfully: $(ULTRA96_IP_OUT_DIR)"

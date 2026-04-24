@@ -34,7 +34,11 @@ module tpu_master_axi_stream #(
     input  wire [31:0] len,
     input  wire        read_en,
     output wire        done,
-    output reg  [15:0] read_pointer_stream,
+    output wire [15:0] read_pointer_stream,
+    output wire        rd_cmd_valid,         // pulsed 1 cycle when a new read is issued
+    // Device memory AXI handshake (LPDDR4-aware)
+    input  wire        device_mem_rd_ready,  // device_mem can accept a new read
+    input  wire        device_mem_rd_valid,  // device_mem has valid read data
 
     // AXI-Stream master ports
     input  wire        M_AXIS_ACLK,
@@ -75,44 +79,55 @@ module tpu_master_axi_stream #(
     wire        fifo_wr_en;
     wire [255:0] fifo_wr_data;
     wire        fifo_rd_en;
-    wire [255:0] fifo_rd_data;
+    wire [256:0] fifo_rdata;
     wire        fifo_full;
     wire        fifo_empty;
     wire        fifo_almost_full;
     reg         fifo_flush;
+    reg  [31:0] beats_received_from_mem;
 
-    fifo4 #(.WIDTH(256), .DEPTH(64)) u_fifo (
+    fifo4 #(
+        .WIDTH(257),
+        .DEPTH(64)
+    ) u_fifo (
         .clk         (M_AXIS_ACLK),
         .rst_n       (M_AXIS_ARESETN),
         .flush       (fifo_flush),
         .wr_en       (fifo_wr_en),
-        .wr_data     (fifo_wr_data),
+        .wr_data     ({ (beats_received_from_mem == len - 1), data_to_ddr }),
         .rd_en       (fifo_rd_en),
-        .rd_data     (fifo_rd_data),
+        .rd_data     (fifo_rdata),
         .full        (fifo_full),
         .empty       (fifo_empty),
         .almost_full (fifo_almost_full)
     );
 
     // =========================================================================
-    // BRAM data pipeline — 1-cycle latency tracking
+    // Track number of beats received to calculate TLAST properly without pipeline slip
     // =========================================================================
-    // bram_reading: asserted when we have a valid address on read_pointer_stream
-    //   this cycle. data_to_ddr will be valid on the NEXT cycle.
-    // bram_data_valid: delayed bram_reading — marks when data_to_ddr is valid.
-    reg bram_data_valid;
-    reg bram_reading;
 
     always @(posedge M_AXIS_ACLK) begin
-        if (!M_AXIS_ARESETN)
-            bram_data_valid <= 1'b0;
-        else
-            bram_data_valid <= bram_reading;
+        if (!M_AXIS_ARESETN || fifo_flush) begin
+            beats_received_from_mem <= 32'd0;
+        end else if (fifo_wr_en) begin
+            beats_received_from_mem <= beats_received_from_mem + 1'b1;
+        end
     end
 
-    // FIFO write: capture BRAM data when valid
-    assign fifo_wr_en   = bram_data_valid && !fifo_full;
-    assign fifo_wr_data = data_to_ddr;
+    // =========================================================================
+    // Read data pipeline — AXI4 LPDDR4 aware
+    // =========================================================================
+    // bram_reading: asserted when we have issued a read command to device_mem
+    //   this cycle (device_mem_rd_ready was checked before asserting).
+    // Data validity is now signalled by device_mem_rd_valid (variable latency)
+    //   instead of a fixed 1-cycle delay.
+    reg bram_reading;
+    wire do_issue_read = (state == S_IDLE && read_en_rise && device_mem_rd_ready) || 
+                         ((state == S_FILL || state == S_STREAM) && (reads_issued < len) && !fifo_almost_full && device_mem_rd_ready);
+    assign rd_cmd_valid = do_issue_read;
+
+    // FIFO write: capture device memory data when AXI response arrives
+    assign fifo_wr_en   = device_mem_rd_valid && !fifo_full;
 
     // =========================================================================
     // BRAM address tracking
@@ -120,6 +135,7 @@ module tpu_master_axi_stream #(
     // reads_issued: how many BRAM reads we have issued (address presented)
     // read_pointer_stream: the BRAM address output (visible externally)
     reg [31:0] reads_issued;
+    assign read_pointer_stream = reads_issued[15:0];
 
     // =========================================================================
     // Beat counter — counts AXI handshakes
@@ -130,10 +146,10 @@ module tpu_master_axi_stream #(
     // AXI-Stream output (FWFT — no pipeline stage)
     // =========================================================================
     assign M_AXIS_TVALID = !fifo_empty && (state == S_STREAM);
-    assign M_AXIS_TDATA  = fifo_rd_data;
+    assign M_AXIS_TDATA  = fifo_rdata[255:0];
     assign M_AXIS_TSTRB  = {(C_M_AXIS_TDATA_WIDTH/8){1'b1}};
     assign M_AXIS_TKEEP  = {(C_M_AXIS_TDATA_WIDTH/8){1'b1}};
-    assign M_AXIS_TLAST  = M_AXIS_TVALID && (beats_sent == len - 1);
+    assign M_AXIS_TLAST  = fifo_rdata[256];
 
     // FIFO read: consume on AXI handshake
     assign fifo_rd_en = M_AXIS_TVALID && M_AXIS_TREADY;
@@ -148,7 +164,6 @@ module tpu_master_axi_stream #(
     always @(posedge M_AXIS_ACLK) begin
         if (!M_AXIS_ARESETN) begin
             state               <= S_IDLE;
-            read_pointer_stream <= 16'd0;
             reads_issued        <= 32'd0;
             beats_sent          <= 32'd0;
             done_reg            <= 1'b0;
@@ -166,15 +181,17 @@ module tpu_master_axi_stream #(
                 S_IDLE: begin
                     done_reg            <= 1'b0;
                     fifo_flush          <= 1'b1;  // clear FIFO
-                    read_pointer_stream <= 16'd0;
                     reads_issued        <= 32'd0;
                     beats_sent          <= 32'd0;
 
                     if (read_en_rise) begin
                         fifo_flush   <= 1'b0;  // stop flushing on transition
-                        bram_reading <= 1'b1;  // present address 0 this cycle
-                        // read_pointer_stream stays 0 — that's our first address
-                        reads_issued <= 32'd1; // we've issued 1 read
+                        // Issue first read only if device_mem is ready
+                        if (device_mem_rd_ready) begin
+                            $display("[%0t] tpu_master_axi_stream S_IDLE -> S_FILL (len = %0d)", $time, len);
+                            bram_reading <= 1'b1;  // present address 0 this cycle
+                            reads_issued <= 32'd1; // we've issued 1 read
+                        end
                         state        <= S_FILL;
                     end
                 end
@@ -187,8 +204,7 @@ module tpu_master_axi_stream #(
                 S_FILL: begin
                     // Advance pointer (data for previous address captured by
                     // bram_data_valid on this cycle; present next address)
-                    if (reads_issued < len && !fifo_almost_full) begin
-                        read_pointer_stream <= reads_issued[15:0];
+                    if (reads_issued < len && !fifo_almost_full && device_mem_rd_ready) begin
                         bram_reading        <= 1'b1;
                         reads_issued        <= reads_issued + 1'b1;
                     end
@@ -204,19 +220,19 @@ module tpu_master_axi_stream #(
                 // =============================================================
                 S_STREAM: begin
                     // Continue BRAM reads (flow-control: pause when FIFO almost full)
-                    if (reads_issued < len && !fifo_almost_full) begin
-                        read_pointer_stream <= reads_issued[15:0];
+                    if (reads_issued < len && !fifo_almost_full && device_mem_rd_ready) begin
                         bram_reading        <= 1'b1;
                         reads_issued        <= reads_issued + 1'b1;
                     end
 
                     // Count AXI handshakes
                     if (M_AXIS_TVALID && M_AXIS_TREADY) begin
+                        beats_sent <= beats_sent + 1'b1;
+
+                        // Check if this was the last beat
                         if (beats_sent == len - 1) begin
                             done_reg <= 1'b1;
                             state    <= S_IDLE;
-                        end else begin
-                            beats_sent <= beats_sent + 1'b1;
                         end
                     end
                 end

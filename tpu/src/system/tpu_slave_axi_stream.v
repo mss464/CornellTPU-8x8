@@ -20,8 +20,10 @@
 		output reg [15:0] write_pointer_stream,
 		output wire done,
 		output wire data_valid,
+		output wire [3:0] debug_stream,
 		input wire write_en,
 		input wire [2:0] tpu_mode_stream, // 4 for instr writing and 2 for dram writing
+		input wire device_mem_ready, // AXI backpressure from LPDDR4
 
 		// User ports ends
 		// Do not modify the ports beyond this line
@@ -110,18 +112,15 @@
 	      mst_exec_state <= IDLE;
 	    end  
 	  else
-	    reset <= 1'b0;
 	    case (mst_exec_state)
 	      IDLE:
-	      begin 
+	      begin
 	        // The sink starts accepting tdata when 
 	        // there tvalid is asserted to mark the
 	        // presence of valid streaming data 
-	          reset <= 1'b1;
-	          if (S_AXIS_TVALID && write_en)
+	          if (S_AXIS_TVALID && axis_tready)
 	            begin
 	              mst_exec_state <= WRITE_FIFO;
-	              reset <= 1'b0;  // override reset; last NBA wins — ensures first WRITE_FIFO cycle is productive
 	            end
 	          else
 	            begin
@@ -148,44 +147,44 @@
 	// 
 	// The example design sink is always ready to accept the S_AXIS_TDATA  until
 	// the FIFO is not filled with NUMBER_OF_INPUT_WORDS number of input words.
-	assign axis_tready = ((mst_exec_state == WRITE_FIFO) && (!writes_done));
+	assign axis_tready = ((mst_exec_state == IDLE) || (mst_exec_state == WRITE_FIFO && !writes_done)) && ((tpu_mode_stream == 3'd4) || device_mem_ready);
 
 	always@(posedge S_AXIS_ACLK)
 	begin
-	  if(!S_AXIS_ARESETN || reset)
+	  if(!S_AXIS_ARESETN)
 	    begin
 	      write_pointer_stream <= 0;
 	      writes_done <= 1'b0;
 	    end  
-	  // Pre-clear writes_done on the IDLE→WRITE_FIFO transition so that
-	  // axis_tready is asserted on the very first beat of the new transfer.
-	  else if (mst_exec_state == IDLE && S_AXIS_TVALID && write_en)
-	    begin
-	      writes_done <= 1'b0;
-	      write_pointer_stream <= 0;
-	    end
+	  else if (mst_exec_state == IDLE && !(S_AXIS_TVALID && axis_tready)) 
+        begin
+          write_pointer_stream <= 0;
+          writes_done <= 1'b0;
+        end
 	  else
-	    if (fifo_wren)
+	    if (write_pointer_stream <= NUMBER_OF_INPUT_WORDS-1)
 	      begin
-	        if (write_pointer_stream < NUMBER_OF_INPUT_WORDS-1)
+	        if (fifo_wren && (write_pointer_stream != NUMBER_OF_INPUT_WORDS-1))
 	          begin
+	            // write pointer is incremented after every write to the FIFO
+	            // when FIFO write signal is enabled.
 	            write_pointer_stream <= write_pointer_stream + 1;
 	            writes_done <= 1'b0;
 	          end
-	        else if (write_pointer_stream == NUMBER_OF_INPUT_WORDS-1 || S_AXIS_TLAST)
-	          begin
-	            writes_done <= 1'b1;
-	          end
+	          // Gate completion with fifo_wren: only assert writes_done when
+	          // the last beat is ACTUALLY received, not just when the pointer
+	          // happens to equal len-1 during an idle gap between DMA beats.
+	          if ((fifo_wren && write_pointer_stream == NUMBER_OF_INPUT_WORDS-1) || t_last_pipelined)
+	            begin
+	              writes_done <= 1'b1;
+	            end
 	      end  
-	    else if (t_last_pipelined)
-	      begin
-	        writes_done <= 1'b1;
-	      end
 	end
 
 	// FIFO write enable generation
 	assign fifo_wren = S_AXIS_TVALID && axis_tready;
-assign data_valid = fifo_wren;
+	assign data_valid = fifo_wren;
+	assign debug_stream = {mst_exec_state, t_last_pipelined, fifo_wren, axis_tready};
 
 	// FIFO Implementation
 //	generate 

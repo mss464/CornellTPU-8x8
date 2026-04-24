@@ -1,0 +1,164 @@
+`timescale 1ns / 1ps
+
+// Behavioral model for blk_mem_gen_0 (Data BRAM)
+// Matches Xilinx Block RAM IP: 1-cycle registered output latency.
+module blk_mem_gen_0 (
+    input clka,
+    input ena,
+    input [0:0] wea,
+    input [12:0] addra,
+    input [31:0] dina,
+    output reg [31:0] douta,
+    input clkb,
+    input enb,
+    input [0:0] web,
+    input [12:0] addrb,
+    input [31:0] dinb,
+    output reg [31:0] doutb
+);
+    reg [31:0] mem [0:8191];
+    integer i;
+    initial begin
+        for (i = 0; i < 8192; i = i + 1) mem[i] = 0;
+    end
+
+    // 1-cycle read latency (matches Xilinx BRAM IP)
+    always @(posedge clka) begin
+        if (ena) begin
+            if (wea) mem[addra] <= dina;
+            douta <= mem[addra];
+        end
+    end
+
+    always @(posedge clkb) begin
+        if (enb) begin
+            if (web) mem[addrb] <= dinb;
+            doutb <= mem[addrb];
+        end
+    end
+endmodule
+
+// Behavioral model for blk_mem_gen_1 (Instruction BRAM)
+// Matches Xilinx Block RAM IP: 1-cycle registered output latency.
+module blk_mem_gen_1 (
+    input clka,
+    input ena,
+    input [0:0] wea,
+    input [7:0] addra,
+    input [63:0] dina,
+    output reg [63:0] douta,
+    input clkb,
+    input enb,
+    input [0:0] web,
+    input [7:0] addrb,
+    input [63:0] dinb,
+    output reg [63:0] doutb
+);
+    reg [63:0] mem [0:255];
+    integer i;
+    initial begin
+        for (i = 0; i < 256; i = i + 1) mem[i] = 0;
+    end
+
+    // 1-cycle read latency (matches Xilinx BRAM IP)
+    always @(posedge clka) begin
+        if (ena) begin
+            if (wea) mem[addra] <= dina;
+            douta <= mem[addra];
+        end
+    end
+
+    always @(posedge clkb) begin
+        if (enb) begin
+            if (web) mem[addrb] <= dinb;
+            doutb <= mem[addrb];
+        end
+    end
+endmodule
+
+// Behavioral model for blk_mem_gen_3 (L2 SRAM)
+// 32768x32-bit dual-port SRAM, 15-bit address, 1-cycle registered output latency.
+module blk_mem_gen_3 (
+    input clka,
+    input ena,
+    input [0:0] wea,
+    input [14:0] addra,
+    input [31:0] dina,
+    output reg [31:0] douta,
+    input clkb,
+    input enb,
+    input [0:0] web,
+    input [14:0] addrb,
+    input [31:0] dinb,
+    output reg [31:0] doutb
+);
+    reg [31:0] mem [0:32767];
+    integer i;
+    initial begin
+        for (i = 0; i < 32768; i = i + 1) mem[i] = 0;
+    end
+
+    // 1-cycle read latency (matches Xilinx BRAM IP)
+    always @(posedge clka) begin
+        if (ena) begin
+            if (wea) mem[addra] <= dina;
+            douta <= mem[addra];
+        end
+    end
+
+    always @(posedge clkb) begin
+        if (enb) begin
+            if (web) mem[addrb] <= dinb;
+            doutb <= mem[addrb];
+        end
+    end
+endmodule
+
+// VCD waveform dump — enabled by compiling with -DVCD_DUMP
+// Usage: make test_data_integrity_rtl VCD=1
+`ifdef VCD_DUMP
+module vcd_dump;
+    initial begin
+        $dumpfile("dump.vcd");
+        $dumpvars(0, tpu);
+    end
+endmodule
+`endif
+
+// Behavioral model for blk_mem_gen_2 (Device Memory)
+// 65536x32-bit dual-port SRAM, 16-bit address, 1-cycle registered output latency.
+module blk_mem_gen_2 (
+    input clka,
+    input ena,
+    input [0:0] wea,
+    input [15:0] addra,
+    input [31:0] dina,
+    output reg [31:0] douta,
+    input clkb,
+    input enb,
+    input [0:0] web,
+    input [15:0] addrb,
+    input [31:0] dinb,
+    output reg [31:0] doutb
+);
+    reg [31:0] mem [0:65535];
+    integer i;
+    initial begin
+        for (i = 0; i < 65536; i = i + 1) mem[i] = 0;
+    end
+
+    // 1-cycle read latency (matches Xilinx BRAM IP)
+    always @(posedge clka) begin
+        if (ena) begin
+            if (wea) mem[addra] <= dina;
+            douta <= mem[addra];
+        end
+    end
+
+    always @(posedge clkb) begin
+        if (enb) begin
+            if (web) mem[addrb] <= dinb;
+            doutb <= mem[addrb];
+        end
+    end
+endmodule

@@ -57,6 +57,7 @@ module dma_engine (
     // Completion inputs from AXI-Stream modules
     input  wire        write_bram_done,
     input  wire        read_bram_done,
+    input  wire        device_mem_ready, // AXI backpressure
 
     // L2 host-controlled transfer (modes 5/6 — through l2_tile's tma_engine)
     output reg         start_dm_to_l2,
@@ -78,29 +79,31 @@ module dma_engine (
 
     reg [2:0] state;
     reg [3:0] latched_mode;
+    reg       latched_stream_done;
+
+    // Output assignments — combinatorial based on state to ensure zero-latency enables
+    always_comb begin
+        data_write_en  = (state == DE_WRITE && latched_mode == MODE_WR_DEVMEM) ||
+                         (state == DE_IDLE && start && mode == MODE_WR_DEVMEM);
+        instr_write_en = (state == DE_WRITE && latched_mode == MODE_WR_IRAM) ||
+                         (state == DE_IDLE && start && mode == MODE_WR_IRAM);
+        read_en        = (state == DE_READ) || (state == DE_IDLE && start && mode == MODE_RD_DEVMEM);
+        start_stream   = (state == DE_READ) || (state == DE_IDLE && start && mode == MODE_RD_DEVMEM);
+        start_dm_to_l2 = (state == DE_DM2L2) || (state == DE_IDLE && start && mode == MODE_DM2L2);
+        start_l2_to_dm = (state == DE_L22DM) || (state == DE_IDLE && start && mode == MODE_L22DM);
+    end
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state          <= DE_IDLE;
             done           <= 1'b0;
             stream_ready   <= 1'b1;
-            data_write_en  <= 1'b0;
-            instr_write_en <= 1'b0;
-            start_stream   <= 1'b0;
-            read_en        <= 1'b0;
-            start_dm_to_l2 <= 1'b0;
-            start_l2_to_dm <= 1'b0;
             latched_mode   <= 4'd0;
             iram_addr      <= 8'd0;
+            latched_stream_done <= 1'b0;
         end else begin
             // Pulse defaults
             done           <= 1'b0;
-            data_write_en  <= 1'b0;
-            instr_write_en <= 1'b0;
-            start_stream   <= 1'b0;
-            read_en        <= 1'b0;
-            start_dm_to_l2 <= 1'b0;
-            start_l2_to_dm <= 1'b0;
 
             case (state)
                 //--------------------------------------------------------------
@@ -108,62 +111,39 @@ module dma_engine (
                     stream_ready <= 1'b1;
                     if (start) begin
                         latched_mode <= mode;
+                        stream_ready  <= 1'b1;
                         case (mode)
-                            MODE_WR_DEVMEM: begin
-                                data_write_en <= 1'b1;
-                                stream_ready  <= 1'b1;
-                                state         <= DE_WRITE;
-                            end
-                            MODE_WR_IRAM: begin
-                                instr_write_en <= 1'b1;
-                                stream_ready   <= 1'b1;
-                                state          <= DE_WRITE;
-                            end
-                            MODE_RD_DEVMEM: begin
-                                read_en      <= 1'b1;
-                                start_stream <= 1'b1;
-                                stream_ready <= 1'b1;
-                                state        <= DE_READ;
-                            end
-                            MODE_DM2L2: begin
-                                start_dm_to_l2 <= 1'b1;
-                                state          <= DE_DM2L2;
-                            end
-                            MODE_L22DM: begin
-                                start_l2_to_dm <= 1'b1;
-                                state          <= DE_L22DM;
-                            end
-                            default: begin
-                                done <= 1'b1; // unknown mode — nop
-                            end
+                            MODE_WR_DEVMEM: state <= DE_WRITE;
+                            MODE_WR_IRAM:   state <= DE_WRITE;
+                            MODE_RD_DEVMEM: state <= DE_READ;
+                            MODE_DM2L2:     state <= DE_DM2L2;
+                            MODE_L22DM:     state <= DE_L22DM;
+                            default:        done  <= 1'b1;
                         endcase
                     end
                 end
 
                 //--------------------------------------------------------------
-                // Keep write_en asserted throughout the DMA write transfer.
-                // IRAM address counter is updated here (mode 4 only).
                 DE_WRITE: begin
                     stream_ready <= 1'b1;
-                    if (latched_mode == MODE_WR_DEVMEM) begin
-                        data_write_en <= 1'b1;
-                    end else if (latched_mode == MODE_WR_IRAM) begin
-                        instr_write_en <= 1'b1;
+                    if (latched_mode == MODE_WR_IRAM) begin
                         // IRAM is 64-bit, AXI bus is now 256-bit.
                         // We take one 64-bit instruction per 256-bit beat.
-                        if (instr_write_en)
-                            iram_addr <= addr_ram_in + write_pointer[7:0];
+                        iram_addr <= addr_ram_in + write_pointer[7:0];
                     end
                     if (write_bram_done) begin
+                        latched_stream_done <= 1'b1;
+                    end
+                    if ((write_bram_done || latched_stream_done) && device_mem_ready) begin
                         state <= DE_IDLE;
                         done  <= 1'b1;
+                        latched_stream_done <= 1'b0;
                     end
                 end
 
                 //--------------------------------------------------------------
                 DE_READ: begin
                     stream_ready <= 1'b1;
-                    read_en <= 1'b1;
                     if (read_bram_done) begin
                         state <= DE_IDLE;
                         done  <= 1'b1;

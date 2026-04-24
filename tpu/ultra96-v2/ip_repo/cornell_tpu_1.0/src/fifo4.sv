@@ -1,64 +1,70 @@
+// ============================================================================
+// fifo4.sv — Synchronous FWFT FIFO with flush
+//
+// First-Word-Fall-Through: rd_data is valid combinationally when !empty.
+// No extra cycle delay between asserting rd_en and seeing the next word.
+// ============================================================================
+
 module fifo4 #(
-    parameter int WIDTH = 32
+    parameter int WIDTH = 32,
+    parameter int DEPTH = 64   // Must be a power of 2
 )(
-    input  logic                 clk,
-    input  logic                 rst_n,
+    input  logic             clk,
+    input  logic             rst_n,
+    input  logic             flush,     // synchronous clear (active high)
 
     // Write side
-    input  logic                 wr_en,
-    input  logic [WIDTH-1:0]     wr_data,
+    input  logic             wr_en,
+    input  logic [WIDTH-1:0] wr_data,
 
     // Read side
-    input  logic                 rd_en,
-    output logic [WIDTH-1:0]     rd_data,
+    input  logic             rd_en,
+    output logic [WIDTH-1:0] rd_data,   // FWFT: valid when !empty
 
     // Status
-    output logic                 full,
-    output logic                 empty,
-    output logic                 one_item_remaining
+    output logic             full,
+    output logic             empty,
+    output logic             almost_full // asserted when count >= DEPTH-1
 );
 
-    //-----------------------------
-    // Storage (8 entries)
-    //-----------------------------
-    logic [WIDTH-1:0] mem [0:7];
+    localparam int PTR_W = $clog2(DEPTH) + 1;  // index bits + wrap bit
 
-    //-----------------------------
-    // Pointers (2-bit index + wrap)
-    //-----------------------------
-    logic [3:0] wptr;   // index = wptr[2:0], wrap = wptr[3]
-    logic [3:0] rptr;
+    // Storage
+    logic [WIDTH-1:0] mem [0:DEPTH-1];
 
-    //-----------------------------
-    // EMPTY / FULL logic
-    //-----------------------------
+    // Pointers (index bits + wrap bit for full/empty disambiguation)
+    logic [PTR_W-1:0] wptr;
+    logic [PTR_W-1:0] rptr;
+
+    // FWFT: combinational read — data valid same cycle as !empty
+    assign rd_data = mem[rptr[PTR_W-2:0]];
+
+    // Status flags
     assign empty = (wptr == rptr);
-    assign full  = (wptr[3] != rptr[3]) &&
-                   (wptr[2:0] == rptr[2:0]);
-    assign one_item_remaining = ((rptr + 4'd1) == wptr);
+    assign full  = (wptr[PTR_W-1] != rptr[PTR_W-1]) &&
+                   (wptr[PTR_W-2:0] == rptr[PTR_W-2:0]);
 
-    //-----------------------------
-    // WRITE logic
-    //-----------------------------
+    // almost_full: only 1 slot remaining (or already full)
+    // count = wptr - rptr (works with wrap bit for modular arithmetic)
+    wire [PTR_W-1:0] count = wptr - rptr;
+    assign almost_full = (count >= DEPTH - 1);
+
+    // Write logic
     always_ff @(posedge clk) begin
-        if (!rst_n) begin
+        if (!rst_n || flush) begin
             wptr <= '0;
         end else if (wr_en && !full) begin
-            mem[wptr[2:0]] <= wr_data;
-            wptr <= wptr + 3'd1;
+            mem[wptr[PTR_W-2:0]] <= wr_data;
+            wptr <= wptr + 1'b1;
         end
     end
 
-    //-----------------------------
-    // READ logic
-    //-----------------------------
+    // Read logic
     always_ff @(posedge clk) begin
-        if (!rst_n) begin
+        if (!rst_n || flush) begin
             rptr <= '0;
-            rd_data <= '0;
         end else if (rd_en && !empty) begin
-            rd_data <= mem[rptr[2:0]];
-            rptr <= rptr + 3'd1;
+            rptr <= rptr + 1'b1;
         end
     end
 

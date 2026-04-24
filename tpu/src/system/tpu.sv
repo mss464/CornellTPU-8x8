@@ -73,22 +73,72 @@ module tpu #
     output wire [(C_M00_AXIS_TDATA_WIDTH/8)-1:0] m00_axis_tstrb,
     output wire [(C_M00_AXIS_TDATA_WIDTH/8)-1:0] m00_axis_tkeep,
     output wire        m00_axis_tlast,
-    input  wire        m00_axis_tready
+    input  wire        m00_axis_tready,
+
+    // AXI4 Master — device memory path to PS LPDDR4 via HP0
+    input  wire                      m_axi_aclk,
+    input  wire                      m_axi_aresetn,
+    output wire [31:0]               m_axi_awaddr,
+    output wire [7:0]                m_axi_awlen,
+    output wire [2:0]                m_axi_awsize,
+    output wire [1:0]                m_axi_awburst,
+    output wire                      m_axi_awvalid,
+    input  wire                      m_axi_awready,
+    output wire [2:0]                m_axi_awprot,
+    output wire [3:0]                m_axi_awcache,
+    output wire [127:0]              m_axi_wdata,
+    output wire [15:0]               m_axi_wstrb,
+    output wire                      m_axi_wlast,
+    output wire                      m_axi_wvalid,
+    input  wire                      m_axi_wready,
+    input  wire [1:0]                m_axi_bresp,
+    input  wire                      m_axi_bvalid,
+    output wire                      m_axi_bready,
+    output wire [31:0]               m_axi_araddr,
+    output wire [7:0]                m_axi_arlen,
+    output wire [2:0]                m_axi_arsize,
+    output wire [1:0]                m_axi_arburst,
+    output wire [2:0]                m_axi_arprot,
+    output wire [3:0]                m_axi_arcache,
+    output wire                      m_axi_arvalid,
+    input  wire                      m_axi_arready,
+    input  wire [127:0]              m_axi_rdata,
+    input  wire [1:0]                m_axi_rresp,
+    input  wire                      m_axi_rlast,
+    input  wire                      m_axi_rvalid,
+    output wire                      m_axi_rready
 );
 
     // =========================================================================
     // AXI-Lite register buses
     // =========================================================================
+    
+    // All four TPU clocks (s00_axi_aclk, s00_axis_aclk, m00_axis_aclk,
+    // m_axi_aclk) are connected to the same pl_clk0 in the block design.
+    // No CDC synchronization is needed — direct wire connections.
+    wire dma_data_write_en_mclk   = dma_data_write_en;
+    wire stream_data_valid_mclk   = stream_data_valid;
+    wire master_rd_cmd_valid_mclk = master_rd_cmd_valid;
+    wire dm_dma_wr_ready_sclk     = dm_dma_wr_ready;
+    wire dm_dma_rd_cmd_ready_sclk = dm_dma_rd_cmd_ready;
     wire [31:0] slv_reg0_bus;
     wire [31:0] slv_reg3_bus;
     wire [31:0] slv_reg4_bus;
     wire [31:0] slv_reg5_bus;
     wire [31:0] slv_reg6_bus;
+    wire [31:0] slv_reg7_bus;
+    wire [31:0] slv_reg10_bus;
 
     wire [12:0] addr_ram    = slv_reg3_bus[12:0];
     wire [31:0] addr_devmem = slv_reg4_bus;
     wire [14:0] addr_l2     = slv_reg5_bus[14:0];
     wire [31:0] dma_len     = slv_reg6_bus;
+    wire [31:0] ddr_phys_base = slv_reg10_bus;
+
+    // Convert float32 element count to 256-bit (8 × float32) beat count
+    // for the AXI-Stream slave/master modules.
+    // Each 256-bit beat = 8 × float32, so divide element count by 8 (>> 3).
+    wire [31:0] stream_beat_len = {3'b000, dma_len[31:3]};
 
     wire [3:0]  tpu_mode    = slv_reg0_bus[3:0];
 
@@ -139,6 +189,8 @@ module tpu #
     wire       dma_start_dm_to_l2;
     wire       dma_start_l2_to_dm;
 
+    // No CDC needed — all on same pl_clk0
+
     wire       cc_start_compute_tile;
 
     wire [14:0] lc_l2_ct_addr;
@@ -147,24 +199,40 @@ module tpu #
     wire [31:0] lc_l2_ct_din;
     wire [31:0] lc_l2_ct_dout;
 
-    wire         lc_l1_dma_wr_en;
-    wire [255:0] lc_l1_dma_wr_data;
-    wire [15:0]  lc_l1_dma_write_ptr;
-    wire         lc_l1_dma_rd_en;
-    wire [255:0] lc_l1_dma_rd_data;
-    wire [15:0]  lc_l1_dma_read_ptr;
+    wire        lc_l1_dma_wr_en;
+    wire [31:0] lc_l1_dma_wr_data;
+    wire [15:0] lc_l1_dma_write_ptr;
+    wire        lc_l1_dma_rd_en;
+    wire [31:0] lc_l1_dma_rd_data;
+    wire [15:0] lc_l1_dma_read_ptr;
 
     // =========================================================================
     // AXI-Stream plumbing wires
     // =========================================================================
     wire [15:0] write_pointer;
     wire [15:0] read_pointer;
+    wire        master_rd_cmd_valid;  // master stream pulses when issuing a new read
     wire [255:0] dma_dram_din;
     wire [63:0] dma_iram_din;
     wire        stream_data_valid;
     wire        write_bram_done;
     wire        read_bram_done;
     wire [255:0] devmem_rd_data;
+    wire [3:0]  debug_stream;
+    
+    // Internal state probing for debugging
+    wire [1:0] dm_wr_state_probe = u_device_mem.dm_wr_state;
+    wire       dm_aw_done_probe = u_device_mem.aw_done;
+    wire       dm_w_done_probe = u_device_mem.w_done;
+    wire       axi_timeout_err;
+
+    // AXI backpressure signals from device_mem
+    wire        dm_dma_wr_ready;
+    wire        dm_dma_rd_cmd_ready;
+    wire        dm_dma_rd_valid;
+    wire        dm_l2_ready;
+    wire        dm_l2_rvalid;
+    wire        dm_l2_bvalid;
 
     // TMA signals
     wire        ct_tma_req;
@@ -298,11 +366,14 @@ module tpu #
         .S_AXI_RREADY  (s00_axi_rready),
         .instr_ready_ext  (instr_ready_w),
         .stream_ready_ext (dma_stream_ready),
+        .debug_reg        ({dm_wr_state_probe, dm_aw_done_probe, dm_w_done_probe, axi_timeout_err, u_device_mem.m_axi_bvalid, debug_stream[2:0], write_pointer[6:0]}),
         .slv_reg0_out  (slv_reg0_bus),
         .slv_reg3_out  (slv_reg3_bus),
         .slv_reg4_out  (slv_reg4_bus),
         .slv_reg5_out  (slv_reg5_bus),
         .slv_reg6_out  (slv_reg6_bus),
+        .slv_reg7_out  (slv_reg7_bus),
+        .slv_reg10_out (slv_reg10_bus),
         .doorbell_out  (doorbell),
         .doorbell_clear(doorbell_clear)
     );
@@ -320,14 +391,16 @@ module tpu #
         .S_AXIS_TSTRB       (s00_axis_tstrb),
         .S_AXIS_TLAST       (s00_axis_tlast),
         .S_AXIS_TVALID      (s00_axis_tvalid),
-        .len                (dma_len),
+        .len                (stream_beat_len),
         .data_to_bram       (dma_dram_din),
         .data_to_iram       (dma_iram_din),
         .write_pointer_stream(write_pointer),
         .done               (write_bram_done),
         .data_valid         (stream_data_valid),
+        .debug_stream       (debug_stream),
         .write_en           (dma_data_write_en || dma_instr_write_en),
-        .tpu_mode_stream    (latched_mode[2:0])
+        .tpu_mode_stream    (latched_mode[2:0]),
+        .device_mem_ready   (dm_dma_wr_ready)
     );
 
     // =========================================================================
@@ -345,10 +418,13 @@ module tpu #
         .M_AXIS_TLAST   (m00_axis_tlast),
         .M_AXIS_TREADY  (m00_axis_tready),
         .data_to_ddr    (devmem_rd_data),
-        .len            (dma_len),
+        .len            (stream_beat_len),
         .read_en        (dma_read_en),
         .done           (read_bram_done),
-        .read_pointer_stream(read_pointer)
+        .read_pointer_stream(read_pointer),
+        .rd_cmd_valid       (master_rd_cmd_valid),
+        .device_mem_rd_ready(dm_dma_rd_cmd_ready),
+        .device_mem_rd_valid(dm_dma_rd_valid)
     );
 
     // =========================================================================
@@ -372,7 +448,8 @@ module tpu #
         .read_bram_done (read_bram_done),
         .start_dm_to_l2 (dma_start_dm_to_l2),
         .start_l2_to_dm (dma_start_l2_to_dm),
-        .xfer_l2_done   (xfer_l2_done)
+        .xfer_l2_done   (xfer_l2_done),
+        .device_mem_ready (dm_dma_wr_ready)
     );
 
     // =========================================================================
@@ -396,7 +473,6 @@ module tpu #
         .start           (l2_start),
         .mode            (tpu_mode),
         .addr_l2_in      (addr_l2),
-        .addr_l1_in      ({3'b000, addr_ram}),
         .length_in       (dma_len),
         .done            (l2_done),
         // L2 tile Port A
@@ -415,28 +491,67 @@ module tpu #
     );
 
     // =========================================================================
-    // Device Memory (host DMA target, modes 1/2)
+    // Device Memory — AXI4 Master to LPDDR4 via PS HP0
     // =========================================================================
     device_mem #(
         .ADDR_WIDTH(16),
-        .DATA_WIDTH(256)
+        .DATA_WIDTH(256),
+        .AXI_ADDR_WIDTH(32)
     ) u_device_mem (
-        .clk(s00_axi_aclk),
-        .rst_n(s00_axi_aresetn),
+        .clk(m_axi_aclk),
+        .rst_n(m_axi_aresetn),
+        .ddr_phys_base      (ddr_phys_base),
         // Port A — host DMA (dma_engine controls enable signals)
         .base_addr          (addr_devmem[15:0]),
         .dma_wr_en          (dma_data_write_en && stream_data_valid),
         .dma_wr_data        (dma_dram_din),
         .dma_write_pointer  ({3'b000, write_pointer}),
-        .dma_rd_en          (dma_read_en),
+        .dma_wr_ready       (dm_dma_wr_ready),
+        .dma_rd_cmd_en      (master_rd_cmd_valid),
         .dma_rd_data        (devmem_rd_data),
         .dma_read_pointer   ({3'b000, read_pointer}),
+        .dma_rd_cmd_ready   (dm_dma_rd_cmd_ready),
+        .dma_rd_valid       (dm_dma_rd_valid),
         // Port B — L2 tile DevMem FSM
         .l2_addr_b          (dm_l2_addr),
         .l2_din_b           (dm_l2_din),
         .l2_dout_b          (dm_l2_dout),
         .l2_en_b            (dm_l2_en),
-        .l2_we_b            (dm_l2_we)
+        .l2_we_b            (dm_l2_we),
+        .l2_ready_b         (dm_l2_ready),
+        .l2_rvalid_b        (dm_l2_rvalid),
+        .l2_bvalid_b        (dm_l2_bvalid),
+        // AXI4 Master
+        .m_axi_awaddr       (m_axi_awaddr),
+        .m_axi_awlen        (m_axi_awlen),
+        .m_axi_awsize       (m_axi_awsize),
+        .m_axi_awburst      (m_axi_awburst),
+        .m_axi_awvalid      (m_axi_awvalid),
+        .m_axi_awready      (m_axi_awready),
+        .m_axi_awprot       (m_axi_awprot),
+        .m_axi_awcache      (m_axi_awcache),
+        .m_axi_wdata        (m_axi_wdata),
+        .m_axi_wstrb        (m_axi_wstrb),
+        .m_axi_wlast        (m_axi_wlast),
+        .m_axi_wvalid       (m_axi_wvalid),
+        .m_axi_wready       (m_axi_wready),
+        .m_axi_bresp        (m_axi_bresp),
+        .m_axi_bvalid       (m_axi_bvalid),
+        .m_axi_bready       (m_axi_bready),
+        .m_axi_araddr       (m_axi_araddr),
+        .m_axi_arlen        (m_axi_arlen),
+        .m_axi_arsize       (m_axi_arsize),
+        .m_axi_arburst      (m_axi_arburst),
+        .m_axi_arprot       (m_axi_arprot),
+        .m_axi_arcache      (m_axi_arcache),
+        .m_axi_arvalid      (m_axi_arvalid),
+        .m_axi_arready      (m_axi_arready),
+        .m_axi_rdata        (m_axi_rdata),
+        .m_axi_rresp        (m_axi_rresp),
+        .m_axi_rlast        (m_axi_rlast),
+        .m_axi_rvalid       (m_axi_rvalid),
+        .m_axi_rready       (m_axi_rready),
+        .axi_timeout_err    (axi_timeout_err)
     );
 
     // =========================================================================
@@ -461,6 +576,9 @@ module tpu #
         .dm_dout        (dm_l2_dout),
         .dm_en          (dm_l2_en),
         .dm_we          (dm_l2_we),
+        .dm_ready       (dm_l2_ready),
+        .dm_rvalid      (dm_l2_rvalid),
+        .dm_bvalid      (dm_l2_bvalid),
         // Host-controlled DevMem↔L2 transfer (dma_engine triggers, modes 5/6)
         .start_dm_to_l2 (dma_start_dm_to_l2),
         .start_l2_to_dm (dma_start_l2_to_dm),
@@ -493,14 +611,14 @@ module tpu #
         .rst_n(s00_axi_aresetn),
         .start(cc_start_compute_tile),
         .done(compute_tile_done),
-        .base_addr(16'd0),
+        .base_addr({addr_ram[12:0]}),
         .dma_wr_en(lc_l1_dma_wr_en),
         .dma_wr_data(lc_l1_dma_wr_data),
         .dma_write_pointer(lc_l1_dma_write_ptr[12:0]),
         .dma_rd_en(lc_l1_dma_rd_en),
         .dma_rd_data(lc_l1_dma_rd_data),
         .dma_read_pointer(lc_l1_dma_read_ptr[12:0]),
-        .iram_addr(addr_ram[7:0] + write_pointer[7:0]),
+        .iram_addr(dma_iram_addr),
         .dma_iram_din(dma_iram_din),
         .instr_write_en(dma_instr_write_en && stream_data_valid),
         .tma_req        (ct_tma_req),

@@ -34,6 +34,7 @@ REG_ADDR = {
     "addr_sys":     0x0C,   # system memory base address (word addr)
     "addr_onchip":  0x10,   # on-chip memory base address (word addr)
     "length":       0x18,   # transfer length (in 256-bit beats for DMA, words for copy)
+    "ddr_phys_base":0x28,   # physical offset for device memory backing (slv_reg10)
 }
 
 DOORBELL_BIT = 0x10  # bit 4 of mode register
@@ -179,6 +180,13 @@ class MemDriver:
             print("WARNING: AXI4-Full MMIO port not found — 'mmio' method "
                   "will fall back to DMA. Use 'dma' method for transfers.")
 
+        # Allocate backend buffer for device system memory abstraction (1 MB)
+        from pynq import allocate
+        self.dev_mem_buf = allocate(shape=(1024*1024,), dtype=np.uint8, cacheable=True)
+        self.dev_mem_buf[:] = 0 # Now perfectly safe inside cacheable memory
+        self.dev_mem_buf.sync_to_device()
+        self._write_reg("ddr_phys_base", self.dev_mem_buf.physical_address)
+
     def _write_reg(self, name, value, verify=True):
         """Write a register to the FSM. 
         Added a tiny sleep to ensure the AXI-Lite interface doesn't drop 
@@ -209,17 +217,30 @@ class MemDriver:
         """Wait until the FSM reports idle."""
         offset = REG_ADDR["status"]
         deadline = time.time() + timeout
-        while self.mmio.read(offset) != 1:
+        while (self.mmio.read(offset) & 1) != 1:
             if time.time() > deadline:
                 regs = {k: hex(self.mmio.read(v)) for k, v in REG_ADDR.items()}
-                raise TimeoutError(f"Timeout waiting for idle. Regs: {regs}")
+                dma_sr = hex(self.dma.read(0x04)) if self.dma else "unknown"
+                slv_reg1 = self.mmio.read(0x04)
+                dm_state = (slv_reg1 >> 30) & 0x3   # bits 31:30
+                dm_aw_done = (slv_reg1 >> 29) & 0x1  # bit 29
+                dm_w_done = (slv_reg1 >> 28) & 0x1   # bit 28
+                axi_timeout = (slv_reg1 >> 27) & 0x1 # bit 27
+                dm_bvalid = (slv_reg1 >> 26) & 0x1   # bit 26
+                debug_stream = (slv_reg1 >> 23) & 0x7 # bits 25:23
+                write_ptr = (slv_reg1 >> 16) & 0x7F  # bits 22:16
+                raise TimeoutError(f"Timeout waiting for idle. Regs: {regs}, "
+                                   f"MM2S_SR: {dma_sr}, DBG_STREAM: {bin(debug_stream)}, "
+                                   f"WPTR: {write_ptr}, DM_STATE: {dm_state}, "
+                                   f"AW_DONE: {dm_aw_done}, W_DONE: {dm_w_done}, "
+                                   f"AXI_TIMEOUT: {axi_timeout}, BVALID: {dm_bvalid}")
             time.sleep(poll_delay)
 
     def wait_stream_ready(self, poll_delay=0.001, timeout=10.0):
         """Wait until the stream interface is ready."""
         offset = REG_ADDR["stream_ready"]
         deadline = time.time() + timeout
-        while self.mmio.read(offset) != 1:
+        while (self.mmio.read(offset) & 1) != 1:
             if time.time() > deadline:
                 raise TimeoutError("Timeout waiting for stream_ready")
             time.sleep(poll_delay)
@@ -278,15 +299,14 @@ class MemDriver:
         if pad_len > 0:
             values = np.pad(values, (0, pad_len), 'constant', constant_values=0)
 
-        nbytes = values.size * 4  # float32 = 4 bytes
-        buf = allocate(shape=values.shape, dtype=np.float32, cacheable=False)
+        beat_length = values.size // 8
+        nbytes = values.size * 4
+        buf = allocate(shape=values.shape, dtype=np.float32, cacheable=True)
         try:
             self.wait_idle()
             self._write_reg("addr_sys", addr)
+            # Hardware expects float32 element count; RTL converts to beats (>>3)
             self._write_reg("length", values.size)
-            reg3_rb = self.mmio.read(0x0C)
-            reg6_rb = self.mmio.read(0x18)
-            print(f"DEBUG WRITE: addr={addr} len={values.size} reg3_rb={reg3_rb} reg6_rb={reg6_rb}")
             self._doorbell(Mode.DMA_WRITE)
             self.wait_stream_ready()
             buf[:] = values
@@ -304,8 +324,9 @@ class MemDriver:
             self.dma.write(0x1C, (buf.physical_address >> 32) & 0xFFFFFFFF)
             # 4. Set transfer length (triggers MM2S)
             self.dma.write(0x28, nbytes)
-
-            # Poll MM2S for completion
+            
+            time.sleep(0.1) # Let the entire transfer attempt complete
+            # Wait for FSM idletion
             deadline = time.time() + DMA_TRANSFER_TIMEOUT
             while True:
                 sr = self.dma.read(0x04)
@@ -321,20 +342,18 @@ class MemDriver:
 
             # Acknowledge interrupt
             self.dma.write(0x04, 0x1000)
-            mm2s_sr = hex(self.dma.read(0x04))
-            print(f"DEBUG SEND: MM2S_SR={mm2s_sr} BYTES={nbytes}")
             self.wait_idle()
         finally:
             buf.freebuffer()
 
     def _read_dma(self, addr, length):
         """Read from system memory via AXI-Stream DMA."""
-        beat_length = (length + 7) // 8
-        padded_len = beat_length * 8
+        padded_len = ((length + 7) // 8) * 8
+        beat_length = padded_len // 8
         nbytes = padded_len * 4  # float32 = 4 bytes
-        buf = allocate(shape=(padded_len,), dtype=np.float32, cacheable=False)
+        buf = allocate(shape=(padded_len,), dtype=np.float32, cacheable=True)
         buf[:] = 42.42
-        buf.sync_to_device()
+        buf.flush()  # Push sentinel to DDR so we can detect DMA overwrites
         print(f"DEBUG READ: addr={addr} len={length} padded={padded_len} phys={hex(buf.physical_address)}")
         try:
             self.wait_idle()
@@ -349,17 +368,25 @@ class MemDriver:
             # 3. Set destination address
             self.dma.write(0x48, buf.physical_address & 0xFFFFFFFF)
             self.dma.write(0x4C, (buf.physical_address >> 32) & 0xFFFFFFFF)
+
+            # Start TPU first to buffer data into the stream FIFO.
+            # This prevents interconnect deadlocks where S2MM asserts AWVALID 
+            # and stalls for data, blocking the TPU's ARVALID reads.
+            self._write_reg("addr_sys", addr)
+            # Hardware expects float32 element count; RTL converts to beats (>>3)
+            self._write_reg("length", padded_len)
+            self._doorbell(Mode.DMA_READ)
+
             # 4. Set transfer length (triggers S2MM)
             self.dma.write(0x58, nbytes)
             time.sleep(0.001)
 
             s2mm_sr = self.dma.read(0x34)
+            s2mm_da = self.dma.read(0x48)
+            s2mm_da_msb = self.dma.read(0x4C)
+            s2mm_len_reg = self.dma.read(0x58)
             print(f"DEBUG READ: S2MM started, SR=0x{s2mm_sr:08X}")
-
-            # Now tell FPGA to start streaming
-            self._write_reg("addr_sys", addr)
-            self._write_reg("length", length)
-            self._doorbell(Mode.DMA_READ)
+            print(f"DEBUG READ: S2MM_DA=0x{s2mm_da_msb:08X}_{s2mm_da:08X}, S2MM_LEN={s2mm_len_reg}, buf_phys=0x{buf.physical_address:016X}")
 
             # Poll S2MM status for completion (IOC_Irq = bit 12, or Idle = bit 1)
             deadline = time.time() + DMA_TRANSFER_TIMEOUT
@@ -376,10 +403,11 @@ class MemDriver:
                 time.sleep(0.0001)
 
             # Acknowledge interrupt
+
+            # Acknowledge interrupt
             self.dma.write(0x34, 0x1000)
 
-            buf.invalidate()
-            buf.sync_from_device()
+            buf.invalidate()  # Invalidate CPU cache to see DMA-written data
             self.wait_idle()
             return np.copy(buf[:length])
         finally:

@@ -91,7 +91,9 @@ set_property verilog_define TARGET_FPGA=1 [current_fileset]
 OPTRACE "Creating in-memory project" END { }
 OPTRACE "Adding files" START { }
 read_ip -quiet /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.srcs/sources_1/bd/minitpu/ip/minitpu_tpu_0_0/minitpu_tpu_0_0.xci
+set_property used_in_implementation false [get_files -all /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_tpu_0_0/src/blk_mem_gen_0/blk_mem_gen_0_ooc.xdc]
 set_property used_in_implementation false [get_files -all /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_tpu_0_0/src/blk_mem_gen_1/blk_mem_gen_1_ooc.xdc]
+set_property used_in_implementation false [get_files -all /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_tpu_0_0/src/blk_mem_gen_3/blk_mem_gen_3_ooc.xdc]
 
 OPTRACE "Adding files" END { }
 # Mark all dcp files as not used in implementation to prevent them from being

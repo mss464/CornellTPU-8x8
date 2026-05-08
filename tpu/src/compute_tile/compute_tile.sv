@@ -17,21 +17,6 @@ module compute_tile #(
     parameter ADDR_WIDTH     = 13,
     parameter DATA_WIDTH     = 32,
     parameter NUM_BANKS      = 8
-//////////////////////////////////////////////////////////////////////////////////
-// Module Name: compute_tile
-// Description: Wrapper for tensorcore (logic) and l1 (data memory).
-//              Exposes TMA signals so tpu.sv can wire them to l2_tile.
-//////////////////////////////////////////////////////////////////////////////////
-
-module compute_tile #(
-    parameter N = 4,
-    parameter ADDR_WIDTH = 13,
-    parameter DATA_WIDTH = 32,
-    parameter COMP_DATA_WIDTH = 256,
-    parameter DMA_ADDR_WIDTH = 13,
-    parameter DMA_DATA_WIDTH = 256,
-    parameter COMP_ADDR_WIDTH = 13,
-    parameter MEM_LATENCY = 2
 )(
     input  logic clk,
     input  logic rst_n,
@@ -54,141 +39,13 @@ module compute_tile #(
     input  logic [63:0] dma_iram_din
 );
 
-    // Internal wires
-
-    // PC signals
+    // =========================================================================
+    // Instruction RAM (Port A: DMA, Port B: PC Fetch)
+    // =========================================================================
     logic [7:0]  pc_val;
-    logic        pc_enable;
-    logic        pc_load;
-    logic [7:0]  pc_load_val;
-
-    // Decoder signals
     logic [63:0] current_instr;
-    logic [22:0] len;
-    logic [9:0]  opcode;
-    logic [12:0] addr_a, addr_b, addr_out, addr_const;
-    logic [1:0]  mode;
 
-    // VPU SIMD fields
-    logic [2:0]  vpu_type, vreg_dst, vreg_a, vreg_b, vpu_opcode;
-    logic        scalar_b;
-
-    // Compute unit control
-    logic start_systolic, start_vpu, start_vadd;
-    logic systolic_done, vpu_done, vadd_done;
-
-    // Scratchpad Port B (compute-side, wide 256-bit)
-    logic [ADDR_WIDTH-1:0]           comp_addr_b;
-    logic [NUM_BANKS*DATA_WIDTH-1:0] comp_din_b;
-    logic [NUM_BANKS*DATA_WIDTH-1:0] comp_dout_b;
-    logic                            comp_en_b;
-    logic [NUM_BANKS-1:0]            comp_we_b;
-
-    // Scratchpad DMA-side wires (remapped from scalar Port A)
-    // We re-use the scratchpad's DMA write/read interface for the scalar path
-    // by driving it from oc_addr_a / oc_din_a / oc_en_a / oc_we_a.
-
-    // FSM for Instruction Orchestration
-    typedef enum logic [3:0] {
-        IDLE         = 4'd0,
-        EXEC_COMPUTE = 4'd3,
-        WAIT_COMPUTE = 4'd4,
-        FETCH_1      = 4'd5,
-        FETCH_2      = 4'd6,
-        FETCH_3      = 4'd7,
-        HALT_STATE   = 4'd8
-    } ct_state_t;
-
-    ct_state_t state;
-
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            state          <= IDLE;
-            done           <= 1'b0;
-            start_systolic <= 1'b0;
-            start_vpu      <= 1'b0;
-            start_vadd     <= 1'b0;
-            pc_load        <= 1'b0;
-            pc_load_val    <= 8'd0;
-        end else begin
-            // Default pulse signals
-            start_systolic <= 1'b0;
-            start_vpu      <= 1'b0;
-            start_vadd     <= 1'b0;
-            pc_load        <= 1'b0;
-            done           <= 1'b0;
-
-            case (state)
-                IDLE: begin
-                    if (start) begin
-                        pc_load     <= 1'b1;
-                        pc_load_val <= 8'd0;
-                        state       <= FETCH_1;
-                    end
-                end
-
-                EXEC_COMPUTE: begin
-                    // mode 3 is HALT
-                    if (mode == 2'd3) begin
-                        state <= HALT_STATE;
-                    end else begin
-                        case (mode)
-                            2'b00: begin // VPU
-                                start_vpu <= 1'b1;
-                                state     <= WAIT_COMPUTE;
-                            end
-                            2'b01: begin // Systolic
-                                start_systolic <= 1'b1;
-                                state          <= WAIT_COMPUTE;
-                            end
-                            2'b10: begin // Vector Add
-                                start_vadd <= 1'b1;
-                                state      <= WAIT_COMPUTE;
-                            end
-                            default: state <= HALT_STATE;
-                        endcase
-                    end
-                end
-
-                WAIT_COMPUTE: begin
-                    if (systolic_done || vpu_done || vadd_done) begin
-                        state <= FETCH_1;
-                    end
-                end
-
-                FETCH_1: state <= FETCH_2;
-                FETCH_2: state <= FETCH_3;
-                FETCH_3: state <= EXEC_COMPUTE;
-
-                HALT_STATE: begin
-                    done  <= 1'b1;
-                    state <= IDLE;
-                end
-
-                default: state <= IDLE;
-            endcase
-        end
-    end
-
-    // PC enable: increment after current instruction completes execution
-    assign pc_enable = (state == WAIT_COMPUTE &&
-                        (systolic_done || vpu_done || vadd_done));
-
-    // PC: Program Counter
-    pc #(
-        .PC_WIDTH(8)
-    ) u_pc (
-        .clk        (clk),
-        .rst_n      (rst_n),
-        .PC_enable  (pc_enable),
-        .PC_load    (pc_load),
-        .PC_load_val(pc_load_val),
-        .PC         (pc_val)
-    );
-
-    // Instruction BRAM (blk_mem_gen_1: 64-bit × 256)
     blk_mem_gen_1 I_bram (
-        // Port A — DMA side (instruction loading)
         .clka  (clk),
         .ena   (1'b1),
         .wea   (instr_write_en),
@@ -196,7 +53,6 @@ module compute_tile #(
         .dina  (dma_iram_din),
         .douta (),
 
-        // Port B — Compute side (instruction fetch)
         .clkb  (clk),
         .enb   (1'b1),
         .web   (1'b0),
@@ -205,7 +61,33 @@ module compute_tile #(
         .doutb (current_instr)
     );
 
-    // Decoder: Instruction Decoder
+    // =========================================================================
+    // PC & Control FSM
+    // =========================================================================
+    logic pc_enable, pc_load;
+    logic [7:0] pc_load_val;
+
+    pc #(
+        .PC_WIDTH(8)
+    ) u_pc (
+        .clk         (clk),
+        .rst_n       (rst_n),
+        .PC_enable   (pc_enable),
+        .PC_load     (pc_load),
+        .PC_load_val (pc_load_val),
+        .PC          (pc_val)
+    );
+
+    // =========================================================================
+    // Decoder
+    // =========================================================================
+    logic [22:0] len;
+    logic [9:0]  opcode;
+    logic [12:0] addr_a, addr_b, addr_out, addr_const;
+    logic [1:0]  mode;
+    logic [2:0]  vpu_type, vreg_dst, vreg_a, vreg_b, vpu_opcode;
+    logic        scalar_b;
+
     decoder u_decoder (
         .instr_decode      (current_instr),
         .len_decode        (len),
@@ -223,15 +105,50 @@ module compute_tile #(
         .scalar_b_decode   (scalar_b)
     );
 
+    // =========================================================================
+    // Scratchpad (L1 Data Memory)
+    // =========================================================================
+    logic [ADDR_WIDTH-1:0]           comp_addr_b;
+    logic [NUM_BANKS*DATA_WIDTH-1:0] comp_din_b;
+    logic [NUM_BANKS*DATA_WIDTH-1:0] comp_dout_b;
+    logic                            comp_en_b;
+    logic [NUM_BANKS-1:0]            comp_we_b;
+
+    // Map oc_addr_a to scratchpad DMA port
+    wire [15:0] sp_write_ptr = {3'b0, oc_addr_a};
+    wire [15:0] sp_read_ptr  = {3'b0, oc_addr_a};
+
+    scratchpad #(
+        .ADDR_WIDTH(ADDR_WIDTH),
+        .DATA_WIDTH(DATA_WIDTH),
+        .NUM_BANKS (NUM_BANKS)
+    ) u_scratchpad (
+        .clk               (clk),
+        .rst_n             (rst_n),
+        .base_addr         ({ADDR_WIDTH{1'b0}}),
+        .dma_wr_en         (oc_en_a && oc_we_a),
+        .dma_wr_data       (oc_din_a),
+        .dma_write_pointer (sp_write_ptr),
+        .dma_rd_en         (oc_en_a && !oc_we_a),
+        .dma_rd_data       (oc_dout_a),
+        .dma_read_pointer  (sp_read_ptr),
+        .dma_comp_addr_b   (comp_addr_b),
+        .dma_comp_din_b    (comp_din_b),
+        .dma_comp_dout_b   (comp_dout_b),
+        .dma_comp_en_b     (comp_en_b),
+        .dma_comp_we_b     (comp_we_b)
+    );
+
+    // =========================================================================
     // Compute Core (MXU + VPU SIMD + Vector Add)
+    // =========================================================================
+    logic start_systolic, start_vadd, start_vpu;
+    logic systolic_done, vadd_done, vpu_done;
+
     compute_core #(
-        .ADDR_WIDTH (ADDR_WIDTH),
-        .DATA_WIDTH (DATA_WIDTH),
-        .NUM_BANKS  (NUM_BANKS),
-        .VPU_DATA_W (DATA_WIDTH),
-        .VPU_ADDR_W (ADDR_WIDTH),
-        .VPU_OP_W   (4),
-        .VPU_IADDR_W(5)
+        .ADDR_WIDTH(ADDR_WIDTH),
+        .DATA_WIDTH(DATA_WIDTH),
+        .NUM_BANKS (NUM_BANKS)
     ) u_compute_core (
         .clk                    (clk),
         .rst_n                  (rst_n),
@@ -248,16 +165,12 @@ module compute_tile #(
         .systolic_done_compute  (systolic_done),
         .vadd_done_compute      (vadd_done),
         .vpu_done_compute       (vpu_done),
-
-        // VPU SIMD fields
         .vpu_type_compute       (vpu_type),
         .vreg_dst_compute       (vreg_dst),
         .vreg_a_compute         (vreg_a),
         .vreg_b_compute         (vreg_b),
         .vpu_opcode_compute     (vpu_opcode),
         .scalar_b_compute       (scalar_b),
-
-        // BRAM Port B (wide) — connects to scratchpad Port B
         .bram_addr_b            (comp_addr_b),
         .bram_din_b             (comp_din_b),
         .bram_dout_b            (comp_dout_b),
@@ -265,131 +178,79 @@ module compute_tile #(
         .bram_we_b              (comp_we_b)
     );
 
-    // Scratchpad (8-bank interleaved L1 memory)
-    //
-    // Port A: 32-bit scalar interface from mem_ctrl (sys↔OC copies)
-    //   - We drive dma_wr_en/dma_rd_en from oc_en_a and oc_we_a
-    //   - base_addr = 0 (flat addressing; address comes from oc_addr_a)
-    //   - dma_write_pointer/dma_read_pointer = oc_addr_a
-    //
-    // Port B: 256-bit wide interface from compute_core
+    // =========================================================================
+    // Orchestration FSM
+    // =========================================================================
+    typedef enum logic [2:0] {
+        IDLE      = 3'd0,
+        FETCH     = 3'd1,
+        DECODE    = 3'd2,
+        EXECUTE   = 3'd3,
+        HALT      = 3'd4
+    } state_t;
 
-    // Map scalar interface to scratchpad DMA ports
-    wire sp_dma_wr_en = oc_en_a && oc_we_a;
-    wire sp_dma_rd_en = oc_en_a && !oc_we_a;
+    state_t state;
 
-    // Use the address directly as the pointer (base_addr = 0)
-    wire [15:0] sp_write_ptr = {3'b0, oc_addr_a};
-    wire [15:0] sp_read_ptr  = {3'b0, oc_addr_a};
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            state           <= IDLE;
+            pc_enable       <= 0;
+            pc_load         <= 0;
+            pc_load_val     <= 0;
+            start_systolic  <= 0;
+            start_vadd      <= 0;
+            start_vpu       <= 0;
+            done            <= 0;
+        end else begin
+            // Default pulse signals
+            pc_enable       <= 0;
+            pc_load         <= 0;
+            start_systolic  <= 0;
+            start_vadd      <= 0;
+            start_vpu       <= 0;
+            done            <= 0;
 
-    scratchpad #(
-        .ADDR_WIDTH(ADDR_WIDTH),
-        .DATA_WIDTH(DATA_WIDTH),
-        .NUM_BANKS (NUM_BANKS)
-    ) u_scratchpad (
-        .clk               (clk),
-        .rst_n             (rst_n),
-        .base_addr         ({ADDR_WIDTH{1'b0}}),  // flat addressing
+            case (state)
+                IDLE: begin
+                    if (start) begin
+                        pc_load     <= 1'b1;
+                        pc_load_val <= 8'd0;
+                        state       <= FETCH;
+                    end
+                end
 
-        // DMA write interface (scalar from mem_ctrl)
-        .dma_wr_en         (sp_dma_wr_en),
-        .dma_wr_data       (oc_din_a),
-        .dma_write_pointer (sp_write_ptr),
+                FETCH: begin
+                    state <= DECODE;
+                end
 
-        // DMA read interface (scalar to mem_ctrl)
-        .dma_rd_en         (sp_dma_rd_en),
-        .dma_rd_data       (oc_dout_a),
-        .dma_read_pointer  (sp_read_ptr),
+                DECODE: begin
+                    if (opcode == 10'h3FF) begin // HALT
+                        state <= HALT;
+                    end else begin
+                        // Dispatch based on mode
+                        case (mode)
+                            2'b00: start_vpu      <= 1'b1;
+                            2'b01: start_systolic <= 1'b1;
+                            2'b10: start_vadd     <= 1'b1;
+                            default: ;
+                        endcase
+                        state <= EXECUTE;
+                    end
+                end
 
-        // Compute-side BRAM port (Port B, wide)
-        .dma_comp_addr_b   (comp_addr_b),
-        .dma_comp_din_b    (comp_din_b),
-        .dma_comp_dout_b   (comp_dout_b),
-        .dma_comp_en_b     (comp_en_b),
-        .dma_comp_we_b     (comp_we_b)
-    // High-level control
-    input  logic start,
-    output logic done,
+                EXECUTE: begin
+                    if (systolic_done || vpu_done || vadd_done) begin
+                        pc_enable <= 1'b1;
+                        state     <= FETCH;
+                    end
+                end
 
-    // DMA Instruction Interface
-    input  logic        instr_write_en,
-    input  logic [7:0]  iram_addr,
-    input  logic [63:0] dma_iram_din,
-
-    // DMA Data Interface
-    input  logic [15:0]           base_addr,
-    input  logic                  dma_wr_en,
-    input  logic [DATA_WIDTH-1:0] dma_wr_data,
-    input  logic [15:0]           dma_write_pointer,
-    input  logic                  dma_rd_en,
-    output logic [DATA_WIDTH-1:0] dma_rd_data,
-    input  logic [15:0]           dma_read_pointer,
-
-    // TMA signals (tensorcore → l2_tile via tpu.sv)
-    output logic        tma_req,
-    output logic        tma_dir,
-    output logic [15:0] tma_dm_base,
-    output logic [14:0] tma_l2_base,
-    output logic [15:0] tma_len,
-    input  logic        tma_done
-);
-
-    // Internal BRAM connection
-    logic [ADDR_WIDTH-1:0] pc_addr_b;
-    logic [COMP_DATA_WIDTH-1:0] pc_din_b;
-    logic [COMP_DATA_WIDTH-1:0] pc_dout_b;
-    logic                  pc_en_b;
-    logic                  pc_we_b;
-
-    // Instantiate TensorCore
-    tensorcore #(
-        .ADDR_WIDTH(ADDR_WIDTH),
-        .DATA_WIDTH(DATA_WIDTH),
-        .COMP_DATA_WIDTH(COMP_DATA_WIDTH),
-        .N(N),
-        .MEM_LATENCY(MEM_LATENCY)
-    ) u_tensorcore (
-        .clk(clk),
-        .rst_n(rst_n),
-        .start(start),
-        .done(done),
-        .instr_write_en(instr_write_en),
-        .iram_addr(iram_addr),
-        .dma_iram_din(dma_iram_din),
-        .bram_addr_b(pc_addr_b),
-        .bram_din_b(pc_din_b),
-        .bram_dout_b(pc_dout_b),
-        .bram_en_b(pc_en_b),
-        .bram_we_b(pc_we_b),
-        .tma_req(tma_req),
-        .tma_dir(tma_dir),
-        .tma_dm_base(tma_dm_base),
-        .tma_l2_base(tma_l2_base),
-        .tma_len(tma_len),
-        .tma_done(tma_done)
-    );
-
-    // Instantiate L1
-    l1 #(
-        .COMP_ADDR_WIDTH(COMP_ADDR_WIDTH),
-        .COMP_DATA_WIDTH(COMP_DATA_WIDTH),
-        .DMA_ADDR_WIDTH(DMA_ADDR_WIDTH),
-        .DMA_DATA_WIDTH(DMA_DATA_WIDTH)
-    ) u_l1 (
-        .clk(clk),
-        .rst_n(rst_n),
-        .base_addr(base_addr),
-        .dma_wr_en(dma_wr_en),
-        .dma_wr_data(dma_wr_data),
-        .dma_write_pointer(dma_write_pointer),
-        .dma_rd_en(dma_rd_en),
-        .dma_rd_data(dma_rd_data),
-        .dma_read_pointer(dma_read_pointer),
-        .dma_comp_addr_b(pc_addr_b),
-        .dma_comp_din_b(pc_din_b),
-        .dma_comp_dout_b(pc_dout_b),
-        .dma_comp_en_b(pc_en_b),
-        .dma_comp_we_b(pc_we_b)
-    );
+                HALT: begin
+                    done  <= 1'b1;
+                    state <= IDLE;
+                end
+            endcase
+        end
+    end
 
 endmodule

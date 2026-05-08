@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini-TPU Memory System Interactive Flow</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --text-color: #f8fafc;
+            --host-color: #3b82f6;
+            --dma-color: #8b5cf6;
+            --dev-mem-color: #10b981;
+            --sp-color: #059669;
+            --compute-color: #f59e0b;
+            --packet-color: #ef4444;
+            --line-color: #334155;
+            --active-line: #cbd5e1;
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(to right, #60a5fa, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+        }
+
+        p.subtitle {
+            color: #94a3b8;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .container {
+            display: flex;
+            gap: 2rem;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .controls {
+            flex: 0 0 300px;
+            background: rgba(30, 41, 59, 0.7);
+            padding: 1.5rem;
+            border-radius: 1rem;
+            border: 1px solid #334155;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .controls h2 {
+            font-size: 1.25rem;
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 0.5rem;
+        }
+
+        button {
+            background: #1e293b;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        button:hover {
+            background: #334155;
+            border-color: #64748b;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.active {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2));
+            border-color: var(--host-color);
+            color: #fff;
+        }
+
+        .btn-desc {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            display: block;
+            margin-top: 0.25rem;
+            text-align: left;
+        }
+
+        .viz-container {
+            flex: 1;
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 1rem;
+            border: 1px solid #334155;
+            position: relative;
+            overflow: hidden;
+            min-height: 600px;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        /* SVG Styles */
+        svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .node {
+            fill: rgba(30, 41, 59, 0.8);
+            stroke-width: 2;
+            rx: 8;
+            transition: all 0.3s ease;
+        }
+
+        .node:hover {
+            filter: brightness(1.2);
+        }
+
+        .node-host { stroke: var(--host-color); }
+        .node-dma { stroke: var(--dma-color); }
+        .node-dev { stroke: var(--dev-mem-color); }
+        .node-sp { stroke: var(--sp-color); }
+        .node-compute { stroke: var(--compute-color); }
+
+        .node-text {
+            font-family: var(--font-family);
+            fill: #f8fafc;
+            font-size: 14px;
+            font-weight: 600;
+            pointer-events: none;
+        }
+
+        .node-subtext {
+            font-family: var(--font-family);
+            fill: #94a3b8;
+            font-size: 11px;
+            pointer-events: none;
+        }
+
+        .path-line {
+            fill: none;
+            stroke: var(--line-color);
+            stroke-width: 3;
+            stroke-dasharray: 6, 6;
+            transition: stroke 0.3s ease;
+        }
+
+        .path-active {
+            stroke: var(--active-line);
+            animation: dash 1s linear infinite;
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -12;
+            }
+        }
+
+        .data-packet {
+            fill: var(--packet-color);
+            stroke: #fff;
+            stroke-width: 1.5;
+            r: 6;
+            opacity: 0;
+            filter: drop-shadow(0 0 5px var(--packet-color));
+        }
+
+        .animating .data-packet {
+            opacity: 1;
+        }
+        
+        .glow {
+            filter: drop-shadow(0 0 15px currentColor);
+            stroke-width: 4;
+        }
+
+        /* Info Panel */
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid #334155;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            backdrop-filter: blur(5px);
+            font-size: 0.9rem;
+            line-height: 1.5;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+        }
+
+        .info-panel.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .info-title {
+            color: #60a5fa;
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Mini-TPU Memory Flow</h1>
+    <p class="subtitle">Interactive visualization of data movement across the TPU hierarchy</p>
+
+    <div class="container">
+        <div class="controls">
+            <h2>Operations</h2>
+            
+            <button onclick="triggerFlow('dma_write', this)">
+                <div>
+                    <div>1. DMA Write</div>
+                    <span class="btn-desc">Host → Device Memory</span>
+                </div>
+                <span>▶</span>
+            </button>
+            
+            <button onclick="triggerFlow('sys_to_oc', this)">
+                <div>
+                    <div>2. Sys to On-Chip</div>
+                    <span class="btn-desc">Device Mem → Scratchpad</span>
+                </div>
+                <span>▶</span>
+            </button>
+            
+            <button onclick="triggerFlow('compute', this)">
+                <div>
+                    <div>3. Compute Execution</div>
+                    <span class="btn-desc">Scratchpad ↔ Compute Units</span>
+                </div>
+                <span>▶</span>
+            </button>
+            
+            <button onclick="triggerFlow('oc_to_sys', this)">
+                <div>
+                    <div>4. On-Chip to Sys</div>
+                    <span class="btn-desc">Scratchpad → Device Mem</span>
+                </div>
+                <span>▶</span>
+            </button>
+
+            <button onclick="triggerFlow('dma_read', this)">
+                <div>
+                    <div>5. DMA Read</div>
+                    <span class="btn-desc">Device Memory → Host</span>
+                </div>
+                <span>▶</span>
+            </button>
+            
+            <button onclick="resetFlow()" style="margin-top: auto; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); color: #fca5a5; justify-content: center;">
+                Reset Visualization
+            </button>
+        </div>
+
+        <div class="viz-container">
+            <svg id="viz-svg" viewBox="0 0 800 600">
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#cbd5e1" />
+                    </marker>
+                    <marker id="arrowhead-dim" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#334155" />
+                    </marker>
+                </defs>
+
+                <!-- Connections -->
+                <path id="path-dma-write-1" class="path-line" d="M 400 80 L 400 130" marker-end="url(#arrowhead-dim)"/>
+                <path id="path-dma-write-2" class="path-line" d="M 400 190 L 400 240" marker-end="url(#arrowhead-dim)"/>
+                
+                <path id="path-sys-oc" class="path-line" d="M 400 300 L 400 360" marker-end="url(#arrowhead-dim)"/>
+                <path id="path-oc-sys" class="path-line" d="M 370 360 L 370 300" marker-end="url(#arrowhead-dim)"/>
+                
+                <path id="path-compute-1" class="path-line" d="M 400 420 L 400 480" marker-end="url(#arrowhead-dim)"/>
+                <path id="path-compute-2" class="path-line" d="M 450 480 L 520 480" marker-end="url(#arrowhead-dim)"/>
+                <path id="path-compute-ret" class="path-line" d="M 520 510 L 400 510 L 400 420" marker-end="url(#arrowhead-dim)"/>
+
+                <path id="path-dma-read-1" class="path-line" d="M 430 240 L 430 190" marker-end="url(#arrowhead-dim)"/>
+                <path id="path-dma-read-2" class="path-line" d="M 430 130 L 430 80" marker-end="url(#arrowhead-dim)"/>
+
+                <!-- Nodes -->
+                <!-- Host -->
+                <rect id="node-host" x="250" y="20" width="300" height="60" class="node node-host" />
+                <text x="400" y="45" text-anchor="middle" class="node-text">Host System RAM (LPDDR4)</text>
+                <text x="400" y="65" text-anchor="middle" class="node-subtext">pynq.allocate buffers</text>
+
+                <!-- DMA -->
+                <rect id="node-dma" x="250" y="130" width="300" height="60" class="node node-dma" />
+                <text x="400" y="155" text-anchor="middle" class="node-text">AXI DMA Engine + Stream Modules</text>
+                <text x="400" y="175" text-anchor="middle" class="node-subtext">128-bit boundary, aggregates to 256-bit</text>
+
+                <!-- Device Memory -->
+                <rect id="node-dev" x="250" y="240" width="300" height="60" class="node node-dev" />
+                <text x="400" y="265" text-anchor="middle" class="node-text">Device Memory (System Memory)</text>
+                <text x="400" y="285" text-anchor="middle" class="node-subtext">8-Bank BRAM, 256 KB Total</text>
+
+                <!-- Scratchpad -->
+                <rect id="node-sp" x="250" y="360" width="300" height="60" class="node node-sp" />
+                <text x="400" y="385" text-anchor="middle" class="node-text">Scratchpad Memory (L1)</text>
+                <text x="400" y="405" text-anchor="middle" class="node-subtext">8-Bank Interleaved, 32 KB Total</text>
+
+                <!-- Compute Units -->
+                <rect id="node-mxu" x="520" y="450" width="180" height="40" class="node node-compute" />
+                <text x="610" y="475" text-anchor="middle" class="node-text">MXU (Systolic)</text>
+
+                <rect id="node-vpu" x="520" y="500" width="180" height="40" class="node node-compute" />
+                <text x="610" y="525" text-anchor="middle" class="node-text">VPU SIMD</text>
+
+                <rect id="node-vadd" x="520" y="550" width="180" height="40" class="node node-compute" />
+                <text x="610" y="575" text-anchor="middle" class="node-text">Vector Add</text>
+
+                <!-- Particles for animation -->
+                <g id="particles"></g>
+            </svg>
+
+            <div class="info-panel" id="info-panel">
+                <div class="info-title" id="info-title">Select an operation</div>
+                <div id="info-desc">Click on any operation in the left menu to visualize the data flow across the Mini-TPU memory hierarchy.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const flows = {
+            'dma_write': {
+                title: '1. DMA Write (Host → FPGA)',
+                desc: 'Host CPU allocates a buffer in LPDDR4 System RAM. The AXI DMA (MM2S channel) reads it and streams it via AXI-Stream at 128-bits/clock. The TPU Slave Stream module aggregates two 128-bit beats into a 256-bit word and writes it across all 8 banks of Device Memory in parallel. Peak throughput: 1.6 GB/s.',
+                paths: ['path-dma-write-1', 'path-dma-write-2'],
+                nodes: ['node-host', 'node-dma', 'node-dev'],
+                color: '#3b82f6',
+                animations: [
+                    { path: 'path-dma-write-1', count: 4, duration: 1000, delay: 0 },
+                    { path: 'path-dma-write-2', count: 4, duration: 1000, delay: 500 }
+                ]
+            },
+            'sys_to_oc': {
+                title: '2. System Memory to Scratchpad Copy',
+                desc: 'The Memory Controller FSM (mem_ctrl) orchestrates a copy from Device Memory to the Scratchpad (L1). It reads 32-bit words from Device Memory Port B (scalar port) and writes them to Scratchpad Port A. This takes 2 clock cycles per word due to BRAM read latency.',
+                paths: ['path-sys-oc'],
+                nodes: ['node-dev', 'node-sp'],
+                color: '#10b981',
+                animations: [
+                    { path: 'path-sys-oc', count: 6, duration: 1500, delay: 0 }
+                ]
+            },
+            'compute': {
+                title: '3. Compute Execution',
+                desc: 'The Compute Core fetches data from the Scratchpad using the 256-bit wide Port B. The MXU reads row vectors into its systolic array, computes matrix multiplications, and writes results back to the Scratchpad. The VPU and Vector Add units also operate directly on Scratchpad data.',
+                paths: ['path-compute-1', 'path-compute-2', 'path-compute-ret'],
+                nodes: ['node-sp', 'node-mxu', 'node-vpu', 'node-vadd'],
+                color: '#f59e0b',
+                animations: [
+                    { path: 'path-compute-1', count: 3, duration: 800, delay: 0 },
+                    { path: 'path-compute-2', count: 3, duration: 800, delay: 400 },
+                    { path: 'path-compute-ret', count: 3, duration: 1500, delay: 1000 }
+                ]
+            },
+            'oc_to_sys': {
+                title: '4. Scratchpad to System Memory Copy',
+                desc: 'After computation finishes, mem_ctrl orchestrates the transfer of results back to Device Memory. It reads 32-bit words from Scratchpad Port A and writes them to Device Memory Port B (scalar port).',
+                paths: ['path-oc-sys'],
+                nodes: ['node-sp', 'node-dev'],
+                color: '#10b981',
+                animations: [
+                    { path: 'path-oc-sys', count: 6, duration: 1500, delay: 0 }
+                ]
+            },
+            'dma_read': {
+                title: '5. DMA Read (FPGA → Host)',
+                desc: 'The TPU Master Stream module reads 256-bit words from Device Memory Port A. A First-Word-Fall-Through (FWFT) FIFO buffers the data, splits it into two 128-bit beats, and sends it to the AXI DMA (S2MM channel). The DMA writes the data back to Host LPDDR4 memory.',
+                paths: ['path-dma-read-1', 'path-dma-read-2'],
+                nodes: ['node-dev', 'node-dma', 'node-host'],
+                color: '#8b5cf6',
+                animations: [
+                    { path: 'path-dma-read-1', count: 4, duration: 1000, delay: 0 },
+                    { path: 'path-dma-read-2', count: 4, duration: 1000, delay: 500 }
+                ]
+            }
+        };
+
+        let currentAnimationTimeouts = [];
+        let particles = [];
+
+        function resetFlow() {
+            // Clear timeouts
+            currentAnimationTimeouts.forEach(t => clearTimeout(t));
+            currentAnimationTimeouts = [];
+            
+            // Clear particles
+            const particleContainer = document.getElementById('particles');
+            particleContainer.innerHTML = '';
+            particles = [];
+
+            // Reset UI classes
+            document.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.path-line').forEach(p => {
+                p.classList.remove('path-active');
+                p.setAttribute('marker-end', 'url(#arrowhead-dim)');
+            });
+            document.querySelectorAll('.node').forEach(n => {
+                n.classList.remove('glow');
+                n.style.stroke = '';
+            });
+
+            // Reset Info Panel
+            document.getElementById('info-panel').classList.remove('visible');
+        }
+
+        function triggerFlow(flowId, btnElement) {
+            resetFlow();
+            btnElement.classList.add('active');
+
+            const flow = flows[flowId];
+            
+            // Highlight nodes
+            flow.nodes.forEach(nodeId => {
+                const node = document.getElementById(nodeId);
+                node.classList.add('glow');
+                node.style.stroke = flow.color;
+            });
+
+            // Highlight paths
+            flow.paths.forEach(pathId => {
+                const path = document.getElementById(pathId);
+                path.classList.add('path-active');
+                path.setAttribute('marker-end', 'url(#arrowhead)');
+                path.style.stroke = flow.color;
+            });
+
+            // Update Info Panel
+            const infoPanel = document.getElementById('info-panel');
+            document.getElementById('info-title').textContent = flow.title;
+            document.getElementById('info-title').style.color = flow.color;
+            document.getElementById('info-desc').textContent = flow.desc;
+            infoPanel.classList.add('visible');
+
+            // Generate particles
+            const particleContainer = document.getElementById('particles');
+            
+            flow.animations.forEach(anim => {
+                const path = document.getElementById(anim.path);
+                const pathLength = path.getTotalLength();
+                
+                for(let i=0; i<anim.count; i++) {
+                    const t = setTimeout(() => {
+                        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        circle.setAttribute("class", "data-packet");
+                        circle.style.fill = flow.color;
+                        particleContainer.appendChild(circle);
+                        
+                        let startTime = null;
+                        
+                        function animateParticle(timestamp) {
+                            if (!startTime) startTime = timestamp;
+                            const progress = (timestamp - startTime) / anim.duration;
+                            
+                            if (progress < 1) {
+                                const point = path.getPointAtLength(progress * pathLength);
+                                circle.setAttribute("cx", point.x);
+                                circle.setAttribute("cy", point.y);
+                                circle.style.opacity = Math.sin(progress * Math.PI); // Fade in and out
+                                requestAnimationFrame(animateParticle);
+                            } else {
+                                circle.remove();
+                                // Recursively spawn again if still active
+                                if (btnElement.classList.contains('active')) {
+                                   spawnSingleParticle(path, pathLength, anim.duration, flow.color);
+                                }
+                            }
+                        }
+                        
+                        requestAnimationFrame(animateParticle);
+                    }, anim.delay + (i * (anim.duration / anim.count)));
+                    
+                    currentAnimationTimeouts.push(t);
+                }
+            });
+        }
+        
+        function spawnSingleParticle(path, pathLength, duration, color) {
+            const particleContainer = document.getElementById('particles');
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("class", "data-packet");
+            circle.style.fill = color;
+            particleContainer.appendChild(circle);
+            
+            let startTime = null;
+            
+            function animateParticle(timestamp) {
+                if (!startTime) startTime = timestamp;
+                const progress = (timestamp - startTime) / duration;
+                
+                if (progress < 1) {
+                    const point = path.getPointAtLength(progress * pathLength);
+                    circle.setAttribute("cx", point.x);
+                    circle.setAttribute("cy", point.y);
+                    circle.style.opacity = Math.sin(progress * Math.PI);
+                    requestAnimationFrame(animateParticle);
+                } else {
+                    circle.remove();
+                    // Keep loop going if button still active
+                    const pathId = path.getAttribute('id');
+                    const activePaths = Array.from(document.querySelectorAll('.path-active')).map(p => p.id);
+                    if (activePaths.includes(pathId)) {
+                       spawnSingleParticle(path, pathLength, duration, color);
+                    }
+                }
+            }
+            
+            requestAnimationFrame(animateParticle);
+        }
+
+        // Start default flow
+        setTimeout(() => {
+            const firstBtn = document.querySelector('button');
+            triggerFlow('dma_write', firstBtn);
+        }, 500);
+
+    </script>
+</body>
+</html>

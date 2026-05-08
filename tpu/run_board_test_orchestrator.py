@@ -10,12 +10,10 @@ def run_test():
     remote_root = "/home/xilinx/minitpu_deploy"
     bitstream_name = "mem_bd.bit"
     hwh_name = "mem_bd.hwh"
-    bitstream_name = "minitpu.bit"
-    hwh_name = "minitpu.hwh"
     local_bitstream = f"/home/mss464/minitpu/tpu/ultra96-v2/output/artifacts/{bitstream_name}"
     local_hwh = f"/home/mss464/minitpu/tpu/ultra96-v2/output/artifacts/{hwh_name}"
     local_test_script = "/home/mss464/minitpu/tpu/board_tests/test_mem_system.py"
-    local_driver = "/home/mss464/minitpu/tpu/pynq_host_driver.py"
+    local_driver = "/home/mss464/minitpu/tpu/runtime/pynq_host.py"
     
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())

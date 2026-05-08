@@ -16,9 +16,9 @@
 	(
 		// Users to add ports here
 
-		input  wire instr_ready_ext,
+		input  wire compute_idle_ext,
+        input  wire dma_idle_ext,
         input  wire stream_ready_ext,
-        input wire [15:0] debug_reg,
         output wire [31:0] slv_reg0_out,
         output wire [31:0] slv_reg3_out,
         output wire [31:0] slv_reg4_out,
@@ -423,14 +423,14 @@
         if (!S_AXI_ARESETN)
             slv_reg1 <= 32'b0;
         else
-            slv_reg1 <= {debug_reg, 15'b0, instr_ready_ext};  // bit 0 = instr_ready
+            slv_reg1 <= {31'b0, compute_idle_ext};  // bit 0 = compute_idle
     end
     
     always @(posedge S_AXI_ACLK) begin
         if (!S_AXI_ARESETN)
             slv_reg2 <= 32'b0;
         else
-            slv_reg2 <= {31'b0, stream_ready_ext}; // bit 0 = stream_ready
+            slv_reg2 <= {30'b0, stream_ready_ext, dma_idle_ext}; // bit 0 = dma_idle, bit 1 = stream_ready
     end
     
     assign slv_reg0_out = slv_reg0;

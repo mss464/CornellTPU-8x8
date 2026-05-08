@@ -28,12 +28,13 @@ except ImportError:
 
 # ── AXI-Lite register offsets ────────────────────────────────────────────────
 REG_ADDR = {
-    "mode":         0x00,   # [3:0]=mode, [4]=doorbell
-    "status":       0x04,   # bit 0 = idle (FSM done)
-    "stream_ready": 0x08,   # bit 0 = DMA stream ready
-    "addr_sys":     0x0C,   # system memory base address (word addr)
-    "addr_onchip":  0x10,   # on-chip memory base address (word addr)
-    "length":       0x18,   # transfer length (in 256-bit beats for DMA, words for copy)
+    "mode":          0x00,   # [3:0]=mode, [4]=doorbell
+    "compute_idle":  0x04,   # bit 0 = compute channel idle
+    "dma_idle":      0x08,   # bit 0 = DMA channel idle
+    "stream_ready":  0x08,   # bit 1 = DMA stream ready
+    "addr_sys":      0x0C,   # system memory base address (word addr)
+    "addr_onchip":   0x10,   # on-chip memory base address (word addr)
+    "length":        0x18,   # transfer length (in 256-bit beats for DMA, words for copy)
 }
 
 DOORBELL_BIT = 0x10  # bit 4 of mode register
@@ -218,22 +219,43 @@ class MemDriver:
         time.sleep(0.005)
 
     def wait_idle(self, poll_delay=0.001, timeout=10.0):
-        """Wait until the FSM reports idle."""
-        offset = REG_ADDR["status"]
+        """Wait until BOTH DMA and Compute channels are idle."""
         deadline = time.time() + timeout
-        while self.mmio.read(offset) != 1:
+        while True:
+            compute_idle = self.mmio.read(REG_ADDR["compute_idle"]) & 1
+            dma_idle     = self.mmio.read(REG_ADDR["dma_idle"]) & 1
+            if compute_idle and dma_idle:
+                return
             if time.time() > deadline:
                 regs = {k: hex(self.mmio.read(v)) for k, v in REG_ADDR.items()}
                 raise TimeoutError(f"Timeout waiting for idle. Regs: {regs}")
             time.sleep(poll_delay)
 
-    def wait_stream_ready(self, poll_delay=0.001, timeout=10.0):
-        """Wait until the stream interface is ready."""
+    def wait_stream_ready(self, poll_delay=0.0001, timeout=5.0):
+        """Wait until the TPU is ready for AXI-Stream transfer."""
         offset = REG_ADDR["stream_ready"]
         deadline = time.time() + timeout
-        while self.mmio.read(offset) != 1:
+        while (self.mmio.read(offset) & 2) != 2: # bit 1
             if time.time() > deadline:
-                raise TimeoutError("Timeout waiting for stream_ready")
+                raise TimeoutError("Timeout waiting for stream_ready (TPU FSM hang?)")
+            time.sleep(poll_delay)
+
+    def wait_compute_idle(self, poll_delay=0.001, timeout=10.0):
+        """Wait until the Compute channel is idle (DMA may still be running)."""
+        offset = REG_ADDR["compute_idle"]
+        deadline = time.time() + timeout
+        while not (self.mmio.read(offset) & 1):
+            if time.time() > deadline:
+                raise TimeoutError("Timeout waiting for compute_idle")
+            time.sleep(poll_delay)
+
+    def wait_dma_idle(self, poll_delay=0.001, timeout=10.0):
+        """Wait until the DMA channel is idle (Compute may still be running)."""
+        offset = REG_ADDR["dma_idle"]
+        deadline = time.time() + timeout
+        while not (self.mmio.read(offset) & 1):
+            if time.time() > deadline:
+                raise TimeoutError("Timeout waiting for dma_idle")
             time.sleep(poll_delay)
 
     # ── Primary API: send_bytes / read_bytes ─────────────────────────────
@@ -293,23 +315,26 @@ class MemDriver:
         nbytes = values.size * 4  # float32 = 4 bytes
         buf = allocate(shape=values.shape, dtype=np.float32, cacheable=False)
         try:
-            self.wait_idle()
+            self.wait_dma_idle()
             self._write_reg("addr_sys", addr)
             self._write_reg("length", values.size)
             reg3_rb = self.mmio.read(0x0C)
             reg6_rb = self.mmio.read(0x18)
             print(f"DEBUG WRITE: addr={addr} len={values.size} reg3_rb={reg3_rb} reg6_rb={reg6_rb}")
-            self._doorbell(Mode.DMA_WRITE)
-            self.wait_stream_ready()
             buf[:] = values
             buf.sync_to_device()
+            self._doorbell(Mode.DMA_WRITE)
 
             # ── Manual MM2S setup ──
-            # 1. Reset MM2S
+            # 1. Reset MM2S and wait for it to clear
             self.dma.write(0x00, 0x4)
-            time.sleep(0.005)
+            for _ in range(100):
+                if not (self.dma.read(0x00) & 0x4): break
+                time.sleep(0.0001)
+
             # 2. Clear reset, enable IOC, run
             self.dma.write(0x00, 0x10001)  # RS=1, IOC_IrqEn=1
+            self.wait_stream_ready() # Wait for TPU to be ready for the stream
             time.sleep(0.001)
             # 3. Set source address
             self.dma.write(0x18, buf.physical_address & 0xFFFFFFFF)
@@ -335,7 +360,7 @@ class MemDriver:
             self.dma.write(0x04, 0x1000)
             mm2s_sr = hex(self.dma.read(0x04))
             print(f"DEBUG SEND: MM2S_SR={mm2s_sr} BYTES={nbytes}")
-            self.wait_idle()
+            self.wait_dma_idle()
         finally:
             buf.freebuffer()
 
@@ -349,12 +374,15 @@ class MemDriver:
         buf.sync_to_device()
         print(f"DEBUG READ: addr={addr} len={length} padded={padded_len} phys={hex(buf.physical_address)}")
         try:
-            self.wait_idle()
+            self.wait_dma_idle()
 
             # ── Manual S2MM setup (bypass broken PYNQ channel state) ──
-            # 1. Reset S2MM channel
+            # 1. Reset S2MM channel and wait for it to clear
             self.dma.write(0x30, 0x4)
-            time.sleep(0.005)
+            for _ in range(100):
+                if not (self.dma.read(0x30) & 0x4): break
+                time.sleep(0.0001)
+
             # 2. Clear reset, enable IOC interrupt
             self.dma.write(0x30, 0x10001)  # RS=1, IOC_IrqEn=1
             time.sleep(0.001)
@@ -370,8 +398,9 @@ class MemDriver:
 
             # Now tell FPGA to start streaming
             self._write_reg("addr_sys", addr)
-            self._write_reg("length", length)
+            self._write_reg("length", padded_len)
             self._doorbell(Mode.DMA_READ)
+            self.wait_stream_ready()
 
             # Poll S2MM status for completion (IOC_Irq = bit 12, or Idle = bit 1)
             deadline = time.time() + DMA_TRANSFER_TIMEOUT
@@ -392,7 +421,7 @@ class MemDriver:
 
             buf.invalidate()
             buf.sync_from_device()
-            self.wait_idle()
+            self.wait_dma_idle()
             return np.copy(buf[:length])
         finally:
             buf.freebuffer()
@@ -423,22 +452,26 @@ class MemDriver:
     # ── Internal memory copy API ─────────────────────────────────────────
 
     def sysmem_to_onchip(self, sys_addr, oc_addr, length):
-        """Trigger sys_mem[sys_addr] -> on-chip_mem[oc_addr] copy (Mode 5)."""
-        self.wait_idle()
+        """Trigger sys_mem[sys_addr] -> on-chip_mem[oc_addr] copy (Mode 5).
+        WARNING: This uses scratchpad Port A — must NOT run concurrently with compute.
+        """
+        self.wait_idle()  # wait for BOTH channels (port conflict with compute)
         self._write_reg("addr_sys",    sys_addr)
         self._write_reg("addr_onchip", oc_addr)
         self._write_reg("length",      length)
         self._doorbell(Mode.SYS_TO_OC)
-        self.wait_idle()
+        self.wait_dma_idle()
 
     def onchip_to_sysmem(self, oc_addr, sys_addr, length):
-        """Trigger on-chip_mem[oc_addr] -> sys_mem[sys_addr] copy (Mode 6)."""
-        self.wait_idle()
+        """Trigger on-chip_mem[oc_addr] -> sys_mem[sys_addr] copy (Mode 6).
+        WARNING: This uses scratchpad Port A — must NOT run concurrently with compute.
+        """
+        self.wait_idle()  # wait for BOTH channels (port conflict with compute)
         self._write_reg("addr_onchip", oc_addr)
         self._write_reg("addr_sys",    sys_addr)
         self._write_reg("length",      length)
         self._doorbell(Mode.OC_TO_SYS)
-        self.wait_idle()
+        self.wait_dma_idle()
 
     # ── Compute Tile API ──────────────────────────────────────────────────
 
@@ -455,10 +488,10 @@ class MemDriver:
         nbytes = data.size * 4
         buf = allocate(shape=data.shape, dtype=np.float32, cacheable=False)
         try:
-            self.wait_idle()
+            self.wait_dma_idle()
             self._write_reg("length", data.size)
             self._doorbell(Mode.WRITE_IRAM)
-            self.wait_stream_ready()
+            time.sleep(0.001)
             buf[:] = data
             buf.sync_to_device()
 
@@ -476,16 +509,29 @@ class MemDriver:
                     raise TimeoutError("IRAM DMA transfer timed out")
                 time.sleep(0.001)
             self.dma.write(0x04, 0x1000) # ACK
-            self.wait_idle()
+            self.wait_dma_idle()
         finally:
             buf.freebuffer()
 
-    def run_compute(self, timeout=10.0):
-        """Trigger TPU execution of instructions currently in IRAM (Mode 3)."""
-        self.wait_idle()
+    def run_compute(self, timeout=10.0, async_run=False):
+        """Trigger TPU execution of instructions currently in IRAM (Mode 3).
+        If async_run=True, returns immediately after triggering.
+        """
+        self.wait_compute_idle()
         self._doorbell(Mode.COMPUTE)
-        # Compute tile reports done via the same status/idle bit in our design
-        self.wait_idle(timeout=timeout)
+        if not async_run:
+            self.wait_compute_idle(timeout=timeout)
+
+    def send_bytes_async(self, addr, data):
+        """Write data to L2 via DMA without waiting for Compute to finish.
+
+        This is the key double-buffering API: the host can load the next
+        tile of data into L2 while the compute core is still executing
+        on the current tile in L1.
+
+        Only waits for the DMA channel to be idle before starting.
+        """
+        self.send_bytes(addr, data, method='dma')
 
 
 # ── Backward-compatible aliases (legacy TpuDriver interface) ─────────────

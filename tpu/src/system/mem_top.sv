@@ -155,7 +155,8 @@ module mem_top #(
     wire [63:0] dma_iram_din;
     reg  [7:0]  iram_wr_addr;
 
-    wire instr_ready_w = !fsm_running && !compute_running;
+    wire compute_idle_w = !compute_running;
+    wire dma_idle_w     = !fsm_running;
 
     // =========================================================================
     // mem_ctrl wires
@@ -246,22 +247,22 @@ module mem_top #(
             if (compute_done) compute_running <= 1'b0;
 
             if (doorbell) begin
-                doorbell_clear <= 1'b1;
-                latched_mode   <= tpu_mode;
-
                 case (tpu_mode)
                     MODE_DMA_WRITE,
                     MODE_DMA_READ,
                     MODE_SYS_TO_OC,
                     MODE_OC_TO_SYS: begin
                         if (!fsm_running || fsm_done) begin
-                            fsm_running <= 1'b1;
-                            fsm_start   <= 1'b1;
+                            fsm_running    <= 1'b1;
+                            fsm_start      <= 1'b1;
+                            latched_mode   <= tpu_mode;
+                            doorbell_clear <= 1'b1;
                         end
                     end
                     MODE_COMPUTE: begin
                         if (!compute_running || compute_done) begin
                             compute_running <= 1'b1;
+                            doorbell_clear  <= 1'b1;
                         end
                     end
                     MODE_WRITE_IRAM: begin
@@ -269,9 +270,11 @@ module mem_top #(
                             fsm_running        <= 1'b1;
                             dma_instr_write_en <= 1'b1;
                             iram_wr_addr       <= 8'd0;
+                            latched_mode       <= tpu_mode;
+                            doorbell_clear     <= 1'b1;
                         end
                     end
-                    default: ; // unknown mode — doorbell cleared, nothing started
+                    default: doorbell_clear <= 1'b1; // unknown mode — clear doorbell
                 endcase
             end
 
@@ -310,13 +313,13 @@ module mem_top #(
         .S_AXI_RRESP   (s00_axi_rresp),
         .S_AXI_RVALID  (s00_axi_rvalid),
         .S_AXI_RREADY  (s00_axi_rready),
-        .instr_ready_ext  (instr_ready_w),
+        .compute_idle_ext (compute_idle_w),
+        .dma_idle_ext     (dma_idle_w),
         .stream_ready_ext (mc_stream_ready),
         .slv_reg0_out  (slv_reg0_bus),
         .slv_reg3_out  (slv_reg3_bus),
         .slv_reg4_out  (slv_reg4_bus),
         .slv_reg5_out  (slv_reg5_bus),
-        .slv_reg5_in   (debug_master_bus),
         .slv_reg6_out  (slv_reg6_bus),
         .doorbell_out  (doorbell),
         .doorbell_clear(doorbell_clear)
@@ -343,12 +346,24 @@ module mem_top #(
         .done               (write_bram_done),
         .data_valid         (stream_data_valid),
         .write_en           (mc_data_write_en || dma_instr_write_en),
-        .tpu_mode_stream    (latched_mode[2:0])
+        .tpu_mode_stream    (latched_mode[2:0]),
+        .device_mem_ready   (1'b1)
     );
 
     // =========================================================================
     // AXI-Stream Master (DMA read)
     // =========================================================================
+    wire rd_cmd_valid;
+    reg  device_mem_rd_valid_q;
+
+    always @(posedge m00_axis_aclk or negedge m00_axis_aresetn) begin
+        if (!m00_axis_aresetn) begin
+            device_mem_rd_valid_q <= 1'b0;
+        end else begin
+            device_mem_rd_valid_q <= rd_cmd_valid;
+        end
+    end
+
     tpu_master_axi_stream #(
         .C_M_AXIS_TDATA_WIDTH(C_M00_AXIS_TDATA_WIDTH)
     ) u_stream_master (
@@ -365,7 +380,10 @@ module mem_top #(
         .read_en        (mc_read_en),
         .done           (read_bram_done),
         // .debug_master   (debug_master_bus),
-        .read_pointer_stream(read_pointer)
+        .read_pointer_stream(read_pointer),
+        .rd_cmd_valid   (rd_cmd_valid),
+        .device_mem_rd_ready (1'b1),
+        .device_mem_rd_valid (device_mem_rd_valid_q)
     );
 
     // =========================================================================

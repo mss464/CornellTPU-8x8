@@ -1,5 +1,4 @@
 `timescale 1ns / 1ps
-// ============================================================================
 // compute_tile.sv — Compute Tile: Scratchpad + TensorCore
 //
 // Wraps:
@@ -13,12 +12,26 @@
 // Port B of scratchpad: 256-bit wide interface (for compute_core)
 //
 // Also provides start/done handshake for compute_ctrl dispatch.
-// ============================================================================
 
 module compute_tile #(
     parameter ADDR_WIDTH     = 13,
     parameter DATA_WIDTH     = 32,
     parameter NUM_BANKS      = 8
+//////////////////////////////////////////////////////////////////////////////////
+// Module Name: compute_tile
+// Description: Wrapper for tensorcore (logic) and l1 (data memory).
+//              Exposes TMA signals so tpu.sv can wire them to l2_tile.
+//////////////////////////////////////////////////////////////////////////////////
+
+module compute_tile #(
+    parameter N = 4,
+    parameter ADDR_WIDTH = 13,
+    parameter DATA_WIDTH = 32,
+    parameter COMP_DATA_WIDTH = 256,
+    parameter DMA_ADDR_WIDTH = 13,
+    parameter DMA_DATA_WIDTH = 256,
+    parameter COMP_ADDR_WIDTH = 13,
+    parameter MEM_LATENCY = 2
 )(
     input  logic clk,
     input  logic rst_n,
@@ -41,9 +54,7 @@ module compute_tile #(
     input  logic [63:0] dma_iram_din
 );
 
-    // =========================================================================
     // Internal wires
-    // =========================================================================
 
     // PC signals
     logic [7:0]  pc_val;
@@ -77,9 +88,7 @@ module compute_tile #(
     // We re-use the scratchpad's DMA write/read interface for the scalar path
     // by driving it from oc_addr_a / oc_din_a / oc_en_a / oc_we_a.
 
-    // =========================================================================
     // FSM for Instruction Orchestration
-    // =========================================================================
     typedef enum logic [3:0] {
         IDLE         = 4'd0,
         EXEC_COMPUTE = 4'd3,
@@ -165,9 +174,7 @@ module compute_tile #(
     assign pc_enable = (state == WAIT_COMPUTE &&
                         (systolic_done || vpu_done || vadd_done));
 
-    // =========================================================================
     // PC: Program Counter
-    // =========================================================================
     pc #(
         .PC_WIDTH(8)
     ) u_pc (
@@ -179,9 +186,7 @@ module compute_tile #(
         .PC         (pc_val)
     );
 
-    // =========================================================================
     // Instruction BRAM (blk_mem_gen_1: 64-bit × 256)
-    // =========================================================================
     blk_mem_gen_1 I_bram (
         // Port A — DMA side (instruction loading)
         .clka  (clk),
@@ -200,9 +205,7 @@ module compute_tile #(
         .doutb (current_instr)
     );
 
-    // =========================================================================
     // Decoder: Instruction Decoder
-    // =========================================================================
     decoder u_decoder (
         .instr_decode      (current_instr),
         .len_decode        (len),
@@ -220,9 +223,7 @@ module compute_tile #(
         .scalar_b_decode   (scalar_b)
     );
 
-    // =========================================================================
     // Compute Core (MXU + VPU SIMD + Vector Add)
-    // =========================================================================
     compute_core #(
         .ADDR_WIDTH (ADDR_WIDTH),
         .DATA_WIDTH (DATA_WIDTH),
@@ -264,7 +265,6 @@ module compute_tile #(
         .bram_we_b              (comp_we_b)
     );
 
-    // =========================================================================
     // Scratchpad (8-bank interleaved L1 memory)
     //
     // Port A: 32-bit scalar interface from mem_ctrl (sys↔OC copies)
@@ -273,7 +273,6 @@ module compute_tile #(
     //   - dma_write_pointer/dma_read_pointer = oc_addr_a
     //
     // Port B: 256-bit wide interface from compute_core
-    // =========================================================================
 
     // Map scalar interface to scratchpad DMA ports
     wire sp_dma_wr_en = oc_en_a && oc_we_a;
@@ -308,6 +307,89 @@ module compute_tile #(
         .dma_comp_dout_b   (comp_dout_b),
         .dma_comp_en_b     (comp_en_b),
         .dma_comp_we_b     (comp_we_b)
+    // High-level control
+    input  logic start,
+    output logic done,
+
+    // DMA Instruction Interface
+    input  logic        instr_write_en,
+    input  logic [7:0]  iram_addr,
+    input  logic [63:0] dma_iram_din,
+
+    // DMA Data Interface
+    input  logic [15:0]           base_addr,
+    input  logic                  dma_wr_en,
+    input  logic [DATA_WIDTH-1:0] dma_wr_data,
+    input  logic [15:0]           dma_write_pointer,
+    input  logic                  dma_rd_en,
+    output logic [DATA_WIDTH-1:0] dma_rd_data,
+    input  logic [15:0]           dma_read_pointer,
+
+    // TMA signals (tensorcore → l2_tile via tpu.sv)
+    output logic        tma_req,
+    output logic        tma_dir,
+    output logic [15:0] tma_dm_base,
+    output logic [14:0] tma_l2_base,
+    output logic [15:0] tma_len,
+    input  logic        tma_done
+);
+
+    // Internal BRAM connection
+    logic [ADDR_WIDTH-1:0] pc_addr_b;
+    logic [COMP_DATA_WIDTH-1:0] pc_din_b;
+    logic [COMP_DATA_WIDTH-1:0] pc_dout_b;
+    logic                  pc_en_b;
+    logic                  pc_we_b;
+
+    // Instantiate TensorCore
+    tensorcore #(
+        .ADDR_WIDTH(ADDR_WIDTH),
+        .DATA_WIDTH(DATA_WIDTH),
+        .COMP_DATA_WIDTH(COMP_DATA_WIDTH),
+        .N(N),
+        .MEM_LATENCY(MEM_LATENCY)
+    ) u_tensorcore (
+        .clk(clk),
+        .rst_n(rst_n),
+        .start(start),
+        .done(done),
+        .instr_write_en(instr_write_en),
+        .iram_addr(iram_addr),
+        .dma_iram_din(dma_iram_din),
+        .bram_addr_b(pc_addr_b),
+        .bram_din_b(pc_din_b),
+        .bram_dout_b(pc_dout_b),
+        .bram_en_b(pc_en_b),
+        .bram_we_b(pc_we_b),
+        .tma_req(tma_req),
+        .tma_dir(tma_dir),
+        .tma_dm_base(tma_dm_base),
+        .tma_l2_base(tma_l2_base),
+        .tma_len(tma_len),
+        .tma_done(tma_done)
+    );
+
+    // Instantiate L1
+    l1 #(
+        .COMP_ADDR_WIDTH(COMP_ADDR_WIDTH),
+        .COMP_DATA_WIDTH(COMP_DATA_WIDTH),
+        .DMA_ADDR_WIDTH(DMA_ADDR_WIDTH),
+        .DMA_DATA_WIDTH(DMA_DATA_WIDTH)
+    ) u_l1 (
+        .clk(clk),
+        .rst_n(rst_n),
+        .base_addr(base_addr),
+        .dma_wr_en(dma_wr_en),
+        .dma_wr_data(dma_wr_data),
+        .dma_write_pointer(dma_write_pointer),
+        .dma_rd_en(dma_rd_en),
+        .dma_rd_data(dma_rd_data),
+        .dma_read_pointer(dma_read_pointer),
+        .dma_comp_addr_b(pc_addr_b),
+        .dma_comp_din_b(pc_din_b),
+        .dma_comp_dout_b(pc_dout_b),
+        .dma_comp_en_b(pc_en_b),
+        .dma_comp_we_b(pc_we_b)
     );
 
 endmodule

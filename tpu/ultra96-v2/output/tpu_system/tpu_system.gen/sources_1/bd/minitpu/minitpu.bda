@@ -228,6 +228,25 @@
             },
             "V5": {
                 "VT": "AC",
+                "BA": "0x00000000",
+                "HA": "0x7FFFFFFF",
+                "BP": "C_BASEADDR",
+                "HP": "C_HIGHADDR",
+                "MA": "m_axi",
+                "MX": "/tpu_0",
+                "MI": "m_axi",
+                "MS": "SEG_zynq_ps_HP0_DDR_LOW",
+                "MV": "cornell.edu:user:cornell_tpu:1.0",
+                "SX": "/zynq_ps",
+                "SI": "S_AXI_HP0_FPD",
+                "MM": "SAXIGP2",
+                "SS": "HP0_DDR_LOW",
+                "SV": "xilinx.com:ip:zynq_ultra_ps_e:3.5",
+                "TM": "both",
+                "TU": "memory"
+            },
+            "V6": {
+                "VT": "AC",
                 "BA": "0x0080000000",
                 "HA": "0x008000FFFF",
                 "BP": "C_BASEADDR",
@@ -244,7 +263,7 @@
                 "TM": "both",
                 "TU": "register"
             },
-            "V6": {
+            "V7": {
                 "VT": "AC",
                 "BA": "0x0080010000",
                 "HA": "0x0080010FFF",
@@ -289,6 +308,11 @@
             },
             {
                 "src": "V6",
+                "trg": "V2",
+                "EH": "2"
+            },
+            {
+                "src": "V7",
                 "trg": "V2",
                 "EH": "2"
             }

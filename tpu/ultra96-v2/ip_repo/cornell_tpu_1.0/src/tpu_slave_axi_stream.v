@@ -9,18 +9,21 @@
 		// Do not modify the parameters beyond this line
 
 		// AXI4Stream sink: Data Width
-		parameter integer C_S_AXIS_TDATA_WIDTH	= 64
+		parameter integer C_S_AXIS_TDATA_WIDTH	= 256
 	)
 	(
 		// Users to add ports here
 		
 		input wire [31:0] len,
-		output wire [31:0] data_to_bram,
+		output wire [255:0] data_to_bram,
 		output wire [63:0] data_to_iram,
 		output reg [15:0] write_pointer_stream,
 		output wire done,
+		output wire data_valid,
+		output wire [3:0] debug_stream,
 		input wire write_en,
 		input wire [2:0] tpu_mode_stream, // 4 for instr writing and 2 for dram writing
+		input wire device_mem_ready, // AXI backpressure from LPDDR4
 
 		// User ports ends
 		// Do not modify the ports beyond this line
@@ -76,7 +79,7 @@
 	// sink has accepted all the streaming data and stored in FIFO
 	  reg writes_done;
 	// I/O Connections assignments
-	reg [31:0] data_bram;
+	reg [255:0] data_bram;
 	reg [63:0] data_iram;
 	reg reset;
 	reg t_last_pipelined;
@@ -97,8 +100,8 @@
 	end  
 
 	assign S_AXIS_TREADY	= axis_tready;
-	assign data_to_iram = (tpu_mode_stream == 3'd4) ? data_iram : 64'b0;
-    assign data_to_bram = (tpu_mode_stream == 3'd1) ? data_bram : 32'b0;
+    assign data_to_iram = (tpu_mode_stream == 3'd4) ? S_AXIS_TDATA[63:0] : 64'b0;
+    assign data_to_bram = S_AXIS_TDATA;
 	assign done = writes_done;
 	// Control state machine implementation
 	always @(posedge S_AXIS_ACLK) 
@@ -109,15 +112,13 @@
 	      mst_exec_state <= IDLE;
 	    end  
 	  else
-	    reset <= 1'b0;
 	    case (mst_exec_state)
 	      IDLE:
-	      begin 
+	      begin
 	        // The sink starts accepting tdata when 
 	        // there tvalid is asserted to mark the
 	        // presence of valid streaming data 
-	          reset <= 1'b1;
-	          if (S_AXIS_TVALID && write_en)
+	          if (S_AXIS_TVALID && axis_tready)
 	            begin
 	              mst_exec_state <= WRITE_FIFO;
 	            end
@@ -146,15 +147,20 @@
 	// 
 	// The example design sink is always ready to accept the S_AXIS_TDATA  until
 	// the FIFO is not filled with NUMBER_OF_INPUT_WORDS number of input words.
-	assign axis_tready = ((mst_exec_state == WRITE_FIFO) && (!writes_done));
+	assign axis_tready = ((mst_exec_state == IDLE) || (mst_exec_state == WRITE_FIFO && !writes_done)) && ((tpu_mode_stream == 3'd4) || device_mem_ready);
 
 	always@(posedge S_AXIS_ACLK)
 	begin
-	  if(!S_AXIS_ARESETN || reset)
+	  if(!S_AXIS_ARESETN)
 	    begin
 	      write_pointer_stream <= 0;
 	      writes_done <= 1'b0;
 	    end  
+	  else if (mst_exec_state == IDLE && !(S_AXIS_TVALID && axis_tready)) 
+        begin
+          write_pointer_stream <= 0;
+          writes_done <= 1'b0;
+        end
 	  else
 	    if (write_pointer_stream <= NUMBER_OF_INPUT_WORDS-1)
 	      begin
@@ -165,10 +171,11 @@
 	            write_pointer_stream <= write_pointer_stream + 1;
 	            writes_done <= 1'b0;
 	          end
-	          if ((write_pointer_stream == NUMBER_OF_INPUT_WORDS-1)|| t_last_pipelined)
+	          // Gate completion with fifo_wren: only assert writes_done when
+	          // the last beat is ACTUALLY received, not just when the pointer
+	          // happens to equal len-1 during an idle gap between DMA beats.
+	          if ((fifo_wren && write_pointer_stream == NUMBER_OF_INPUT_WORDS-1) || t_last_pipelined)
 	            begin
-	              // reads_done is asserted when NUMBER_OF_INPUT_WORDS numbers of streaming data 
-	              // has been written to the FIFO which is also marked by S_AXIS_TLAST(kept for optional usage).
 	              writes_done <= 1'b1;
 	            end
 	      end  
@@ -176,6 +183,8 @@
 
 	// FIFO write enable generation
 	assign fifo_wren = S_AXIS_TVALID && axis_tready;
+	assign data_valid = fifo_wren;
+	assign debug_stream = {mst_exec_state, t_last_pipelined, fifo_wren, axis_tready};
 
 	// FIFO Implementation
 //	generate 
@@ -195,17 +204,17 @@
 	reg [C_S_AXIS_TDATA_WIDTH-1 : 0] S_AXIS_TDATA_PIPELINED;
 	always @( posedge S_AXIS_ACLK )
 	    begin
-	      if (fifo_wren || fifo_wren_pipelined)// && S_AXIS_TSTRB[byte_index])
+	      if (fifo_wren || fifo_wren_pipelined)
 	        begin
 //	          stream_data_fifo[write_pointer] <= S_AXIS_TDATA[(byte_index*8+7) -: 8];
               S_AXIS_TDATA_PIPELINED <= S_AXIS_TDATA;
 	          // write to the correct memory based on mode
                 case (tpu_mode_stream)
-                    3'd4: data_iram <= S_AXIS_TDATA_PIPELINED;  // instruction memory
-                    3'd1: data_bram <= S_AXIS_TDATA_PIPELINED[31:0];  // data memory
-                    default: begin
-                        // optionally: do nothing
+                    3'd4: begin // instruction memory (64-bit)
+                        data_iram[63:0] <= S_AXIS_TDATA[63:0];
                     end
+                    3'd1: data_bram <= S_AXIS_TDATA;  // data memory (256-bit)
+                    default: ;
                 endcase 
 	        end  
 	    end  

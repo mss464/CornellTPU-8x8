@@ -178,8 +178,8 @@ puts "\n>>> Step 6: Adding AXI DMA..."
 set dma [create_bd_cell -type ip -vlnv xilinx.com:ip:axi_dma:7.1 axi_dma_0]
 
 # Configure DMA for both MM2S and S2MM
-# MM2S: Memory to Stream (input to TPU) - 64-bit width
-# S2MM: Stream to Memory (output from TPU) - 32-bit width
+# MM2S: Memory to Stream (input to TPU) - 256-bit width (matches TPU slave)
+# S2MM: Stream to Memory (output from TPU) - 256-bit width (matches TPU master)
 set_property -dict [list \
     CONFIG.c_include_sg {0} \
     CONFIG.c_sg_include_stscntrl_strm {0} \
@@ -187,10 +187,10 @@ set_property -dict [list \
     CONFIG.c_include_s2mm {1} \
     CONFIG.c_mm2s_burst_size {16} \
     CONFIG.c_s2mm_burst_size {16} \
-    CONFIG.c_m_axi_mm2s_data_width {64} \
-    CONFIG.c_m_axis_mm2s_tdata_width {64} \
-    CONFIG.c_m_axi_s2mm_data_width {32} \
-    CONFIG.c_s_axis_s2mm_tdata_width {32} \
+    CONFIG.c_m_axi_mm2s_data_width {256} \
+    CONFIG.c_m_axis_mm2s_tdata_width {256} \
+    CONFIG.c_m_axi_s2mm_data_width {256} \
+    CONFIG.c_s_axis_s2mm_tdata_width {256} \
 ] $dma
 
 ################################################################################
@@ -217,7 +217,7 @@ set_property -dict [list \
 puts "\n>>> Step 9: Adding AXI SmartConnect for DMA..."
 set axi_sc [create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc]
 set_property -dict [list \
-    CONFIG.NUM_SI {2} \
+    CONFIG.NUM_SI {3} \
     CONFIG.NUM_MI {1} \
 ] $axi_sc
 
@@ -261,6 +261,10 @@ connect_bd_intf_net [get_bd_intf_pins axi_dma_0/M_AXI_MM2S] \
 connect_bd_intf_net [get_bd_intf_pins axi_dma_0/M_AXI_S2MM] \
                     [get_bd_intf_pins axi_smc/S01_AXI]
 
+# TPU AXI memory port -> SmartConnect
+connect_bd_intf_net [get_bd_intf_pins tpu_0/m_axi] \
+                    [get_bd_intf_pins axi_smc/S02_AXI]
+
 # SmartConnect -> PS HP0
 connect_bd_intf_net [get_bd_intf_pins axi_smc/M00_AXI] \
                     [get_bd_intf_pins zynq_ps/S_AXI_HP0_FPD]
@@ -290,6 +294,7 @@ connect_bd_net $pl_clk [get_bd_pins zynq_ps/saxihp0_fpd_aclk]
 connect_bd_net $pl_clk [get_bd_pins tpu_0/s00_axi_aclk]
 connect_bd_net $pl_clk [get_bd_pins tpu_0/s00_axis_aclk]
 connect_bd_net $pl_clk [get_bd_pins tpu_0/m00_axis_aclk]
+connect_bd_net $pl_clk [get_bd_pins tpu_0/m_axi_aclk]
 
 ################################################################################
 # Step 14: Connect Resets
@@ -313,6 +318,7 @@ connect_bd_net $periph_resetn [get_bd_pins axi_dma_0/axi_resetn]
 connect_bd_net $periph_resetn [get_bd_pins tpu_0/s00_axi_aresetn]
 connect_bd_net $periph_resetn [get_bd_pins tpu_0/s00_axis_aresetn]
 connect_bd_net $periph_resetn [get_bd_pins tpu_0/m00_axis_aresetn]
+connect_bd_net $periph_resetn [get_bd_pins tpu_0/m_axi_aresetn]
 
 ################################################################################
 # Step 15: Assign Addresses
@@ -326,6 +332,7 @@ assign_bd_address -target_address_space /zynq_ps/Data [get_bd_addr_segs tpu_0/s0
 # Assign DMA address spaces
 assign_bd_address -target_address_space /axi_dma_0/Data_MM2S [get_bd_addr_segs zynq_ps/SAXIGP2/HP0_DDR_LOW] -force
 assign_bd_address -target_address_space /axi_dma_0/Data_S2MM [get_bd_addr_segs zynq_ps/SAXIGP2/HP0_DDR_LOW] -force
+assign_bd_address -target_address_space /tpu_0/m_axi [get_bd_addr_segs zynq_ps/SAXIGP2/HP0_DDR_LOW] -force
 
 # Print address map
 puts "\n  Address Map:"

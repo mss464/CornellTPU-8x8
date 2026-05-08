@@ -11,6 +11,7 @@ async def test_devmem_write_read_integrity(dut):
     cocotb.start_soon(Clock(dut.s00_axi_aclk, 10, units="ns").start())
     cocotb.start_soon(Clock(dut.s00_axis_aclk, 10, units="ns").start())
     cocotb.start_soon(Clock(dut.m00_axis_aclk, 10, units="ns").start())
+    cocotb.start_soon(Clock(dut.m_axi_aclk, 10, units="ns").start())
 
     driver = TpuRtlDriver(dut)
     await driver.reset()
@@ -31,6 +32,7 @@ async def test_devmem_multiple_sizes(dut):
     cocotb.start_soon(Clock(dut.s00_axi_aclk, 10, units="ns").start())
     cocotb.start_soon(Clock(dut.s00_axis_aclk, 10, units="ns").start())
     cocotb.start_soon(Clock(dut.m00_axis_aclk, 10, units="ns").start())
+    cocotb.start_soon(Clock(dut.m_axi_aclk, 10, units="ns").start())
 
     driver = TpuRtlDriver(dut)
     await driver.reset()
@@ -54,6 +56,7 @@ async def test_devmem_base_addr_offset(dut):
     cocotb.start_soon(Clock(dut.s00_axi_aclk, 10, units="ns").start())
     cocotb.start_soon(Clock(dut.s00_axis_aclk, 10, units="ns").start())
     cocotb.start_soon(Clock(dut.m00_axis_aclk, 10, units="ns").start())
+    cocotb.start_soon(Clock(dut.m_axi_aclk, 10, units="ns").start())
 
     driver = TpuRtlDriver(dut)
     await driver.reset()

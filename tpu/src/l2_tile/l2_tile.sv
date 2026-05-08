@@ -39,6 +39,9 @@ module l2_tile #(
     input  logic [DATA_WIDTH-1:0]     dm_dout,
     output logic                      dm_en,
     output logic                      dm_we,
+    input  logic                      dm_ready,
+    input  logic                      dm_rvalid,
+    input  logic                      dm_bvalid,
 
     // === Host-controlled transfer (from tpu.sv, modes 5/6) ===
     input  logic                      start_dm_to_l2,
@@ -123,7 +126,10 @@ module l2_tile #(
         .dm_din(dm_din),
         .dm_dout(dm_dout),
         .dm_en(dm_en),
-        .dm_we(dm_we)
+        .dm_we(dm_we),
+        .dm_ready(dm_ready),
+        .dm_rvalid(dm_rvalid),
+        .dm_bvalid(dm_bvalid)
     );
 
 endmodule

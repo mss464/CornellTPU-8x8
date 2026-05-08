@@ -7,7 +7,7 @@
 <Project Product="Vivado" Version="7" Minor="65" Path="/home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.xpr">
   <DefaultLaunch Dir="$PRUNDIR"/>
   <Configuration>
-    <Option Name="Id" Val="42029b6da5ba46479ebcb98420419335"/>
+    <Option Name="Id" Val="162cf0c698ea42989d64b4d96e7a68a7"/>
     <Option Name="Part" Val="xczu3eg-sbva484-1-i"/>
     <Option Name="CompiledLibDir" Val="$PCACHEDIR/compile_simlib"/>
     <Option Name="CompiledLibDirXSim" Val=""/>
@@ -158,9 +158,9 @@
         <Option Name="TopAutoSet" Val="TRUE"/>
       </Config>
     </FileSet>
-    <FileSet Name="minitpu_tpu_0_0" Type="BlockSrcs" RelSrcDir="$PSRCDIR/minitpu_tpu_0_0" RelGenDir="$PGENDIR/minitpu_tpu_0_0">
+    <FileSet Name="minitpu_axi_smc_0" Type="BlockSrcs" RelSrcDir="$PSRCDIR/minitpu_axi_smc_0" RelGenDir="$PGENDIR/minitpu_axi_smc_0">
       <Config>
-        <Option Name="TopModule" Val="minitpu_tpu_0_0"/>
+        <Option Name="TopModule" Val="minitpu_axi_smc_0"/>
         <Option Name="UseBlackboxStub" Val="1"/>
         <Verilog_Define Name="TARGET_FPGA" Val="1"/>
       </Config>
@@ -172,23 +172,9 @@
         <Verilog_Define Name="TARGET_FPGA" Val="1"/>
       </Config>
     </FileSet>
-    <FileSet Name="minitpu_auto_pc_0" Type="BlockSrcs" RelSrcDir="$PSRCDIR/minitpu_auto_pc_0" RelGenDir="$PGENDIR/minitpu_auto_pc_0">
+    <FileSet Name="minitpu_tpu_0_0" Type="BlockSrcs" RelSrcDir="$PSRCDIR/minitpu_tpu_0_0" RelGenDir="$PGENDIR/minitpu_tpu_0_0">
       <Config>
-        <Option Name="TopModule" Val="minitpu_auto_pc_0"/>
-        <Option Name="UseBlackboxStub" Val="1"/>
-        <Verilog_Define Name="TARGET_FPGA" Val="1"/>
-      </Config>
-    </FileSet>
-    <FileSet Name="minitpu_axi_smc_0" Type="BlockSrcs" RelSrcDir="$PSRCDIR/minitpu_axi_smc_0" RelGenDir="$PGENDIR/minitpu_axi_smc_0">
-      <Config>
-        <Option Name="TopModule" Val="minitpu_axi_smc_0"/>
-        <Option Name="UseBlackboxStub" Val="1"/>
-        <Verilog_Define Name="TARGET_FPGA" Val="1"/>
-      </Config>
-    </FileSet>
-    <FileSet Name="minitpu_xbar_0" Type="BlockSrcs" RelSrcDir="$PSRCDIR/minitpu_xbar_0" RelGenDir="$PGENDIR/minitpu_xbar_0">
-      <Config>
-        <Option Name="TopModule" Val="minitpu_xbar_0"/>
+        <Option Name="TopModule" Val="minitpu_tpu_0_0"/>
         <Option Name="UseBlackboxStub" Val="1"/>
         <Verilog_Define Name="TARGET_FPGA" Val="1"/>
       </Config>
@@ -203,6 +189,20 @@
     <FileSet Name="minitpu_zynq_ps_0" Type="BlockSrcs" RelSrcDir="$PSRCDIR/minitpu_zynq_ps_0" RelGenDir="$PGENDIR/minitpu_zynq_ps_0">
       <Config>
         <Option Name="TopModule" Val="minitpu_zynq_ps_0"/>
+        <Option Name="UseBlackboxStub" Val="1"/>
+        <Verilog_Define Name="TARGET_FPGA" Val="1"/>
+      </Config>
+    </FileSet>
+    <FileSet Name="minitpu_auto_pc_0" Type="BlockSrcs" RelSrcDir="$PSRCDIR/minitpu_auto_pc_0" RelGenDir="$PGENDIR/minitpu_auto_pc_0">
+      <Config>
+        <Option Name="TopModule" Val="minitpu_auto_pc_0"/>
+        <Option Name="UseBlackboxStub" Val="1"/>
+        <Verilog_Define Name="TARGET_FPGA" Val="1"/>
+      </Config>
+    </FileSet>
+    <FileSet Name="minitpu_xbar_0" Type="BlockSrcs" RelSrcDir="$PSRCDIR/minitpu_xbar_0" RelGenDir="$PGENDIR/minitpu_xbar_0">
+      <Config>
+        <Option Name="TopModule" Val="minitpu_xbar_0"/>
         <Option Name="UseBlackboxStub" Val="1"/>
         <Verilog_Define Name="TARGET_FPGA" Val="1"/>
       </Config>
@@ -242,7 +242,7 @@
       <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
       <RQSFiles/>
     </Run>
-    <Run Id="minitpu_tpu_0_0_synth_1" Type="Ft3:Synth" SrcSet="minitpu_tpu_0_0" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_tpu_0_0" Description="Vivado Synthesis Defaults" AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" Dir="$PRUNDIR/minitpu_tpu_0_0_synth_1" IncludeInArchive="true" IsChild="false" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_tpu_0_0_synth_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_tpu_0_0_synth_1">
+    <Run Id="minitpu_axi_smc_0_synth_1" Type="Ft3:Synth" SrcSet="minitpu_axi_smc_0" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_axi_smc_0" Description="Vivado Synthesis Defaults" AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" Dir="$PRUNDIR/minitpu_axi_smc_0_synth_1" IncludeInArchive="true" IsChild="false" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_axi_smc_0_synth_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_axi_smc_0_synth_1">
       <Strategy Version="1" Minor="2">
         <StratHandle Name="Vivado Synthesis Defaults" Flow="Vivado Synthesis 2023">
           <Desc>Vivado Synthesis Defaults</Desc>
@@ -266,31 +266,7 @@
       <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
       <RQSFiles/>
     </Run>
-    <Run Id="minitpu_auto_pc_0_synth_1" Type="Ft3:Synth" SrcSet="minitpu_auto_pc_0" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_auto_pc_0" Description="Vivado Synthesis Defaults" AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" Dir="$PRUNDIR/minitpu_auto_pc_0_synth_1" IncludeInArchive="true" IsChild="false" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_auto_pc_0_synth_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_auto_pc_0_synth_1">
-      <Strategy Version="1" Minor="2">
-        <StratHandle Name="Vivado Synthesis Defaults" Flow="Vivado Synthesis 2023">
-          <Desc>Vivado Synthesis Defaults</Desc>
-        </StratHandle>
-        <Step Id="synth_design"/>
-      </Strategy>
-      <GeneratedRun Dir="$PRUNDIR" File="gen_run.xml"/>
-      <ReportStrategy Name="Vivado Synthesis Default Reports" Flow="Vivado Synthesis 2023"/>
-      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
-      <RQSFiles/>
-    </Run>
-    <Run Id="minitpu_axi_smc_0_synth_1" Type="Ft3:Synth" SrcSet="minitpu_axi_smc_0" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_axi_smc_0" Description="Vivado Synthesis Defaults" AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" Dir="$PRUNDIR/minitpu_axi_smc_0_synth_1" IncludeInArchive="true" IsChild="false" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_axi_smc_0_synth_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_axi_smc_0_synth_1">
-      <Strategy Version="1" Minor="2">
-        <StratHandle Name="Vivado Synthesis Defaults" Flow="Vivado Synthesis 2023">
-          <Desc>Vivado Synthesis Defaults</Desc>
-        </StratHandle>
-        <Step Id="synth_design"/>
-      </Strategy>
-      <GeneratedRun Dir="$PRUNDIR" File="gen_run.xml"/>
-      <ReportStrategy Name="Vivado Synthesis Default Reports" Flow="Vivado Synthesis 2023"/>
-      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
-      <RQSFiles/>
-    </Run>
-    <Run Id="minitpu_xbar_0_synth_1" Type="Ft3:Synth" SrcSet="minitpu_xbar_0" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_xbar_0" Description="Vivado Synthesis Defaults" AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" Dir="$PRUNDIR/minitpu_xbar_0_synth_1" IncludeInArchive="true" IsChild="false" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_xbar_0_synth_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_xbar_0_synth_1">
+    <Run Id="minitpu_tpu_0_0_synth_1" Type="Ft3:Synth" SrcSet="minitpu_tpu_0_0" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_tpu_0_0" Description="Vivado Synthesis Defaults" AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" Dir="$PRUNDIR/minitpu_tpu_0_0_synth_1" IncludeInArchive="true" IsChild="false" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_tpu_0_0_synth_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_tpu_0_0_synth_1">
       <Strategy Version="1" Minor="2">
         <StratHandle Name="Vivado Synthesis Defaults" Flow="Vivado Synthesis 2023">
           <Desc>Vivado Synthesis Defaults</Desc>
@@ -326,65 +302,31 @@
       <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
       <RQSFiles/>
     </Run>
-    <Run Id="impl_1" Type="Ft2:EntireDesign" Part="xczu3eg-sbva484-1-i" ConstrsSet="constrs_1" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" State="current" Dir="$PRUNDIR/impl_1" SynthRun="synth_1" IncludeInArchive="true" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/impl_1" LaunchOptions="-jobs 4 " AutoRQSDir="$PSRCDIR/utils_1/imports/impl_1">
+    <Run Id="minitpu_auto_pc_0_synth_1" Type="Ft3:Synth" SrcSet="minitpu_auto_pc_0" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_auto_pc_0" Description="Vivado Synthesis Defaults" AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" Dir="$PRUNDIR/minitpu_auto_pc_0_synth_1" IncludeInArchive="true" IsChild="false" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_auto_pc_0_synth_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_auto_pc_0_synth_1">
       <Strategy Version="1" Minor="2">
-        <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2023">
-          <Desc>Default settings for Implementation.</Desc>
+        <StratHandle Name="Vivado Synthesis Defaults" Flow="Vivado Synthesis 2023">
+          <Desc>Vivado Synthesis Defaults</Desc>
         </StratHandle>
-        <Step Id="init_design"/>
-        <Step Id="opt_design"/>
-        <Step Id="power_opt_design"/>
-        <Step Id="place_design"/>
-        <Step Id="post_place_power_opt_design"/>
-        <Step Id="phys_opt_design"/>
-        <Step Id="route_design"/>
-        <Step Id="post_route_phys_opt_design"/>
-        <Step Id="write_bitstream"/>
+        <Step Id="synth_design"/>
       </Strategy>
       <GeneratedRun Dir="$PRUNDIR" File="gen_run.xml"/>
-      <ReportStrategy Name="Vivado Implementation Default Reports" Flow="Vivado Implementation 2023"/>
+      <ReportStrategy Name="Vivado Synthesis Default Reports" Flow="Vivado Synthesis 2023"/>
       <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
       <RQSFiles/>
     </Run>
-    <Run Id="minitpu_tpu_0_0_impl_1" Type="Ft2:EntireDesign" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_tpu_0_0" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" SynthRun="minitpu_tpu_0_0_synth_1" IncludeInArchive="false" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_tpu_0_0_impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_tpu_0_0_impl_1">
+    <Run Id="minitpu_xbar_0_synth_1" Type="Ft3:Synth" SrcSet="minitpu_xbar_0" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_xbar_0" Description="Vivado Synthesis Defaults" AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" Dir="$PRUNDIR/minitpu_xbar_0_synth_1" IncludeInArchive="true" IsChild="false" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_xbar_0_synth_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_xbar_0_synth_1">
       <Strategy Version="1" Minor="2">
-        <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2023">
-          <Desc>Default settings for Implementation.</Desc>
+        <StratHandle Name="Vivado Synthesis Defaults" Flow="Vivado Synthesis 2023">
+          <Desc>Vivado Synthesis Defaults</Desc>
         </StratHandle>
-        <Step Id="init_design"/>
-        <Step Id="opt_design"/>
-        <Step Id="power_opt_design"/>
-        <Step Id="place_design"/>
-        <Step Id="post_place_power_opt_design"/>
-        <Step Id="phys_opt_design"/>
-        <Step Id="route_design"/>
-        <Step Id="post_route_phys_opt_design"/>
-        <Step Id="write_bitstream"/>
+        <Step Id="synth_design"/>
       </Strategy>
-      <ReportStrategy Name="Vivado Implementation Default Reports" Flow="Vivado Implementation 2023"/>
+      <GeneratedRun Dir="$PRUNDIR" File="gen_run.xml"/>
+      <ReportStrategy Name="Vivado Synthesis Default Reports" Flow="Vivado Synthesis 2023"/>
       <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
       <RQSFiles/>
     </Run>
-    <Run Id="minitpu_axi_dma_0_0_impl_1" Type="Ft2:EntireDesign" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_axi_dma_0_0" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" SynthRun="minitpu_axi_dma_0_0_synth_1" IncludeInArchive="false" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_axi_dma_0_0_impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_axi_dma_0_0_impl_1">
-      <Strategy Version="1" Minor="2">
-        <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2023">
-          <Desc>Default settings for Implementation.</Desc>
-        </StratHandle>
-        <Step Id="init_design"/>
-        <Step Id="opt_design"/>
-        <Step Id="power_opt_design"/>
-        <Step Id="place_design"/>
-        <Step Id="post_place_power_opt_design"/>
-        <Step Id="phys_opt_design"/>
-        <Step Id="route_design"/>
-        <Step Id="post_route_phys_opt_design"/>
-        <Step Id="write_bitstream"/>
-      </Strategy>
-      <ReportStrategy Name="Vivado Implementation Default Reports" Flow="Vivado Implementation 2023"/>
-      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
-      <RQSFiles/>
-    </Run>
-    <Run Id="minitpu_auto_pc_0_impl_1" Type="Ft2:EntireDesign" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_auto_pc_0" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" SynthRun="minitpu_auto_pc_0_synth_1" IncludeInArchive="false" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_auto_pc_0_impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_auto_pc_0_impl_1">
+    <Run Id="impl_1" Type="Ft2:EntireDesign" Part="xczu3eg-sbva484-1-i" ConstrsSet="constrs_1" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" State="current" SynthRun="synth_1" IncludeInArchive="true" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/impl_1">
       <Strategy Version="1" Minor="2">
         <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2023">
           <Desc>Default settings for Implementation.</Desc>
@@ -422,7 +364,26 @@
       <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
       <RQSFiles/>
     </Run>
-    <Run Id="minitpu_xbar_0_impl_1" Type="Ft2:EntireDesign" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_xbar_0" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" SynthRun="minitpu_xbar_0_synth_1" IncludeInArchive="false" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_xbar_0_impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_xbar_0_impl_1">
+    <Run Id="minitpu_axi_dma_0_0_impl_1" Type="Ft2:EntireDesign" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_axi_dma_0_0" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" SynthRun="minitpu_axi_dma_0_0_synth_1" IncludeInArchive="false" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_axi_dma_0_0_impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_axi_dma_0_0_impl_1">
+      <Strategy Version="1" Minor="2">
+        <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2023">
+          <Desc>Default settings for Implementation.</Desc>
+        </StratHandle>
+        <Step Id="init_design"/>
+        <Step Id="opt_design"/>
+        <Step Id="power_opt_design"/>
+        <Step Id="place_design"/>
+        <Step Id="post_place_power_opt_design"/>
+        <Step Id="phys_opt_design"/>
+        <Step Id="route_design"/>
+        <Step Id="post_route_phys_opt_design"/>
+        <Step Id="write_bitstream"/>
+      </Strategy>
+      <ReportStrategy Name="Vivado Implementation Default Reports" Flow="Vivado Implementation 2023"/>
+      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
+      <RQSFiles/>
+    </Run>
+    <Run Id="minitpu_tpu_0_0_impl_1" Type="Ft2:EntireDesign" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_tpu_0_0" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" SynthRun="minitpu_tpu_0_0_synth_1" IncludeInArchive="false" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_tpu_0_0_impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_tpu_0_0_impl_1">
       <Strategy Version="1" Minor="2">
         <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2023">
           <Desc>Default settings for Implementation.</Desc>
@@ -461,6 +422,44 @@
       <RQSFiles/>
     </Run>
     <Run Id="minitpu_zynq_ps_0_impl_1" Type="Ft2:EntireDesign" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_zynq_ps_0" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" SynthRun="minitpu_zynq_ps_0_synth_1" IncludeInArchive="false" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_zynq_ps_0_impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_zynq_ps_0_impl_1">
+      <Strategy Version="1" Minor="2">
+        <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2023">
+          <Desc>Default settings for Implementation.</Desc>
+        </StratHandle>
+        <Step Id="init_design"/>
+        <Step Id="opt_design"/>
+        <Step Id="power_opt_design"/>
+        <Step Id="place_design"/>
+        <Step Id="post_place_power_opt_design"/>
+        <Step Id="phys_opt_design"/>
+        <Step Id="route_design"/>
+        <Step Id="post_route_phys_opt_design"/>
+        <Step Id="write_bitstream"/>
+      </Strategy>
+      <ReportStrategy Name="Vivado Implementation Default Reports" Flow="Vivado Implementation 2023"/>
+      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
+      <RQSFiles/>
+    </Run>
+    <Run Id="minitpu_auto_pc_0_impl_1" Type="Ft2:EntireDesign" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_auto_pc_0" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" SynthRun="minitpu_auto_pc_0_synth_1" IncludeInArchive="false" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_auto_pc_0_impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_auto_pc_0_impl_1">
+      <Strategy Version="1" Minor="2">
+        <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2023">
+          <Desc>Default settings for Implementation.</Desc>
+        </StratHandle>
+        <Step Id="init_design"/>
+        <Step Id="opt_design"/>
+        <Step Id="power_opt_design"/>
+        <Step Id="place_design"/>
+        <Step Id="post_place_power_opt_design"/>
+        <Step Id="phys_opt_design"/>
+        <Step Id="route_design"/>
+        <Step Id="post_route_phys_opt_design"/>
+        <Step Id="write_bitstream"/>
+      </Strategy>
+      <ReportStrategy Name="Vivado Implementation Default Reports" Flow="Vivado Implementation 2023"/>
+      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
+      <RQSFiles/>
+    </Run>
+    <Run Id="minitpu_xbar_0_impl_1" Type="Ft2:EntireDesign" Part="xczu3eg-sbva484-1-i" ConstrsSet="minitpu_xbar_0" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" SynthRun="minitpu_xbar_0_synth_1" IncludeInArchive="false" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/minitpu_xbar_0_impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/minitpu_xbar_0_impl_1">
       <Strategy Version="1" Minor="2">
         <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2023">
           <Desc>Default settings for Implementation.</Desc>

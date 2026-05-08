@@ -3,12 +3,12 @@
 # SW Build 4029153 on Fri Oct 13 20:13:54 MDT 2023
 # IP Build 4028589 on Sat Oct 14 00:45:43 MDT 2023
 # SharedData Build 4025554 on Tue Oct 10 17:18:54 MDT 2023
-# Start of session at: Tue Feb 17 00:08:21 2026
-# Process ID: 3995050
+# Start of session at: Fri Apr 24 04:16:58 2026
+# Process ID: 1616474
 # Current directory: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.runs/minitpu_axi_smc_0_synth_1
 # Command line: vivado -log minitpu_axi_smc_0.vds -product Vivado -mode batch -messageDb vivado.pb -notrace -source minitpu_axi_smc_0.tcl
 # Log file: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.runs/minitpu_axi_smc_0_synth_1/minitpu_axi_smc_0.vds
 # Journal file: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.runs/minitpu_axi_smc_0_synth_1/vivado.jou
-# Running On: brg-zhang-xcel.ece.cornell.edu, OS: Linux, CPU Frequency: 3200.000 MHz, CPU Physical cores: 24, Host memory: 235732 MB
+# Running On: brg-zhang-xcel.ece.cornell.edu, OS: Linux, CPU Frequency: 3200.000 MHz, CPU Physical cores: 21, Host memory: 235732 MB
 #-----------------------------------------------------------
 source minitpu_axi_smc_0.tcl -notrace

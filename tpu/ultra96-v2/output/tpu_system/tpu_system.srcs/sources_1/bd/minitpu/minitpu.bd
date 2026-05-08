@@ -272,13 +272,13 @@
             "value": "0"
           },
           "c_m_axi_mm2s_data_width": {
-            "value": "64"
+            "value": "256"
           },
           "c_m_axi_s2mm_data_width": {
-            "value": "32"
+            "value": "256"
           },
           "c_m_axis_mm2s_tdata_width": {
-            "value": "64"
+            "value": "256"
           },
           "c_mm2s_burst_size": {
             "value": "16"
@@ -287,7 +287,7 @@
             "value": "16"
           },
           "c_s_axis_s2mm_tdata_width": {
-            "value": "32"
+            "value": "256"
           }
         },
         "interface_ports": {
@@ -342,10 +342,33 @@
         "xci_path": "ip/minitpu_tpu_0_0/minitpu_tpu_0_0.xci",
         "inst_hier_path": "tpu_0",
         "interface_ports": {
+          "m_axi": {
+            "vlnv": "xilinx.com:interface:aximm_rtl:1.0",
+            "mode": "Master",
+            "address_space_ref": "m_axi",
+            "base_address": {
+              "minimum": "0x00000000",
+              "maximum": "0xFFFFFFFF",
+              "width": "32"
+            },
+            "parameters": {
+              "master_id": {
+                "value": "3"
+              }
+            }
+          },
           "s00_axi": {
             "vlnv": "xilinx.com:interface:aximm_rtl:1.0",
             "mode": "Slave",
             "memory_map_ref": "s00_axi"
+          }
+        },
+        "addressing": {
+          "address_spaces": {
+            "m_axi": {
+              "range": "4G",
+              "width": "32"
+            }
           }
         }
       },
@@ -762,7 +785,7 @@
             "value": "1"
           },
           "NUM_SI": {
-            "value": "2"
+            "value": "3"
           }
         },
         "interface_ports": {
@@ -798,13 +821,29 @@
               "M00_AXI"
             ]
           },
+          "S02_AXI": {
+            "mode": "Slave",
+            "vlnv_bus_definition": "xilinx.com:interface:aximm:1.0",
+            "vlnv": "xilinx.com:interface:aximm_rtl:1.0",
+            "parameters": {
+              "NUM_READ_OUTSTANDING": {
+                "value": "2"
+              },
+              "NUM_WRITE_OUTSTANDING": {
+                "value": "2"
+              }
+            },
+            "bridges": [
+              "M00_AXI"
+            ]
+          },
           "M00_AXI": {
             "mode": "Master",
             "vlnv_bus_definition": "xilinx.com:interface:aximm:1.0",
             "vlnv": "xilinx.com:interface:aximm_rtl:1.0",
             "parameters": {
               "MAX_BURST_LENGTH": {
-                "value": "8"
+                "value": "256"
               },
               "NUM_READ_OUTSTANDING": {
                 "value": "16"
@@ -875,6 +914,12 @@
           "axi_dma_0/S_AXIS_S2MM"
         ]
       },
+      "tpu_0_m_axi": {
+        "interface_ports": [
+          "tpu_0/m_axi",
+          "axi_smc/S02_AXI"
+        ]
+      },
       "zynq_ps_M_AXI_HPM0_LPD": {
         "interface_ports": [
           "zynq_ps/M_AXI_HPM0_LPD",
@@ -899,7 +944,8 @@
           "axi_dma_0/axi_resetn",
           "tpu_0/s00_axi_aresetn",
           "tpu_0/s00_axis_aresetn",
-          "tpu_0/m00_axis_aresetn"
+          "tpu_0/m00_axis_aresetn",
+          "tpu_0/m_axi_aresetn"
         ]
       },
       "zynq_ps_pl_clk0": {
@@ -918,7 +964,8 @@
           "zynq_ps/saxihp0_fpd_aclk",
           "tpu_0/s00_axi_aclk",
           "tpu_0/s00_axis_aclk",
-          "tpu_0/m00_axis_aclk"
+          "tpu_0/m00_axis_aclk",
+          "tpu_0/m_axi_aclk"
         ]
       },
       "zynq_ps_pl_resetn0": {
@@ -959,6 +1006,19 @@
             }
           },
           "Data_S2MM": {
+            "segments": {
+              "SEG_zynq_ps_HP0_DDR_LOW": {
+                "address_block": "/zynq_ps/SAXIGP2/HP0_DDR_LOW",
+                "offset": "0x00000000",
+                "range": "2G"
+              }
+            }
+          }
+        }
+      },
+      "/tpu_0": {
+        "address_spaces": {
+          "m_axi": {
             "segments": {
               "SEG_zynq_ps_HP0_DDR_LOW": {
                 "address_block": "/zynq_ps/SAXIGP2/HP0_DDR_LOW",

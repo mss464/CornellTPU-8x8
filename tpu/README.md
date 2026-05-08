@@ -14,7 +14,7 @@ The Mini-TPU memory subsystem is organized in three tiers:
 |:-----|:----------|:------|:---------|:------|:----------------|
 | **Host (PS)** | LPDDR4 System RAM | 64-bit | 2 GB | 533 MHz | ~4.2 GB/s |
 | **Interconnect** | AXI DMA / Stream | 128-bit | — | 100 MHz | 1.6 GB/s |
-| **Device Memory** | 8-Bank BRAM | 256-bit | 256 KB | 100 MHz | 3.2 GB/s |
+| **Bulk Storage (L2 Cache)** | 8-Bank BRAM | 256-bit | 256 KB | 100 MHz | 3.2 GB/s |
 | **Scratchpad (L1)** | 8-Bank Interleaved | 256-bit (compute) / 32-bit (scalar) | 32 KB | 100 MHz | 3.2 GB/s |
 | **Instruction RAM** | Dual-Port BRAM | 64-bit | 2 KB (256 entries) | 100 MHz | — |
 
@@ -57,11 +57,11 @@ The host communicates with the TPU through three AXI interfaces, all managed by 
 ### 1.3 AXI4-Full (Direct MMIO)
 - **Module:** [`axi_full_slave.v`](src/system/axi_full_slave.v)
 - **Bus Width:** 32-bit data, 18-bit address
-- **Purpose:** Direct register-style read/write access to Device Memory (System Memory) without going through the DMA engine. Supports AXI burst transactions. Used for small, random-access reads/writes.
+- **Purpose:** Direct register-style read/write access to Bulk Storage (L2 Cache) (System Memory) without going through the DMA engine. Supports AXI burst transactions. Used for small, random-access reads/writes.
 
 ---
 
-## 2. Device Memory (System Memory)
+## 2. Bulk Storage (L2 Cache) (System Memory)
 
 ![DMA Data Flow](docs/images/dma_data_flow.png)
 
@@ -74,7 +74,7 @@ The host communicates with the TPU through three AXI interfaces, all managed by 
 
 ### How It Works
 
-Device Memory serves as the staging buffer between the host and the compute tile. Data flows in via DMA and is later copied to the scratchpad for computation.
+Bulk Storage (L2 Cache) serves as the staging buffer between the host and the compute tile. Data flows in via DMA and is later copied to the scratchpad for computation.
 
 **Write path:** The DMA stream writes 256-bit words across all 8 banks in parallel using Port A. The `dma_write_pointer` from the stream slave module provides the sequential address.
 
@@ -96,6 +96,65 @@ Port A (DMA):  All banks read/written in parallel at the same row address
 Port B (Scalar): Only the selected bank is accessed per cycle
 ```
 
+
+### Double Buffering and Concurrency
+
+The Mini-TPU memory subsystem supports concurrent execution of DMA data transfers and compute operations. By utilizing **double buffering** techniques, the host can effectively hide memory transfer latency:
+
+```mermaid
+graph TD
+    Host[Host AXI-Lite Doorbell] -->|Triggers| Arbiter{Top-Level Arbiter}
+    
+    subgraph DMA Channel
+        Arbiter -->|Modes 1,2,4,5,6| MemCtrl[Memory Controller FSM]
+        MemCtrl <-->|Scalar & DMA| L2[Bulk Storage L2]
+        MemCtrl <-->|Port A| L1[Scratchpad L1]
+    end
+    
+    subgraph Compute Channel
+        Arbiter -->|Mode 3| CompCtrl[Compute Controller FSM]
+        CompCtrl -->|Execution| ComputeTile[Compute Units]
+        ComputeTile <-->|Port B Wide| L1
+    end
+```
+
+Because the memory subsystem separates the DMA AXI-Stream channel from the internal `sys↔onchip` scalar copy channel, these independent data paths can be fully overlapped. This allows continuous, uninterrupted compute execution.
+
+#### Dual FSM Architecture
+
+The concurrency is driven by two independent state machines running in parallel within `mem_top`. The host can trigger DMA operations and compute operations independently, and poll their completion status separately (`dma_idle` and `compute_idle`).
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    state "Memory Controller (DMA/Copy)" as DMA {
+        [*] --> IDLE_MEM
+        IDLE_MEM --> DMA_WRITE : Mode 1
+        IDLE_MEM --> DMA_READ : Mode 2
+        IDLE_MEM --> SYS_TO_OC : Mode 5
+        IDLE_MEM --> OC_TO_SYS : Mode 6
+        DMA_WRITE --> IDLE_MEM
+        DMA_READ --> IDLE_MEM
+        SYS_TO_OC --> IDLE_MEM
+        OC_TO_SYS --> IDLE_MEM
+    }
+    
+    state "Compute Controller" as COMP {
+        [*] --> IDLE_COMP
+        IDLE_COMP --> FETCH : Mode 3
+        FETCH --> DECODE
+        DECODE --> EXECUTE
+        EXECUTE --> FETCH : Loop
+        DECODE --> HALT : Op=0x3FF
+        HALT --> IDLE_COMP
+    }
+```
+
+1. **Ping-Pong Buffering in Scratchpad (L1):** 
+   While the compute tile is actively executing operations on data located in the first half of the Scratchpad (L1), the memory controller (`mem_ctrl`) can concurrently copy the next batch of data from the Bulk Storage (L2 Cache) into the second half of the Scratchpad.
+2. **Ping-Pong Buffering in Bulk Storage (L2):** 
+   Similarly, while `mem_ctrl` is busy copying data between the Bulk Storage and the Scratchpad, the host can simultaneously use the AXI DMA engine to stream new data from LPDDR4 System RAM directly into a different address region of the Bulk Storage.
+
 ---
 
 ## 3. Memory Controller FSM
@@ -107,10 +166,10 @@ Port B (Scalar): Only the selected bank is accessed per cycle
 
 | Mode | Name | Direction | Mechanism |
 |:-----|:-----|:----------|:----------|
-| 1 | `DMA_WRITE` | Host → Device Memory | AXI-Stream slave receives 256-bit beats |
-| 2 | `DMA_READ` | Device Memory → Host | AXI-Stream master sends 256-bit beats |
-| 5 | `SYS_TO_OC` | Device Memory → Scratchpad | 32-bit scalar copy via Port B → Port A |
-| 6 | `OC_TO_SYS` | Scratchpad → Device Memory | 32-bit scalar copy via Port A → Port B |
+| 1 | `DMA_WRITE` | Host → Bulk Storage (L2 Cache) | AXI-Stream slave receives 256-bit beats |
+| 2 | `DMA_READ` | Bulk Storage (L2 Cache) → Host | AXI-Stream master sends 256-bit beats |
+| 5 | `SYS_TO_OC` | Bulk Storage (L2 Cache) → Scratchpad | 32-bit scalar copy via Port B → Port A |
+| 6 | `OC_TO_SYS` | Scratchpad → Bulk Storage (L2 Cache) | 32-bit scalar copy via Port A → Port B |
 
 ### FSM State Diagram
 
@@ -245,12 +304,12 @@ Read data (`bram_dout_b`) is broadcast to all three units simultaneously.
 | Mode | Name | What Happens |
 |:-----|:-----|:-------------|
 | 0 | IDLE | No operation |
-| 1 | DMA_WRITE | Host → Device Memory via AXI-Stream |
-| 2 | DMA_READ | Device Memory → Host via AXI-Stream |
+| 1 | DMA_WRITE | Host → Bulk Storage (L2 Cache) via AXI-Stream |
+| 2 | DMA_READ | Bulk Storage (L2 Cache) → Host via AXI-Stream |
 | 3 | COMPUTE | Execute program from IRAM on compute tile |
 | 4 | WRITE_IRAM | Host → Instruction RAM via AXI-Stream |
-| 5 | SYS_TO_OC | Device Memory → Scratchpad (32-bit copy) |
-| 6 | OC_TO_SYS | Scratchpad → Device Memory (32-bit copy) |
+| 5 | SYS_TO_OC | Bulk Storage (L2 Cache) → Scratchpad (32-bit copy) |
+| 6 | OC_TO_SYS | Scratchpad → Bulk Storage (L2 Cache) (32-bit copy) |
 
 ### Arbiter FSM
 
@@ -268,14 +327,14 @@ Both channels can complete independently. The host polls `dma_idle` and `compute
 A complete matrix multiplication involves these steps:
 
 ```
-1. Host writes weight matrix A to Device Memory        (Mode 1: DMA_WRITE)
-2. Host writes input matrix B to Device Memory          (Mode 1: DMA_WRITE)
+1. Host writes weight matrix A to Bulk Storage (L2 Cache)        (Mode 1: DMA_WRITE)
+2. Host writes input matrix B to Bulk Storage (L2 Cache)          (Mode 1: DMA_WRITE)
 3. Host writes compute program to IRAM                  (Mode 4: WRITE_IRAM)
-4. Copy A from Device Memory → Scratchpad               (Mode 5: SYS_TO_OC)
-5. Copy B from Device Memory → Scratchpad               (Mode 5: SYS_TO_OC)
+4. Copy A from Bulk Storage (L2 Cache) → Scratchpad               (Mode 5: SYS_TO_OC)
+5. Copy B from Bulk Storage (L2 Cache) → Scratchpad               (Mode 5: SYS_TO_OC)
 6. Execute compute program (MXU multiply)               (Mode 3: COMPUTE)
-7. Copy result from Scratchpad → Device Memory          (Mode 6: OC_TO_SYS)
-8. Host reads result from Device Memory                  (Mode 2: DMA_READ)
+7. Copy result from Scratchpad → Bulk Storage (L2 Cache)          (Mode 6: OC_TO_SYS)
+8. Host reads result from Bulk Storage (L2 Cache)                  (Mode 2: DMA_READ)
 ```
 
 ---
@@ -312,7 +371,7 @@ The board tests (`board_tests/test_mem_system.py`) validate:
 | `mmio_write_read` | AXI4-Full MMIO write + readback |
 | `mmio_random_access` | Random address MMIO verification |
 | `dma_write_read` | DMA round-trip (write → read → verify) |
-| `sys_to_onchip` | Device Memory → Scratchpad copy + verify |
+| `sys_to_onchip` | Bulk Storage (L2 Cache) → Scratchpad copy + verify |
 | `onchip_roundtrip` | Full sys→OC→sys round-trip |
 | `bitpattern_deadbeef` | Stress test with `0xDEADBEEF` pattern |
 

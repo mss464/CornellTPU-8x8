@@ -83,7 +83,14 @@ file mkdir $artifacts_dir
 # Step 1: Create Project
 ################################################################################
 puts "\n>>> Step 1: Creating project..."
-file delete -force $proj_dir
+if {[file exists $proj_dir]} {
+    # Try clean delete first; if NFS stale handles block it, rename out of the way
+    if {[catch {file delete -force $proj_dir}]} {
+        set stale_dir "${proj_dir}_stale_[clock seconds]"
+        puts "  WARNING: Cannot delete $proj_dir (NFS stale handles), renaming to $stale_dir"
+        catch {file rename -force $proj_dir $stale_dir}
+    }
+}
 create_project $proj_name $proj_dir -part $part -force
 set_property verilog_define {TARGET_FPGA=1} [current_fileset]
 

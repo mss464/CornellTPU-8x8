@@ -1,21 +1,25 @@
 `timescale 1 ns / 1 ps
 // ============================================================================
-// mem_top.sv — Memory Subsystem Top-Level
+// mem_top.sv — TPU Top-Level with Memory + Compute
 //
-// Simplified TPU top-level with only the memory hierarchy:
-//   Host (PS) ↔ System Memory (BRAM) ↔ On-Chip Memory (BRAM)
+// Expanded TPU top-level with full memory hierarchy and compute tile:
+//   Host (PS) ↔ System Memory (BRAM) ↔ On-Chip Memory (Scratchpad)
+//                                       ↕
+//                                  Compute Tile (MXU + VPU + VADD)
 //
 // Interfaces:
 //   - AXI-Lite slave  (s00_axi)  : control registers + doorbell
-//   - AXI-Stream slave (s00_axis): DMA write path (host → sys_mem)
+//   - AXI-Stream slave (s00_axis): DMA write path (host → sys_mem / IRAM)
 //   - AXI-Stream master(m00_axis): DMA read path  (sys_mem → host)
 //   - AXI4-Full slave  (s01_axi) : direct MMIO read/write to sys_mem
 //
 // Modes (doorbell-driven via AXI-Lite reg0):
 //   1 = DMA Write  : Host → System Memory
 //   2 = DMA Read   : System Memory → Host
-//   5 = SYS_TO_OC  : System Memory → On-Chip Memory
-//   6 = OC_TO_SYS  : On-Chip Memory → System Memory
+//   3 = COMPUTE    : Execute compute program from IRAM
+//   4 = WRITE_IRAM : Host → Instruction RAM (via DMA stream)
+//   5 = SYS_TO_OC  : System Memory → On-Chip Memory (Scratchpad)
+//   6 = OC_TO_SYS  : On-Chip Memory (Scratchpad) → System Memory
 //
 // AXI4-Full (s01_axi) provides direct MMIO to sys_mem (no doorbell needed).
 // ============================================================================
@@ -125,11 +129,13 @@ module mem_top #(
     reg         doorbell_clear;
 
     // Mode constants
-    localparam MODE_IDLE      = 4'd0;
-    localparam MODE_DMA_WRITE = 4'd1;
-    localparam MODE_DMA_READ  = 4'd2;
-    localparam MODE_SYS_TO_OC = 4'd5;
-    localparam MODE_OC_TO_SYS = 4'd6;
+    localparam MODE_IDLE       = 4'd0;
+    localparam MODE_DMA_WRITE  = 4'd1;
+    localparam MODE_DMA_READ   = 4'd2;
+    localparam MODE_COMPUTE    = 4'd3;
+    localparam MODE_WRITE_IRAM = 4'd4;
+    localparam MODE_SYS_TO_OC  = 4'd5;
+    localparam MODE_OC_TO_SYS  = 4'd6;
 
     // =========================================================================
     // FSM state tracking
@@ -138,7 +144,18 @@ module mem_top #(
     reg        fsm_start;
     wire       fsm_done;
 
-    wire instr_ready_w = !fsm_running;
+    // Compute subsystem
+    reg        compute_running;
+    wire       compute_done;
+    wire       cc_start_compute_tile;
+    wire       compute_tile_done;
+
+    // Instruction DMA
+    reg        dma_instr_write_en;
+    wire [63:0] dma_iram_din;
+    reg  [7:0]  iram_wr_addr;
+
+    wire instr_ready_w = !fsm_running && !compute_running;
 
     // =========================================================================
     // mem_ctrl wires
@@ -161,6 +178,10 @@ module mem_top #(
     wire [31:0] mc_oc_dout;
     wire        mc_oc_en;
     wire        mc_oc_we;
+
+    // mem_ctrl ↔ compute_tile (on-chip memory) Port A
+    // Note: mc_oc_* signals are 15-bit addr / 32-bit data in mem_ctrl,
+    // but compute_tile expects 13-bit ADDR_WIDTH. We use the lower 13 bits.
 
     // =========================================================================
     // AXI-Full ↔ sys_mem scalar port
@@ -200,21 +221,29 @@ module mem_top #(
     wire [255:0] sys_rd_data;
 
     // =========================================================================
-    // Arbiter FSM (single-channel, simplified)
+    // Arbiter FSM (multi-channel: DMA + Compute)
+    //
+    // DMA modes  (1/2/4/5/6) → fsm_running  / mem_ctrl
+    // Compute    (3)          → compute_running / compute_ctrl
     // =========================================================================
     reg [3:0] latched_mode;
 
     always @(posedge s00_axi_aclk or negedge s00_axi_aresetn) begin
         if (!s00_axi_aresetn) begin
-            fsm_running    <= 1'b0;
-            fsm_start      <= 1'b0;
-            doorbell_clear <= 1'b0;
-            latched_mode   <= 4'd0;
+            fsm_running        <= 1'b0;
+            fsm_start          <= 1'b0;
+            compute_running    <= 1'b0;
+            doorbell_clear     <= 1'b0;
+            latched_mode       <= 4'd0;
+            dma_instr_write_en <= 1'b0;
+            iram_wr_addr       <= 8'd0;
         end else begin
-            fsm_start      <= 1'b0;
-            doorbell_clear <= 1'b0;
+            fsm_start          <= 1'b0;
+            doorbell_clear     <= 1'b0;
+            dma_instr_write_en <= 1'b0;
 
             if (fsm_done) fsm_running <= 1'b0;
+            if (compute_done) compute_running <= 1'b0;
 
             if (doorbell) begin
                 doorbell_clear <= 1'b1;
@@ -230,8 +259,25 @@ module mem_top #(
                             fsm_start   <= 1'b1;
                         end
                     end
+                    MODE_COMPUTE: begin
+                        if (!compute_running || compute_done) begin
+                            compute_running <= 1'b1;
+                        end
+                    end
+                    MODE_WRITE_IRAM: begin
+                        if (!fsm_running || fsm_done) begin
+                            fsm_running        <= 1'b1;
+                            dma_instr_write_en <= 1'b1;
+                            iram_wr_addr       <= 8'd0;
+                        end
+                    end
                     default: ; // unknown mode — doorbell cleared, nothing started
                 endcase
+            end
+
+            // Track IRAM write address during DMA
+            if (dma_instr_write_en && stream_data_valid) begin
+                iram_wr_addr <= iram_wr_addr + 8'd1;
             end
         end
     end
@@ -296,7 +342,7 @@ module mem_top #(
         .write_pointer_stream(write_pointer),
         .done               (write_bram_done),
         .data_valid         (stream_data_valid),
-        .write_en           (mc_data_write_en),
+        .write_en           (mc_data_write_en || dma_instr_write_en),
         .tpu_mode_stream    (latched_mode[2:0])
     );
 
@@ -422,26 +468,44 @@ module mem_top #(
     );
 
     // =========================================================================
-    // On-Chip Memory
+    // Compute Controller FSM
     // =========================================================================
-    onchip_mem #(
-        .ADDR_WIDTH(15),
-        .DATA_WIDTH(32)
-    ) u_onchip_mem (
-        .clk   (s00_axi_aclk),
-        .rst_n (s00_axi_aresetn),
-        // Port A — mem_ctrl
-        .addr_a(mc_oc_addr),
-        .din_a (mc_oc_din),
-        .dout_a(mc_oc_dout),
-        .en_a  (mc_oc_en),
-        .we_a  (mc_oc_we),
-        // Port B — reserved (compute tile stub)
-        .addr_b(15'd0),
-        .din_b (32'd0),
-        .dout_b(),
-        .en_b  (1'b0),
-        .we_b  (1'b0)
+    compute_ctrl u_compute_ctrl (
+        .clk                (s00_axi_aclk),
+        .rst_n              (s00_axi_aresetn),
+        .start              (compute_running && !cc_start_compute_tile && !compute_tile_done),
+        .done               (compute_done),
+        .start_compute_tile (cc_start_compute_tile),
+        .compute_tile_done  (compute_tile_done)
+    );
+
+    // =========================================================================
+    // Compute Tile (replaces onchip_mem)
+    //   Scratchpad + Compute Core (MXU + VPU + VADD) + Decoder + PC + IRAM
+    // =========================================================================
+    compute_tile #(
+        .ADDR_WIDTH(13),
+        .DATA_WIDTH(32),
+        .NUM_BANKS (8)
+    ) u_compute_tile (
+        .clk            (s00_axi_aclk),
+        .rst_n          (s00_axi_aresetn),
+
+        // Compute control
+        .start          (cc_start_compute_tile),
+        .done           (compute_tile_done),
+
+        // Scalar DMA interface (Port A) — from mem_ctrl for sys↔OC
+        .oc_addr_a      (mc_oc_addr[12:0]),
+        .oc_din_a       (mc_oc_din),
+        .oc_dout_a      (mc_oc_dout),
+        .oc_en_a        (mc_oc_en),
+        .oc_we_a        (mc_oc_we),
+
+        // Instruction DMA interface
+        .instr_write_en (dma_instr_write_en && stream_data_valid),
+        .iram_addr      (iram_wr_addr),
+        .dma_iram_din   (dma_iram_din)
     );
 
 endmodule

@@ -134,19 +134,30 @@ foreach rtl_dir $rtl_dirs {
     set sv_files [concat $sv_files [glob -nocomplain -directory $rtl_dir *.sv]]
 }
 
-# Filter: only include files needed for mem_top design
+# Filter: only include files needed for mem_top design (with compute tile)
 set needed_files {
-    mem_top.sv mem_ctrl.sv device_mem.sv onchip_mem.sv axi_full_slave.sv
-    tpu_slave_axi_lite.v tpu_slave_axi_stream.v tpu_master_axi_stream.v fifo4.sv
+    mem_top.sv mem_ctrl.sv device_mem.sv axi_full_slave.sv
+    tpu_slave_axi_lite.v tpu_slave_axi_stream.v tpu_master_axi_stream.v
+    compute_ctrl.sv
+    compute_tile.sv compute_core.sv scratchpad.sv mem_wrapper.sv sram_behavioral.sv
+    mxu.sv systolic.sv pe.sv decoder.sv pc.sv
+    vpu_simd.sv vpu.sv vpu_op.sv vec_regfile.sv
+    dummy_unit.sv vadd.sv fp32_add.sv fp32_mul.sv fifo4.sv
 }
 
 set all_rtl_files [concat $v_files $sv_files]
 set filtered_files {}
+set seen_names {}
 foreach f $all_rtl_files {
     set fname [file tail $f]
     if {$fname in $needed_files} {
-        lappend filtered_files $f
-        puts "  Adding: $fname"
+        if {$fname in $seen_names} {
+            puts "  Skipping duplicate: $fname (from [file dirname $f])"
+        } else {
+            lappend filtered_files $f
+            lappend seen_names $fname
+            puts "  Adding: $fname (from [file dirname $f])"
+        }
     } else {
         puts "  Skipping: $fname (not in mem_top design)"
     }
@@ -197,15 +208,16 @@ set_property -dict [list \
 generate_target all [get_ips blk_mem_gen_2]
 export_ip_user_files -of_objects [get_ips blk_mem_gen_2] -no_script -force
 
-# blk_mem_gen_3: On-Chip Memory BRAM (32-bit × 32768, True Dual Port)
-puts "  Creating blk_mem_gen_3 (On-Chip Memory - 32-bit x 32768)..."
+# blk_mem_gen_0: Scratchpad Bank BRAM (32-bit × 8192, True Dual Port)
+# Used by mem_wrapper inside scratchpad.sv (8 banks × 1024 words each)
+puts "  Creating blk_mem_gen_0 (Scratchpad Bank - 32-bit x 1024)..."
 create_ip -name blk_mem_gen -vendor xilinx.com -library ip -version 8.4 \
-    -module_name blk_mem_gen_3
+    -module_name blk_mem_gen_0
 
 set_property -dict [list \
     CONFIG.Memory_Type {True_Dual_Port_RAM} \
     CONFIG.Write_Width_A {32} \
-    CONFIG.Write_Depth_A {32768} \
+    CONFIG.Write_Depth_A {1024} \
     CONFIG.Read_Width_A {32} \
     CONFIG.Write_Width_B {32} \
     CONFIG.Read_Width_B {32} \
@@ -217,10 +229,35 @@ set_property -dict [list \
     CONFIG.Byte_Size {9} \
     CONFIG.Operating_Mode_A {WRITE_FIRST} \
     CONFIG.Operating_Mode_B {WRITE_FIRST} \
-] [get_ips blk_mem_gen_3]
+] [get_ips blk_mem_gen_0]
 
-generate_target all [get_ips blk_mem_gen_3]
-export_ip_user_files -of_objects [get_ips blk_mem_gen_3] -no_script -force
+generate_target all [get_ips blk_mem_gen_0]
+export_ip_user_files -of_objects [get_ips blk_mem_gen_0] -no_script -force
+
+# blk_mem_gen_1: Instruction BRAM (64-bit × 256, True Dual Port)
+puts "  Creating blk_mem_gen_1 (Instruction BRAM - 64-bit x 256)..."
+create_ip -name blk_mem_gen -vendor xilinx.com -library ip -version 8.4 \
+    -module_name blk_mem_gen_1
+
+set_property -dict [list \
+    CONFIG.Memory_Type {True_Dual_Port_RAM} \
+    CONFIG.Write_Width_A {64} \
+    CONFIG.Write_Depth_A {256} \
+    CONFIG.Read_Width_A {64} \
+    CONFIG.Write_Width_B {64} \
+    CONFIG.Read_Width_B {64} \
+    CONFIG.Enable_A {Use_ENA_Pin} \
+    CONFIG.Enable_B {Use_ENB_Pin} \
+    CONFIG.Register_PortA_Output_of_Memory_Primitives {true} \
+    CONFIG.Register_PortB_Output_of_Memory_Primitives {true} \
+    CONFIG.Use_Byte_Write_Enable {false} \
+    CONFIG.Byte_Size {9} \
+    CONFIG.Operating_Mode_A {WRITE_FIRST} \
+    CONFIG.Operating_Mode_B {WRITE_FIRST} \
+] [get_ips blk_mem_gen_1]
+
+generate_target all [get_ips blk_mem_gen_1]
+export_ip_user_files -of_objects [get_ips blk_mem_gen_1] -no_script -force
 
 puts "  BRAM IPs created successfully."
 

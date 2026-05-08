@@ -20,6 +20,10 @@ ULTRA96_OUTPUT_DIR := $(ULTRA96_DIR)/output
 ULTRA96_PACKAGE_SCRIPT := $(ULTRA96_DIR)/package_tpu_ip.tcl
 ULTRA96_BUILD_SCRIPT := $(ULTRA96_DIR)/build_bd_bitstream.tcl
 
+COMPUTE_TILE_DIR := src/compute_tile
+ULTRA96_L2_TILE_DIR := src/l2_tile
+ULTRA96_SYSTEM_DIR := src/system
+
 # Common FPGA settings (override as needed)
 PART ?= xczu3eg-sbva484-1-i
 IP_NAME ?= cornell_tpu
@@ -34,6 +38,14 @@ VIVADO_SETTINGS ?= /opt/xilinx/Vitis/2023.2/settings64.sh
 VIVADO ?= vivado
 VIVADO_OPTS ?= -mode batch -nojournal
 VIVADO_ENV_HINT ?= "source $(VIVADO_SETTINGS)"
+
+# Board settings (default to Ultra96-V2)
+BOARD_IP ?= 132.236.59.68
+BOARD_USER ?= xilinx
+BOARD_PASS ?= xilinx
+DEPLOY_DIR ?= /home/xilinx/minitpu_deploy
+PROJECT_ROOT ?= $(shell pwd)
+ROOT ?= $(PROJECT_ROOT)
 VIVADO_CHECK = command -v $(VIVADO) >/dev/null 2>&1 || \
 	{ echo "Vivado not found on PATH. Run: $(VIVADO_ENV_HINT)"; exit 2; }
 # VIVADO_RUN: Use with additional arguments, e.g., $(call VIVADO_RUN,-source script.tcl)
@@ -163,12 +175,14 @@ $(ULTRA96_BITSTREAM): $(ULTRA96_COMPONENT_XML)
 # -----------------------------------------------------------------------------
 # Memory Subsystem IP + Bitstream
 # -----------------------------------------------------------------------------
-mem-ip: $(COMPUTE_TILE_DIR)/*.sv $(ULTRA96_FPGA_RTL_DIR)/*.v $(ULTRA96_FPGA_RTL_DIR)/*.sv $(ULTRA96_L2_TILE_DIR)/*.sv
-	@echo "Packaging mem_subsys IP..."
+mem-ip: $(COMPUTE_TILE_DIR)/*.sv $(ULTRA96_SYSTEM_DIR)/*.v $(ULTRA96_SYSTEM_DIR)/*.sv $(TENSORCORE_DIR)/*.sv
+	@echo "Packaging mem_subsys IP (with compute tile)..."
 	@mkdir -p $(ULTRA96_IP_REPO_DIR)
 	$(call VIVADO_RUN,-source scripts/package_mem_ip.tcl -tclargs \
 		-ip_name mem_subsys -part $(PART) \
-		-rtl_dir $(ULTRA96_FPGA_RTL_DIR) \
+		-rtl_dir $(ULTRA96_SYSTEM_DIR) \
+		-rtl_dir $(TENSORCORE_DIR) \
+		-rtl_dir $(COMPUTE_TILE_DIR) \
 		-repo_out $(ULTRA96_IP_REPO_DIR))
 
 mem-bitstream: mem-ip

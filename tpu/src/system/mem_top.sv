@@ -357,6 +357,8 @@ module mem_top #(
     // =========================================================================
     // AXI-Stream Master (DMA read)
     // =========================================================================
+    wire rd_cmd_valid;
+    wire device_mem_rd_valid;
     // ── Pipeline valid signal to match BRAM latency ───────────────────
     // bram_latency_q1: 1 cycle delay (matches 1-cycle BRAM read)
     // bram_latency_q2: 2 cycle delay (matches 2-cycle BRAM read)
@@ -392,7 +394,7 @@ module mem_top #(
         .read_pointer_stream(read_pointer),
         .rd_cmd_valid   (rd_cmd_valid),
         .device_mem_rd_ready (1'b1),
-        .device_mem_rd_valid (device_mem_rd_valid_q)
+        .device_mem_rd_valid (device_mem_rd_valid)
     );
 
     // =========================================================================

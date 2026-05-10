@@ -424,8 +424,8 @@ class MemDriver:
                     time.sleep(0.01)
                     raise TimeoutError(
                         f"RECV DMA TIMEOUT: S2MM_SR=0x{sr:08X} | "
-                        f"Stream: state={(debug_stream>>16)&0xFF} empty={(debug_stream>>9)&1} full={(debug_stream>>8)&1} sent={debug_stream&0xFF} | "
-                        f"MC: state={(debug_mc>>16)&0xFF} issued={debug_mc&0xFF}"
+                        f"Stream: state={(debug_stream>>20)&0x3} empty={(debug_stream>>13)&1} full={(debug_stream>>12)&1} sent={debug_stream&0xFF} | "
+                        f"MC: state={(debug_mc>>16)&0x7} issued={debug_mc&0xFF}"
                     )
                 time.sleep(0.0001)
 

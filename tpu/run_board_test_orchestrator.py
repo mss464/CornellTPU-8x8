@@ -10,10 +10,28 @@ def run_test():
     remote_root = "/home/xilinx/minitpu_deploy"
     bitstream_name = "mem_bd.bit"
     hwh_name = "mem_bd.hwh"
-    local_bitstream = f"/home/mss464/minitpu/tpu/ultra96-v2/output/artifacts/{bitstream_name}"
-    local_hwh = f"/home/mss464/minitpu/tpu/ultra96-v2/output/artifacts/{hwh_name}"
-    local_test_script = "/home/mss464/minitpu/tpu/board_tests/test_mem_system.py"
-    local_driver = "/home/mss464/minitpu/tpu/runtime/pynq_host.py"
+    tpu_root = os.path.dirname(os.path.abspath(__file__))
+    artifact_dir = os.environ.get("TPU_ARTIFACT_DIR")
+    if artifact_dir is None:
+        for candidate in (
+            os.path.join(tpu_root, "ultra96-v2", "output", "artifacts"),
+            os.path.join(tpu_root, "build", "artifacts"),
+        ):
+            if (os.path.exists(os.path.join(candidate, bitstream_name)) and
+                    os.path.exists(os.path.join(candidate, hwh_name))):
+                artifact_dir = candidate
+                break
+    if artifact_dir is None:
+        raise FileNotFoundError(f"Could not find {bitstream_name}/{hwh_name}")
+
+    local_bitstream = os.path.join(artifact_dir, bitstream_name)
+    local_hwh = os.path.join(artifact_dir, hwh_name)
+    local_test_script = os.path.join(tpu_root, "board_tests", "test_mem_system.py")
+    local_driver = os.path.join(tpu_root, "runtime", "pynq_host.py")
+
+    for path in (local_bitstream, local_hwh, local_test_script, local_driver):
+        if not os.path.exists(path):
+            raise FileNotFoundError(path)
     
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -29,6 +47,7 @@ def run_test():
         sftp = ssh.open_sftp()
         print("Opened SFTP session.", flush=True)
         print("Uploading test files and bitstream...", flush=True)
+        print(f"Using artifacts from: {artifact_dir}", flush=True)
         sftp.put(local_test_script, f"{remote_root}/board_tests/test_mem_system.py")
         sftp.put(local_driver, f"{remote_root}/runtime/pynq_host.py")
         sftp.put(local_bitstream, f"{remote_root}/{bitstream_name}")

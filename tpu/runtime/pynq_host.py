@@ -43,6 +43,10 @@ DOORBELL_BIT = 0x10  # bit 4 of mode register
 
 DMA_TRANSFER_TIMEOUT = 8.0  # seconds
 
+DMA_SR_ERR     = 0x0070
+DMA_SR_IOC_IRQ = 0x1000
+DMA_SR_IRQS    = 0x7000
+
 
 def _dma_wait(channel, timeout=DMA_TRANSFER_TIMEOUT):
     """Wait for a PYNQ DMA channel with a timeout."""
@@ -209,6 +213,10 @@ class MemDriver:
         # slv_reg0: [3:0]=mode, [4]=doorbell, [7]=latency_mode
         val = (self.latency_mode << 7) | DOORBELL_BIT | (mode & 0xF)
         self.mmio.write(REG_ADDR["mode"], val)
+        # Read back as an AXI-Lite ordering barrier. The doorbell bit may
+        # already be auto-cleared by hardware, so do not validate its value.
+        self.mmio.read(REG_ADDR["mode"])
+        time.sleep(1e-6)
 
     def _reset_dma_channels(self):
         """Hard-reset both DMA channels to clear any error state."""
@@ -338,6 +346,7 @@ class MemDriver:
                 time.sleep(0.0001)
 
             # 2. Clear reset, enable IOC, run
+            self.dma.write(0x04, DMA_SR_IRQS)  # clear stale status IRQs
             self.dma.write(0x00, 0x10001)  # RS=1, IOC_IrqEn=1
             self.wait_stream_ready() # Wait for TPU to be ready for the stream
             time.sleep(0.001)
@@ -351,9 +360,9 @@ class MemDriver:
             deadline = time.time() + DMA_TRANSFER_TIMEOUT
             while True:
                 sr = self.dma.read(0x04)
-                if sr & 0x1002:  # IOC_Irq or Idle
+                if sr & DMA_SR_IOC_IRQ:
                     break
-                if sr & 0x70:
+                if sr & DMA_SR_ERR:
                     raise RuntimeError(f"MM2S error: SR=0x{sr:08X}")
                 if time.time() > deadline:
                     self.dma.write(0x00, 0x4)
@@ -389,6 +398,7 @@ class MemDriver:
                 time.sleep(0.0001)
 
             # 2. Clear reset, enable IOC interrupt
+            self.dma.write(0x34, DMA_SR_IRQS)  # clear stale status IRQs
             self.dma.write(0x30, 0x1)  # RS=1
             time.sleep(0.001)
             self.dma.write(0x30, 0x10001)  # RS=1, IOC_IrqEn=1
@@ -409,13 +419,14 @@ class MemDriver:
             self._doorbell(Mode.DMA_READ)
             self.wait_stream_ready()
 
-            # Poll S2MM status for completion (IOC_Irq = bit 12, or Idle = bit 1)
+            # Poll S2MM status for real completion. Idle alone is not enough:
+            # an idle channel with no IOC means the stream never wrote this buf.
             deadline = time.time() + DMA_TRANSFER_TIMEOUT
             while True:
                 sr = self.dma.read(0x34)
-                if sr & 0x1002:  # IOC_Irq or Idle
+                if sr & DMA_SR_IOC_IRQ:
                     break
-                if sr & 0x70:  # any error bit
+                if sr & DMA_SR_ERR:  # any error bit
                     raise RuntimeError(f"S2MM error during read: SR=0x{sr:08X}")
                 if time.time() > deadline:
                     debug_stream = self.mmio.read(REG_ADDR["debug_stream"])

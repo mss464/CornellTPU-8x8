@@ -35,6 +35,8 @@ REG_ADDR = {
     "addr_sys":      0x0C,   # system memory base address (word addr)
     "addr_onchip":   0x10,   # on-chip memory base address (word addr)
     "length":        0x18,   # transfer length (in 256-bit beats for DMA, words for copy)
+    "debug_stream":  0x34,   # slv_reg13: [23:16]=state, [9]=empty, [8]=full, [7:0]=beats_sent
+    "debug_mc":      0x38,   # slv_reg14: [23:16]=mc_state, [7:0]=reads_issued
 }
 
 DOORBELL_BIT = 0x10  # bit 4 of mode register
@@ -111,7 +113,8 @@ class MemDriver:
     """
 
     def __init__(self, bitstream=None, mem_name=None, dma_name=None,
-                 axi_full_name=None, program=False):
+                 axi_full_name=None, program=False, latency_mode=0):
+        self.latency_mode = latency_mode
         if Overlay is None:
             raise RuntimeError("pynq library not available")
 
@@ -203,7 +206,9 @@ class MemDriver:
 
     def _doorbell(self, mode):
         """Write mode + doorbell bit to trigger the FSM."""
-        self.mmio.write(REG_ADDR["mode"], mode | DOORBELL_BIT)
+        # slv_reg0: [3:0]=mode, [4]=doorbell, [7]=latency_mode
+        val = (self.latency_mode << 7) | DOORBELL_BIT | (mode & 0xF)
+        self.mmio.write(REG_ADDR["mode"], val)
 
     def _reset_dma_channels(self):
         """Hard-reset both DMA channels to clear any error state."""
@@ -384,6 +389,8 @@ class MemDriver:
                 time.sleep(0.0001)
 
             # 2. Clear reset, enable IOC interrupt
+            self.dma.write(0x30, 0x1)  # RS=1
+            time.sleep(0.001)
             self.dma.write(0x30, 0x10001)  # RS=1, IOC_IrqEn=1
             time.sleep(0.001)
             # 3. Set destination address
@@ -411,9 +418,15 @@ class MemDriver:
                 if sr & 0x70:  # any error bit
                     raise RuntimeError(f"S2MM error during read: SR=0x{sr:08X}")
                 if time.time() > deadline:
+                    debug_stream = self.mmio.read(REG_ADDR["debug_stream"])
+                    debug_mc     = self.mmio.read(REG_ADDR["debug_mc"])
                     self.dma.write(0x30, 0x4)
                     time.sleep(0.01)
-                    raise TimeoutError(f"RECV DMA TIMEOUT: S2MM_SR=0x{sr:08X}")
+                    raise TimeoutError(
+                        f"RECV DMA TIMEOUT: S2MM_SR=0x{sr:08X} | "
+                        f"Stream: state={(debug_stream>>16)&0xFF} empty={(debug_stream>>9)&1} full={(debug_stream>>8)&1} sent={debug_stream&0xFF} | "
+                        f"MC: state={(debug_mc>>16)&0xFF} issued={debug_mc&0xFF}"
+                    )
                 time.sleep(0.0001)
 
             # Acknowledge interrupt

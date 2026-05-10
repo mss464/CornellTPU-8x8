@@ -122,7 +122,8 @@ module mem_top #(
     wire [14:0] addr_onchip = slv_reg4_bus[14:0];
     wire [31:0] xfer_len    = slv_reg6_bus;
 
-    wire [3:0]  tpu_mode    = slv_reg0_bus[3:0];
+    wire [3:0]  tpu_mode     = slv_reg0_bus[3:0];
+    wire        latency_mode = slv_reg0_bus[7]; // 0=1-cycle, 1=2-cycle
 
     // Doorbell mechanism
     wire        doorbell;
@@ -165,6 +166,7 @@ module mem_top #(
     wire       mc_data_write_en;
     wire       mc_start_stream;
     wire       mc_read_en;
+    wire [2:0] mc_state;
 
     // mem_ctrl ↔ sys_mem scalar port
     wire [15:0] mc_sys_scalar_addr;
@@ -321,6 +323,8 @@ module mem_top #(
         .slv_reg4_out  (slv_reg4_bus),
         .slv_reg5_out  (slv_reg5_bus),
         .slv_reg6_out  (slv_reg6_bus),
+        .slv_reg13_in  ({8'd0, u_stream_master.state, 6'd0, u_stream_master.fifo_empty, u_stream_master.fifo_full, 4'd0, u_stream_master.beats_sent[7:0]}),
+        .slv_reg14_in  ({8'd0, mc_state, 8'd0, u_stream_master.reads_issued[7:0]}),
         .doorbell_out  (doorbell),
         .doorbell_clear(doorbell_clear)
     );
@@ -353,16 +357,21 @@ module mem_top #(
     // =========================================================================
     // AXI-Stream Master (DMA read)
     // =========================================================================
-    wire rd_cmd_valid;
-    reg  device_mem_rd_valid_q;
-
+    // ── Pipeline valid signal to match BRAM latency ───────────────────
+    // bram_latency_q1: 1 cycle delay (matches 1-cycle BRAM read)
+    // bram_latency_q2: 2 cycle delay (matches 2-cycle BRAM read)
+    reg bram_latency_q1, bram_latency_q2;
     always @(posedge m00_axis_aclk or negedge m00_axis_aresetn) begin
         if (!m00_axis_aresetn) begin
-            device_mem_rd_valid_q <= 1'b0;
+            bram_latency_q1 <= 1'b0;
+            bram_latency_q2 <= 1'b0;
         end else begin
-            device_mem_rd_valid_q <= rd_cmd_valid;
+            bram_latency_q1 <= rd_cmd_valid;
+            bram_latency_q2 <= bram_latency_q1;
         end
     end
+
+    assign device_mem_rd_valid = latency_mode ? bram_latency_q2 : bram_latency_q1;
 
     tpu_master_axi_stream #(
         .C_M_AXIS_TDATA_WIDTH(C_M00_AXIS_TDATA_WIDTH)
@@ -457,7 +466,8 @@ module mem_top #(
         .oc_din          (mc_oc_din),
         .oc_dout         (mc_oc_dout),
         .oc_en           (mc_oc_en),
-        .oc_we           (mc_oc_we)
+        .oc_we           (mc_oc_we),
+        .state_out       (mc_state)
     );
 
     // =========================================================================

@@ -56,7 +56,8 @@ module tpu_master_axi_stream #(
     // =========================================================================
     localparam [1:0] S_IDLE   = 2'd0,
                      S_FILL   = 2'd1,
-                     S_STREAM = 2'd2;
+                     S_STREAM = 2'd2,
+                     S_DRAIN  = 2'd3;
 
     reg [1:0] state;
 
@@ -231,10 +232,17 @@ module tpu_master_axi_stream #(
 
                         // Check if this was the last beat
                         if (beats_sent == len - 1) begin
-                            done_reg <= 1'b1;
-                            state    <= S_IDLE;
+                            state <= S_DRAIN;
                         end
                     end
+                end
+
+                // =============================================================
+                // DRAIN: Wait 1 cycle for FSM done pulse before clearing
+                // =============================================================
+                S_DRAIN: begin
+                    done_reg <= 1'b1;
+                    state    <= S_IDLE;
                 end
 
                 default: state <= S_IDLE;

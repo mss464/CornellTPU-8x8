@@ -58,8 +58,11 @@ module mem_ctrl (
     output reg  [31:0] oc_din,
     input  wire [31:0] oc_dout,
     output reg         oc_en,
-    output reg         oc_we
+    output reg         oc_we,
+    output wire [2:0]  state_out
 );
+
+    assign state_out = state;
 
     // Mode constants
     localparam MODE_DMA_WRITE = 4'd1;

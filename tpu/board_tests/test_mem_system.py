@@ -38,11 +38,19 @@ def _sigbus_handler(signum, frame):
 
 signal.signal(signal.SIGBUS, _sigbus_handler)
 
-# Allow import from sibling runtime/ directory in minitpu root (dev) or relative (board)
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'runtime'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'runtime'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'runtime'))
+# Prefer the runtime deployed beside this test over stale copies in $HOME/runtime.
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+for _path in (
+    os.path.join(_THIS_DIR, '..', '..', 'runtime'),
+    os.path.join(_THIS_DIR, 'runtime'),
+    os.path.join(_THIS_DIR, '..', 'runtime'),
+):
+    _path = os.path.abspath(_path)
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
 from pynq_host import MemDriver
+import pynq_host as _pynq_host
+print(f"Using pynq_host from: {_pynq_host.__file__}")
 
 
 # ── Test harness ────────────────────────────────────────────────────────────

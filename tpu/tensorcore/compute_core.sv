@@ -195,7 +195,7 @@ module compute_core #(
             2'b01: begin  // Systolic
                 bram_addr_b = systolic_addr;
                 bram_din_b  = systolic_din_b;
-                bram_en_b   = systolic_en_b;
+                bram_en_b   = systolic_en_b | systolic_we_b;
                 bram_we_b   = systolic_we_wide;
             end
 

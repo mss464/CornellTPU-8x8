@@ -72,7 +72,8 @@ ULTRA96_BIT_DEPS :=
 endif
 
 .PHONY: all help list-targets tensorcore-ip compute_tile-ip tpu-ip bitstream tpu clean \
-	clean-tensorcore clean-compute_tile clean-target mem-ip mem-bitstream mem-board-tests
+	clean-tensorcore clean-compute_tile clean-target mem-ip mem-bitstream mem-board-tests \
+	mem-benchmark
 
 all: bitstream
 
@@ -302,6 +303,13 @@ mem-board-tests:
 		PROGRAM_ABSPATH="$(abspath board_tests/test_mem_system.py)" \
 		EXTRA_FILES="$(ULTRA96_OUTPUT_DIR)/artifacts/mem_bd.bit $(ULTRA96_OUTPUT_DIR)/artifacts/mem_bd.hwh" \
 		PROGRAM_ABSPATH_ARGS="--bitstream mem_bd.bit $(BOARD_TEST_ARGS)"
+
+BENCH_ARGS ?=
+mem-benchmark:
+	@$(MAKE) board-test \
+		PROGRAM_ABSPATH="$(abspath benchmarks/mem_benchmark.py)" \
+		EXTRA_FILES="$(ULTRA96_OUTPUT_DIR)/artifacts/mem_bd.bit $(ULTRA96_OUTPUT_DIR)/artifacts/mem_bd.hwh" \
+		PROGRAM_ABSPATH_ARGS="--bitstream mem_bd.bit --program --latency 0 $(BENCH_ARGS)"
 
 clean: clean-compute_tile clean-tensorcore
 	@if [ "$(TARGET)" = "ultra96-v2" ]; then \

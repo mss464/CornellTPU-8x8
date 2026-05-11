@@ -159,6 +159,24 @@ def print_highlights(baseline, candidate, base_idx, cand_idx):
             print("- %s" % line)
 
 
+def print_skipped_rows(base_idx, cand_idx, all_keys):
+    lines = []
+    for rec_key in all_keys:
+        category, metric, words, _repeats = rec_key
+        for label, idx in (("baseline", base_idx), ("candidate", cand_idx)):
+            rec = idx.get(rec_key)
+            if rec and rec.get("skipped"):
+                reason = rec.get("reason", "no reason recorded")
+                lines.append("%s %s/%s (%d words): %s" %
+                             (label, category, metric, words, reason))
+
+    if lines:
+        print("")
+        print("Skipped Rows:")
+        for line in lines:
+            print("- %s" % line)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Compare two memory benchmark JSON files")
     parser.add_argument("baseline_json")
@@ -219,6 +237,7 @@ def main():
         ))
 
     print_highlights(baseline, candidate, base_idx, cand_idx)
+    print_skipped_rows(base_idx, cand_idx, all_keys)
 
     print("")
     print("Notes:")

@@ -55,6 +55,131 @@ def same_key(idx, record):
     return idx.get(key(record)) if record else None
 
 
+def common_pair(base_records, cand_idx, category, metric):
+    for base in sorted(matching(base_records, category, metric),
+                       key=lambda rec: int(rec.get("words", 0)),
+                       reverse=True):
+        cand = same_key(cand_idx, base)
+        if usable(base) and usable(cand):
+            return base, cand
+    return None, None
+
+
+def record_by_words(records, category, metric, words):
+    for rec in records:
+        if (rec.get("category") == category
+                and rec.get("metric") == metric
+                and int(rec.get("words", 0)) == int(words)):
+            return rec
+    return None
+
+
+def fmt_bw(record):
+    if not record or "median_MBps" not in record:
+        return "-"
+    return "%.1f MB/s" % record["median_MBps"]
+
+
+def fmt_advantage(speedup):
+    if speedup is None:
+        return "-"
+    if speedup >= 1.0:
+        return "%.2fx faster" % speedup
+    return "%.2fx as fast" % speedup
+
+
+def print_strength_scorecard(baseline, candidate, base_idx, cand_idx):
+    base_records = baseline.get("records", [])
+    cand_records = candidate.get("records", [])
+    rows = []
+
+    for category, metric, label in (
+        ("dma", "host_to_sysmem_write", "Host write bandwidth"),
+        ("dma", "sysmem_to_host_read", "Host read bandwidth"),
+        ("workload", "host_roundtrip_write_read", "Host write+read roundtrip"),
+    ):
+        b, c = common_pair(base_records, cand_idx, category, metric)
+        if usable(b) and usable(c):
+            speed = b["median_ms"] / c["median_ms"]
+            rows.append((
+                "%s (%d words)" % (label, int(b.get("words", 0))),
+                "%s, %s" % (fmt_ms(b["median_ms"]), fmt_bw(b)),
+                "%s, %s" % (fmt_ms(c["median_ms"]), fmt_bw(c)),
+                fmt_advantage(speed),
+            ))
+
+    c_compute = max_words(cand_records, "compute", "vadd_program")
+    b_compute = same_key(base_idx, c_compute)
+    if usable(b_compute) and usable(c_compute):
+        speed = b_compute["median_ms"] / c_compute["median_ms"]
+        rows.append((
+            "VADD compute (%d words x %d)" % (
+                int(c_compute.get("words", 0)),
+                int(c_compute.get("vadd_repeats", 0))),
+            "%s ms" % fmt_ms(b_compute["median_ms"]),
+            "%s ms" % fmt_ms(c_compute["median_ms"]),
+            fmt_advantage(speed),
+        ))
+
+    c_overlap = max_words(cand_records, "double_buffer", "overlapped_compute_and_dma")
+    if usable(c_overlap):
+        b_compute_for_overlap = same_key(base_idx, c_compute) if c_compute else None
+        b_next_dma = record_by_words(base_records, "dma", "host_to_sysmem_write",
+                                     int(c_overlap.get("words", 0)))
+        if usable(b_compute_for_overlap) and usable(b_next_dma):
+            baseline_serial = b_compute_for_overlap["median_ms"] + b_next_dma["median_ms"]
+            speed = baseline_serial / c_overlap["median_ms"]
+            rows.append((
+                "Pipeline compute + next DMA",
+                "serial estimate %.3f ms" % baseline_serial,
+                "overlapped %.3f ms" % c_overlap["median_ms"],
+                fmt_advantage(speed),
+            ))
+
+    c_serial = max_words(cand_records, "double_buffer", "serial_estimate_compute_plus_dma")
+    if usable(c_serial) and c_serial.get("speedup_vs_overlap"):
+        rows.append((
+            "Candidate double buffering",
+            "serial %.3f ms" % c_serial["median_ms"],
+            "overlap %.3f ms" % c_serial.get("overlap_median_ms", 0.0),
+            fmt_advantage(c_serial["speedup_vs_overlap"]),
+        ))
+
+    c_l1 = max_words(cand_records, "l1_copy", "sysmem_to_l1")
+    b_l1 = same_key(base_idx, c_l1)
+    if usable(c_l1) and (b_l1 is None or b_l1.get("skipped")):
+        rows.append((
+            "Explicit sysmem->L1 copy",
+            "not exposed",
+            "%s ms at %d words" % (fmt_ms(c_l1["median_ms"]), int(c_l1.get("words", 0))),
+            "candidate-only feature",
+        ))
+
+    c_vpu_model = max_words(cand_records, "banked_compute", "vpu_vector_add_model")
+    b_vpu_model = same_key(base_idx, c_vpu_model)
+    if usable(b_vpu_model) and usable(c_vpu_model):
+        speed = b_vpu_model["median_ms"] / c_vpu_model["median_ms"]
+        rows.append((
+            "8-bank VPU/L1 transaction model",
+            "%d transactions" % int(b_vpu_model.get("memory_transactions", 0)),
+            "%d transactions" % int(c_vpu_model.get("memory_transactions", 0)),
+            fmt_advantage(speed),
+        ))
+
+    if not rows:
+        return
+
+    print("")
+    print("Strength Scorecard:")
+    header = "%-36s %-24s %-24s %-18s" % (
+        "evaluation", "baseline", "candidate", "advantage"
+    )
+    print(header)
+    print("-" * len(header))
+    for row in rows:
+        print("%-36s %-24s %-24s %-18s" % row)
+
+
 def print_highlights(baseline, candidate, base_idx, cand_idx):
     base_records = baseline.get("records", [])
     cand_records = candidate.get("records", [])
@@ -236,6 +361,7 @@ def main():
             fmt_pct(mbps_delta),
         ))
 
+    print_strength_scorecard(baseline, candidate, base_idx, cand_idx)
     print_highlights(baseline, candidate, base_idx, cand_idx)
     print_skipped_rows(base_idx, cand_idx, all_keys)
 

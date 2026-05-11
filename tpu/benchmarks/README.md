@@ -12,6 +12,7 @@ The benchmark measures:
 
 - host to system-memory DMA write bandwidth
 - system-memory to host DMA read bandwidth
+- combined host write+read round-trip time
 - system-memory to L1 copy time
 - L1 to system-memory copy time
 - VADD compute time
@@ -157,6 +158,11 @@ python3 benchmarks/compare_mem_benchmarks.py \
   results/mem-base-strength.json \
   results/codex-system-mem-strength.json
 ```
+
+The comparison prints a `Strength Scorecard` above the detailed table. That
+scorecard is the easiest output to use in a report: it summarizes host DMA,
+host round-trip, VADD compute, overlapped compute+DMA, explicit L1 copy support,
+and the 8-bank L1 transaction model.
 
 Banked VPU head-to-head. The legacy baseline can only run one compute program
 per FPGA program, so use this focused mode when you want the direct scalar VPU

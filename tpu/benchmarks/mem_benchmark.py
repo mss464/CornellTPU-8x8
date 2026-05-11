@@ -410,6 +410,27 @@ def bench_dma(records, drv, sizes, repeats, warmups, verbose, verify):
             verify_equal("dma_read_%d" % words, got, data)
 
 
+def bench_host_roundtrip(records, drv, sizes, repeats, warmups, verbose, verify):
+    rng = np.random.RandomState(4321)
+    addr = 0
+
+    for words in sizes:
+        data = rng.rand(words).astype(np.float32)
+
+        def run_roundtrip():
+            drv.send_bytes(addr, data)
+            return drv.read_bytes(addr, words)
+
+        samples = timed_call(run_roundtrip, repeats, warmups, verbose)
+        add_record(records, "workload", "host_roundtrip_write_read", samples,
+                   words=words, bytes_moved=words * 8)
+
+        if verify:
+            with maybe_quiet(verbose):
+                got = drv.read_bytes(addr, words)
+            verify_equal("host_roundtrip_%d" % words, got, data)
+
+
 def bench_l1_copy(records, drv, sizes, repeats, warmups, verbose, verify):
     if not drv.supports_l1_copy():
         for words in sizes:
@@ -782,6 +803,8 @@ def main():
                          args.repeats, args.warmups, args.verbose, verify)
     else:
         bench_dma(records, drv, sizes, args.repeats, args.warmups, args.verbose, verify)
+        bench_host_roundtrip(records, drv, sizes, args.repeats, args.warmups,
+                             args.verbose, verify)
         bench_l1_copy(records, drv, copy_sizes, args.repeats, args.warmups, args.verbose, verify)
         compute, addr_out, expected_bits = bench_compute(
             records, drv, args.vadd_len, args.vadd_repeats,
@@ -791,6 +814,7 @@ def main():
                       compute_record=compute,
                       prepared_vadd=(addr_out, expected_bits) if addr_out is not None else None)
         if drv.compute_is_single_shot():
+            add_banked_vpu_model(records, drv, args.vpu_elems)
             add_skipped(records, "banked_compute", "vpu_vector_add",
                         "legacy baseline can only run one compute program per FPGA program; rerun with --banked-vpu-only",
                         words=args.vpu_elems)

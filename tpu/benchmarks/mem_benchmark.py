@@ -239,6 +239,22 @@ def make_vadd_program(vadd_len, repeats):
     return instr64, split_instr64(instr64), addr_a, addr_b, addr_out
 
 
+def make_mxu_program(repeats):
+    if repeats < 1 or repeats > 255:
+        raise ValueError("mxu repeats must be in [1, 255] so the HALT fits in 8-bit IRAM")
+
+    addr_w = 0
+    addr_x = 16
+    addr_out = 32
+
+    mxu = make_instr(mode=1, addr_a=addr_w, addr_b=addr_x, addr_out=addr_out,
+                     length=0, opcode=0)
+    halt = make_instr(mode=3, addr_a=0, addr_b=0, addr_out=0, length=0, opcode=0x3FF)
+
+    instr64 = ([mxu] * repeats) + [halt]
+    return instr64, split_instr64(instr64), addr_w, addr_x, addr_out
+
+
 def make_vpu_scalar_add_program(elems):
     if elems < 1:
         raise ValueError("vpu elems must be positive")
@@ -504,6 +520,41 @@ def verify_vadd_output(drv, addr_out, expected_bits, verbose):
         raise AssertionError("VADD output mismatch: %s" % "; ".join(details))
 
 
+def prepare_mxu(drv, mxu_repeats, verbose):
+    instr64, words, addr_w, _addr_x, addr_out = make_mxu_program(mxu_repeats)
+
+    # All-ones inputs make every 4x4 matmul output exactly 4.0. That keeps the
+    # benchmark robust to row/column ordering while still exercising all reads,
+    # the systolic datapath, and the output writeback path.
+    weights = np.ones(16, dtype=np.float32)
+    activations = np.ones(16, dtype=np.float32)
+    expected = np.full(16, 4.0, dtype=np.float32)
+
+    with maybe_quiet(verbose):
+        drv.load_instructions(instr64, words)
+        drv.send_bytes(0, np.concatenate([weights, activations]))
+        if drv.supports_l1_copy():
+            drv.sysmem_to_onchip(0, addr_w, weights.size + activations.size)
+    return addr_out, expected, len(instr64)
+
+
+def verify_mxu_output(drv, addr_out, expected, verbose):
+    result_sys = 45056
+    with maybe_quiet(verbose):
+        if drv.supports_l1_copy():
+            drv.onchip_to_sysmem(addr_out, result_sys, expected.size)
+            got = drv.read_bytes(result_sys, expected.size)
+        else:
+            got = drv.read_bytes(addr_out, expected.size)
+    if not np.allclose(got, expected, rtol=1e-5, atol=1e-6):
+        bad = np.flatnonzero(~np.isclose(got, expected, rtol=1e-5, atol=1e-6))[:8]
+        details = []
+        for idx in bad:
+            details.append("[%d] got %.8g expected %.8g" %
+                           (idx, float(got[idx]), float(expected[idx])))
+        raise AssertionError("MXU output mismatch: %s" % "; ".join(details))
+
+
 def prepare_vpu_add(drv, elems, verbose):
     if drv.is_legacy():
         instr64, words, addr_a, _addr_b, addr_out = make_vpu_scalar_add_program(elems)
@@ -648,6 +699,56 @@ def bench_compute(records, drv, vadd_len, vadd_repeats, repeats, warmups, verbos
     return compute, addr_out, expected_bits
 
 
+def bench_mxu(records, drv, mxu_repeats, repeats, warmups, verbose, verify):
+    try:
+        addr_out, expected, instr_count = prepare_mxu(drv, mxu_repeats, verbose)
+    except (AttributeError, ValueError) as exc:
+        add_skipped(records, "compute", "mxu_4x4_matmul",
+                    "driver/design cannot load or execute MXU program: %s" % exc,
+                    words=16,
+                    extra={"mxu_repeats": int(mxu_repeats),
+                           "mxu_macs": int(64 * mxu_repeats)})
+        return
+    except Exception as exc:
+        add_skipped(records, "compute", "mxu_4x4_matmul",
+                    "MXU setup failed before compute launch: %s" % exc,
+                    words=16,
+                    extra={"mxu_repeats": int(mxu_repeats),
+                           "mxu_macs": int(64 * mxu_repeats)})
+        return
+
+    sample_repeats = repeats
+    sample_warmups = warmups
+    extra = {
+        "mxu_repeats": int(mxu_repeats),
+        "mxu_macs": int(64 * mxu_repeats),
+        "instruction_count": int(instr_count),
+        "matrix_shape": "4x4x4",
+    }
+    if drv.compute_is_single_shot():
+        sample_repeats = 1
+        sample_warmups = 0
+        extra["single_shot"] = True
+        extra["single_shot_reason"] = (
+            "legacy mem-base PC does not reset between COMPUTE launches"
+        )
+
+    try:
+        samples = timed_call(lambda: drv.run_compute(async_run=False),
+                             sample_repeats, sample_warmups, verbose)
+        if verify:
+            verify_mxu_output(drv, addr_out, expected, verbose)
+    except Exception as exc:
+        add_skipped(records, "compute", "mxu_4x4_matmul",
+                    "MXU program did not complete correctly on this bitstream: %s" % exc,
+                    words=16,
+                    extra=extra)
+        return
+
+    add_record(records, "compute", "mxu_4x4_matmul", samples,
+               words=16, extra=extra)
+
+
 def bench_overlap(records, drv, vadd_len, vadd_repeats, dma_words,
                   repeats, warmups, verbose, verify, compute_record=None,
                   prepared_vadd=None):
@@ -776,8 +877,11 @@ def main():
     parser.add_argument("--copy-sizes", default="256,512,1024,2048,4096")
     parser.add_argument("--vadd-len", type=int, default=1024)
     parser.add_argument("--vadd-repeats", type=int, default=128)
+    parser.add_argument("--mxu-repeats", type=int, default=128)
     parser.add_argument("--vpu-elems", type=int, default=248)
     parser.add_argument("--dma-words", type=int, default=1024)
+    parser.add_argument("--mxu-only", action="store_true",
+                        help="Run only the 4x4 MXU matmul benchmark. Useful for legacy baselines with single-shot compute PCs.")
     parser.add_argument("--banked-vpu-only", action="store_true",
                         help="Run only the scalar-vs-banked VPU benchmark. Useful for legacy baselines with single-shot compute PCs.")
     parser.add_argument("--json-out", default=None)
@@ -798,7 +902,10 @@ def main():
                         latency_mode=args.latency)
 
     records = []
-    if args.banked_vpu_only:
+    if args.mxu_only:
+        bench_mxu(records, drv, args.mxu_repeats,
+                  args.repeats, args.warmups, args.verbose, verify)
+    elif args.banked_vpu_only:
         bench_banked_vpu(records, drv, args.vpu_elems,
                          args.repeats, args.warmups, args.verbose, verify)
     else:
@@ -809,6 +916,15 @@ def main():
         compute, addr_out, expected_bits = bench_compute(
             records, drv, args.vadd_len, args.vadd_repeats,
             args.repeats, args.warmups, args.verbose, verify)
+        if drv.compute_is_single_shot():
+            add_skipped(records, "compute", "mxu_4x4_matmul",
+                        "legacy baseline can only run one compute program per FPGA program; rerun with --mxu-only",
+                        words=16,
+                        extra={"mxu_repeats": int(args.mxu_repeats),
+                               "mxu_macs": int(64 * args.mxu_repeats)})
+        else:
+            bench_mxu(records, drv, args.mxu_repeats,
+                      args.repeats, args.warmups, args.verbose, verify)
         bench_overlap(records, drv, args.vadd_len, args.vadd_repeats, args.dma_words,
                       args.repeats, args.warmups, args.verbose, verify,
                       compute_record=compute,

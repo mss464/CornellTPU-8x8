@@ -16,6 +16,7 @@ The benchmark measures:
 - system-memory to L1 copy time
 - L1 to system-memory copy time
 - VADD compute time
+- MXU 4x4 matrix-multiply compute time
 - banked 8-lane VPU vector-add time versus the legacy scalar VPU path
 - overlapped compute plus DMA time, when the runtime exposes independent DMA and compute waits
 - an analytical 1-bank vs 8-bank L1 model for wide vector-access speedup
@@ -84,6 +85,11 @@ non-banked VADD time against the Codex branch's banked-L1 VADD time. The
 baseline compute row is single-shot because the legacy RTL does not reset its PC
 between repeated `COMPUTE` launches.
 
+The benchmark also includes an MXU 4x4 matrix multiply row. In the full
+strength run, the legacy baseline skips this row after VADD because that design
+can only launch one compute program per FPGA programming. Use the focused MXU
+run below for a direct measured MXU comparison.
+
 For `mem-base`, the runner auto-detects:
 
 - runtime: `compiler/tpu_deploy/host.py`
@@ -145,14 +151,14 @@ bash benchmarks/run_mem_benchmark_from_checkout.sh \
   --variant mem-base-strength \
   --board-ip 132.236.59.72 \
   --out results/mem-base-strength.json \
-  --bench-args "--repeats 5 --warmups 1 --sizes 1024,4096,8192 --copy-sizes 1024,2048,4096 --vadd-len 2048 --vadd-repeats 128 --vpu-elems 248 --dma-words 8192"
+  --bench-args "--repeats 5 --warmups 1 --sizes 1024,4096,8192 --copy-sizes 1024,2048,4096 --vadd-len 2048 --vadd-repeats 128 --mxu-repeats 128 --vpu-elems 248 --dma-words 8192"
 
 bash benchmarks/run_mem_benchmark_from_checkout.sh \
   --checkout ~/minitpu/tpu \
   --variant codex-system-mem-strength \
   --board-ip 132.236.59.72 \
   --out results/codex-system-mem-strength.json \
-  --bench-args "--repeats 5 --warmups 1 --sizes 1024,4096,8192 --copy-sizes 1024,2048,4096 --vadd-len 2048 --vadd-repeats 128 --vpu-elems 248 --dma-words 8192"
+  --bench-args "--repeats 5 --warmups 1 --sizes 1024,4096,8192 --copy-sizes 1024,2048,4096 --vadd-len 2048 --vadd-repeats 128 --mxu-repeats 128 --vpu-elems 248 --dma-words 8192"
 
 python3 benchmarks/compare_mem_benchmarks.py \
   results/mem-base-strength.json \
@@ -161,8 +167,32 @@ python3 benchmarks/compare_mem_benchmarks.py \
 
 The comparison prints a `Strength Scorecard` above the detailed table. That
 scorecard is the easiest output to use in a report: it summarizes host DMA,
-host round-trip, VADD compute, overlapped compute+DMA, explicit L1 copy support,
-and the 8-bank L1 transaction model.
+host round-trip, VADD compute, MXU matrix multiply, overlapped compute+DMA,
+explicit L1 copy support, and the 8-bank L1 transaction model.
+
+MXU head-to-head. This is a second compute benchmark besides VADD. It runs the
+4x4 systolic matrix multiply program by itself so the legacy baseline and the
+current design can both launch a fresh compute program after FPGA programming:
+
+```bash
+bash benchmarks/run_mem_benchmark_from_checkout.sh \
+  --checkout ~/minitpu-mem-base \
+  --variant mem-base-mxu \
+  --board-ip 132.236.59.72 \
+  --out results/mem-base-mxu.json \
+  --bench-args "--mxu-only --repeats 5 --warmups 1 --mxu-repeats 128"
+
+bash benchmarks/run_mem_benchmark_from_checkout.sh \
+  --checkout ~/minitpu/tpu \
+  --variant codex-system-mem-mxu \
+  --board-ip 132.236.59.72 \
+  --out results/codex-system-mem-mxu.json \
+  --bench-args "--mxu-only --repeats 5 --warmups 1 --mxu-repeats 128"
+
+python3 benchmarks/compare_mem_benchmarks.py \
+  results/mem-base-mxu.json \
+  results/codex-system-mem-mxu.json
+```
 
 Banked VPU head-to-head. The legacy baseline can only run one compute program
 per FPGA program, so use this focused mode when you want the direct scalar VPU

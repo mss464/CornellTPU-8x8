@@ -14,6 +14,7 @@ def key(record):
         record.get("metric", ""),
         int(record.get("words", 0)),
         int(record.get("vadd_repeats", 0)),
+        int(record.get("mxu_repeats", 0)),
     )
 
 
@@ -121,6 +122,17 @@ def print_strength_scorecard(baseline, candidate, base_idx, cand_idx):
             fmt_advantage(speed),
         ))
 
+    c_mxu = max_words(cand_records, "compute", "mxu_4x4_matmul")
+    b_mxu = same_key(base_idx, c_mxu)
+    if usable(b_mxu) and usable(c_mxu):
+        speed = b_mxu["median_ms"] / c_mxu["median_ms"]
+        rows.append((
+            "MXU 4x4 matmul (%d repeats)" % int(c_mxu.get("mxu_repeats", 0)),
+            "%s ms" % fmt_ms(b_mxu["median_ms"]),
+            "%s ms" % fmt_ms(c_mxu["median_ms"]),
+            fmt_advantage(speed),
+        ))
+
     c_overlap = max_words(cand_records, "double_buffer", "overlapped_compute_and_dma")
     if usable(c_overlap):
         b_compute_for_overlap = same_key(base_idx, c_compute) if c_compute else None
@@ -214,6 +226,21 @@ def print_highlights(baseline, candidate, base_idx, cand_idx):
             "VADD compute (%d words x %d repeats): candidate is %.2fx baseline%s"
             % (int(c_compute.get("words", 0)), int(c_compute.get("vadd_repeats", 0)),
                speed, note)
+        )
+
+    c_mxu = max_words(cand_records, "compute", "mxu_4x4_matmul")
+    b_mxu = same_key(base_idx, c_mxu)
+    if usable(b_mxu) and usable(c_mxu):
+        speed = b_mxu["median_ms"] / c_mxu["median_ms"]
+        note = ""
+        if b_mxu.get("single_shot"):
+            note = " (baseline single-shot)"
+        lines.append(
+            "MXU 4x4 matmul (%d repeats, %d MACs): candidate is %.2fx baseline%s"
+            % (int(c_mxu.get("mxu_repeats", 0)),
+               int(c_mxu.get("mxu_macs", 0)),
+               speed,
+               note)
         )
 
     c_vpu = max_words(cand_records, "banked_compute", "vpu_vector_add")

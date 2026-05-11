@@ -160,7 +160,9 @@ python3 benchmarks/compare_mem_benchmarks.py \
 
 Banked VPU head-to-head. The legacy baseline can only run one compute program
 per FPGA program, so use this focused mode when you want the direct scalar VPU
-versus 8-lane banked VPU result:
+versus 8-lane banked VPU result. If the current bitstream does not complete the
+experimental SIMD VPU program, the benchmark still writes a JSON file with a
+skipped measured row and a modeled 1-bank versus 8-bank L1 row:
 
 ```bash
 bash benchmarks/run_mem_benchmark_from_checkout.sh \

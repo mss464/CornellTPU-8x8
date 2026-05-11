@@ -111,6 +111,23 @@ def print_highlights(baseline, candidate, base_idx, cand_idx):
                 % (int(b_vpu["instruction_count"]), int(c_vpu["instruction_count"]))
             )
 
+    c_vpu_model = max_words(cand_records, "banked_compute", "vpu_vector_add_model")
+    b_vpu_model = same_key(base_idx, c_vpu_model)
+    if usable(b_vpu_model) and usable(c_vpu_model):
+        speed = b_vpu_model["median_ms"] / c_vpu_model["median_ms"]
+        lines.append(
+            "banked VPU memory model (%d elements): candidate is %.2fx baseline; paths %s -> %s"
+            % (int(c_vpu_model.get("words", 0)), speed,
+               b_vpu_model.get("path", "baseline_model"),
+               c_vpu_model.get("path", "candidate_model"))
+        )
+        if b_vpu_model.get("memory_transactions") and c_vpu_model.get("memory_transactions"):
+            lines.append(
+                "  modeled L1 transactions drop from %d to %d with 8-wide banked rows"
+                % (int(b_vpu_model["memory_transactions"]),
+                   int(c_vpu_model["memory_transactions"]))
+            )
+
     c_serial = max_words(cand_records, "double_buffer", "serial_estimate_compute_plus_dma")
     if usable(c_serial) and c_serial.get("speedup_vs_overlap"):
         lines.append(

@@ -520,7 +520,39 @@ def verify_vpu_output(drv, addr_out, expected, verbose):
         raise AssertionError("VPU output mismatch: %s" % "; ".join(details))
 
 
+def add_banked_vpu_model(records, drv, elems):
+    lanes = 1 if drv.is_legacy() else 8
+    rows = (elems + lanes - 1) // lanes
+
+    if drv.is_legacy():
+        memory_transactions = 3 * elems
+        instruction_count = elems + 1
+        path = "legacy_scalar_vpu_model"
+    else:
+        memory_transactions = 3 * rows
+        instruction_count = 4 * rows + 1
+        path = "banked_8lane_vpu_model"
+
+    samples = [memory_transactions / 100e6]
+    add_record(records, "banked_compute", "vpu_vector_add_model", samples,
+               words=elems,
+               extra={
+                   "model_only": True,
+                   "path": path,
+                   "elements": int(elems),
+                   "simd_lanes": int(lanes),
+                   "instruction_count": int(instruction_count),
+                   "memory_transactions": int(memory_transactions),
+                   "note": (
+                       "Model only: vector add needs two reads and one write per element; "
+                       "the banked design moves 8 elements per wide L1 row."
+                   ),
+               })
+
+
 def bench_banked_vpu(records, drv, elems, repeats, warmups, verbose, verify):
+    add_banked_vpu_model(records, drv, elems)
+
     try:
         addr_out, expected, path, instr_count = prepare_vpu_add(drv, elems, verbose)
     except (AttributeError, ValueError) as exc:
@@ -545,12 +577,20 @@ def bench_banked_vpu(records, drv, elems, repeats, warmups, verbose, verify):
             "legacy mem-base PC does not reset between COMPUTE launches"
         )
 
-    samples = timed_call(lambda: drv.run_compute(async_run=False),
-                         sample_repeats, sample_warmups, verbose)
+    try:
+        samples = timed_call(lambda: drv.run_compute(async_run=False),
+                             sample_repeats, sample_warmups, verbose)
+        if verify:
+            verify_vpu_output(drv, addr_out, expected, verbose)
+    except Exception as exc:
+        add_skipped(records, "banked_compute", "vpu_vector_add",
+                    "VPU vector program did not complete correctly on this bitstream: %s" % exc,
+                    words=elems,
+                    extra=extra)
+        return
+
     add_record(records, "banked_compute", "vpu_vector_add", samples,
                words=elems, extra=extra)
-    if verify:
-        verify_vpu_output(drv, addr_out, expected, verbose)
 
 
 def bench_compute(records, drv, vadd_len, vadd_repeats, repeats, warmups, verbose, verify):

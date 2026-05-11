@@ -268,7 +268,8 @@ class MemDriver:
         deadline = time.time() + timeout
         while not (self.mmio.read(offset) & 1):
             if time.time() > deadline:
-                raise TimeoutError("Timeout waiting for dma_idle")
+                regs = {k: hex(self.mmio.read(v)) for k, v in REG_ADDR.items()}
+                raise TimeoutError(f"Timeout waiting for dma_idle. Regs: {regs}")
             time.sleep(poll_delay)
 
     # ── Primary API: send_bytes / read_bytes ─────────────────────────────
@@ -510,39 +511,53 @@ class MemDriver:
     # ── Compute Tile API ──────────────────────────────────────────────────
 
     def load_instructions(self, instructions):
-        """Load a list of 32-bit instructions into the TPU's IRAM.
+        """Load a list of 32-bit instruction words into the TPU's IRAM.
         Instructions are sent via AXI-Stream (Mode 4).
         """
-        data = np.asarray(instructions, dtype=np.uint32).view(np.float32)
-        # Pad to 8-word boundary
-        pad_len = (8 - (data.size % 8)) % 8
-        if pad_len > 0:
-            data = np.pad(data, (0, pad_len), 'constant', constant_values=0)
+        instr_words = np.asarray(instructions, dtype=np.uint32).reshape(-1)
+        if instr_words.size % 2 != 0:
+            raise ValueError("Instruction stream must contain low/high 32-bit word pairs")
+
+        # The RTL writes S_AXIS_TDATA[63:0] into one IRAM entry per 256-bit beat.
+        # Pack each 64-bit instruction into the low two words of its own beat.
+        beat_words = np.zeros((instr_words.size // 2) * 8, dtype=np.uint32)
+        beat_words[0::8] = instr_words[0::2]
+        beat_words[1::8] = instr_words[1::2]
+        data = beat_words.view(np.float32)
 
         nbytes = data.size * 4
         buf = allocate(shape=data.shape, dtype=np.float32, cacheable=False)
         try:
             self.wait_dma_idle()
-            self._write_reg("length", data.size)
-            self._doorbell(Mode.WRITE_IRAM)
-            time.sleep(0.001)
             buf[:] = data
             buf.sync_to_device()
 
+            self._write_reg("length", data.size)
+            self._doorbell(Mode.WRITE_IRAM)
+
             # Trigger DMA MM2S
-            self.dma.write(0x00, 0x4) # reset
-            time.sleep(0.005)
+            self.dma.write(0x00, 0x4)
+            for _ in range(100):
+                if not (self.dma.read(0x00) & 0x4): break
+                time.sleep(0.0001)
+            self.dma.write(0x04, DMA_SR_IRQS)
             self.dma.write(0x00, 0x10001) # RS=1, IOC_IrqEn=1
+            self.wait_stream_ready()
             self.dma.write(0x18, buf.physical_address & 0xFFFFFFFF)
             self.dma.write(0x1C, (buf.physical_address >> 32) & 0xFFFFFFFF)
             self.dma.write(0x28, nbytes)
 
-            deadline = time.time() + 2.0
-            while not (self.dma.read(0x04) & 0x1002):
+            deadline = time.time() + DMA_TRANSFER_TIMEOUT
+            while True:
+                sr = self.dma.read(0x04)
+                if sr & DMA_SR_IOC_IRQ:
+                    break
+                if sr & DMA_SR_ERR:
+                    raise RuntimeError(f"IRAM MM2S error: SR=0x{sr:08X}")
                 if time.time() > deadline:
-                    raise TimeoutError("IRAM DMA transfer timed out")
-                time.sleep(0.001)
-            self.dma.write(0x04, 0x1000) # ACK
+                    raise TimeoutError(f"IRAM DMA transfer timed out: MM2S_SR=0x{sr:08X}")
+                time.sleep(0.0001)
+            self.dma.write(0x04, DMA_SR_IOC_IRQ) # ACK
             self.wait_dma_idle()
         finally:
             buf.freebuffer()

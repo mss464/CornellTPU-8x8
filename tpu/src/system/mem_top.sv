@@ -144,6 +144,7 @@ module mem_top #(
     reg        fsm_running;
     reg        fsm_start;
     wire       fsm_done;
+    wire       mem_ctrl_done;
 
     // Compute subsystem
     reg        compute_running;
@@ -152,8 +153,6 @@ module mem_top #(
     wire       compute_tile_done;
 
     // Instruction DMA
-    reg        dma_instr_write_en;
-    wire [63:0] dma_iram_din;
     reg  [7:0]  iram_wr_addr;
 
     wire compute_idle_w = !compute_running;
@@ -230,6 +229,8 @@ module mem_top #(
     // Compute    (3)          → compute_running / compute_ctrl
     // =========================================================================
     reg [3:0] latched_mode;
+    wire dma_instr_write_en = fsm_running && (latched_mode == MODE_WRITE_IRAM);
+    assign fsm_done = mem_ctrl_done || (dma_instr_write_en && write_bram_done);
 
     always @(posedge s00_axi_aclk or negedge s00_axi_aresetn) begin
         if (!s00_axi_aresetn) begin
@@ -238,12 +239,10 @@ module mem_top #(
             compute_running    <= 1'b0;
             doorbell_clear     <= 1'b0;
             latched_mode       <= 4'd0;
-            dma_instr_write_en <= 1'b0;
             iram_wr_addr       <= 8'd0;
         end else begin
             fsm_start          <= 1'b0;
             doorbell_clear     <= 1'b0;
-            dma_instr_write_en <= 1'b0;
 
             if (fsm_done) fsm_running <= 1'b0;
             if (compute_done) compute_running <= 1'b0;
@@ -270,7 +269,6 @@ module mem_top #(
                     MODE_WRITE_IRAM: begin
                         if (!fsm_running || fsm_done) begin
                             fsm_running        <= 1'b1;
-                            dma_instr_write_en <= 1'b1;
                             iram_wr_addr       <= 8'd0;
                             latched_mode       <= tpu_mode;
                             doorbell_clear     <= 1'b1;
@@ -446,7 +444,7 @@ module mem_top #(
         .rst_n           (s00_axi_aresetn),
         .start           (fsm_start),
         .mode            (tpu_mode),
-        .done            (fsm_done),
+        .done            (mem_ctrl_done),
         .addr_sys_in     (addr_sys),
         .addr_oc_in      (addr_onchip),
         .length_in       (xfer_len),

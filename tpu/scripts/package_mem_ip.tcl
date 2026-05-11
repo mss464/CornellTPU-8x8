@@ -274,6 +274,7 @@ update_compile_order -fileset sources_1
 puts "\n>>> Step 5: Packaging IP..."
 
 set ip_out_dir [file join $repo_out "${ip_name}_${ip_version}"]
+file delete -force $ip_out_dir
 file mkdir $ip_out_dir
 
 ipx::package_project -root_dir $ip_out_dir -vendor $ip_vendor -library $ip_library \

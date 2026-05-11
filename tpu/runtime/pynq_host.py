@@ -325,15 +325,16 @@ class MemDriver:
         if pad_len > 0:
             values = np.pad(values, (0, pad_len), 'constant', constant_values=0)
 
+        beat_length = values.size // 8
         nbytes = values.size * 4  # float32 = 4 bytes
         buf = allocate(shape=values.shape, dtype=np.float32, cacheable=False)
         try:
             self.wait_dma_idle()
             self._write_reg("addr_sys", addr)
-            self._write_reg("length", values.size)
+            self._write_reg("length", beat_length)
             reg3_rb = self.mmio.read(0x0C)
             reg6_rb = self.mmio.read(0x18)
-            print(f"DEBUG WRITE: addr={addr} len={values.size} reg3_rb={reg3_rb} reg6_rb={reg6_rb}")
+            print(f"DEBUG WRITE: addr={addr} words={values.size} beats={beat_length} reg3_rb={reg3_rb} reg6_rb={reg6_rb}")
             buf[:] = values
             buf.sync_to_device()
             self._doorbell(Mode.DMA_WRITE)
@@ -415,7 +416,7 @@ class MemDriver:
 
             # Now tell FPGA to start streaming
             self._write_reg("addr_sys", addr)
-            self._write_reg("length", padded_len)
+            self._write_reg("length", beat_length)
             self._doorbell(Mode.DMA_READ)
             self.wait_stream_ready()
 

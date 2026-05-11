@@ -199,6 +199,43 @@ class MemDriver:
             print("WARNING: AXI4-Full MMIO port not found — 'mmio' method "
                   "will fall back to DMA. Use 'dma' method for transfers.")
 
+        self.debug_dma = os.environ.get("MINITPU_DEBUG_DMA", "").lower() in (
+            "1", "true", "yes", "on"
+        )
+        self._dma_tx_buf = None
+        self._dma_rx_buf = None
+
+    def _debug(self, msg):
+        if self.debug_dma:
+            print(msg)
+
+    def _get_dma_buffer(self, name, words, dtype=np.float32):
+        """Reuse PYNQ buffers to avoid per-transfer allocation overhead."""
+        buf = getattr(self, name, None)
+        if buf is None or buf.size < words or buf.dtype != np.dtype(dtype):
+            if buf is not None:
+                try:
+                    buf.freebuffer()
+                except Exception:
+                    pass
+            buf = allocate(shape=(int(words),), dtype=dtype, cacheable=False)
+            setattr(self, name, buf)
+        return buf
+
+    @staticmethod
+    def _sync_to_device_if_needed(buf):
+        if getattr(buf, "cacheable", True) is False:
+            return
+        if hasattr(buf, "sync_to_device"):
+            buf.sync_to_device()
+
+    @staticmethod
+    def _sync_from_device_if_needed(buf):
+        if getattr(buf, "cacheable", True) is False:
+            return
+        if hasattr(buf, "sync_from_device"):
+            buf.sync_from_device()
+
     def _write_reg(self, name, value, verify=True):
         """Write a register to the FSM. 
         Added a tiny sleep to ensure the AXI-Lite interface doesn't drop 
@@ -328,17 +365,18 @@ class MemDriver:
 
         beat_length = values.size // 8
         nbytes = values.size * 4  # float32 = 4 bytes
-        buf = allocate(shape=values.shape, dtype=np.float32, cacheable=False)
+        buf = self._get_dma_buffer("_dma_tx_buf", values.size, np.float32)
         try:
             self.wait_dma_idle()
             self._write_reg("addr_sys", addr)
             # Hardware register is in 32-bit words; mem_top converts to beats.
             self._write_reg("length", values.size)
-            reg3_rb = self.mmio.read(0x0C)
-            reg6_rb = self.mmio.read(0x18)
-            print(f"DEBUG WRITE: addr={addr} words={values.size} beats={beat_length} reg3_rb={reg3_rb} reg6_rb={reg6_rb}")
-            buf[:] = values
-            buf.sync_to_device()
+            if self.debug_dma:
+                reg3_rb = self.mmio.read(0x0C)
+                reg6_rb = self.mmio.read(0x18)
+                self._debug(f"DEBUG WRITE: addr={addr} words={values.size} beats={beat_length} reg3_rb={reg3_rb} reg6_rb={reg6_rb}")
+            buf[:values.size] = values
+            self._sync_to_device_if_needed(buf)
             self._doorbell(Mode.DMA_WRITE)
 
             # ── Manual MM2S setup ──
@@ -357,11 +395,10 @@ class MemDriver:
             if not (cr_rb & 1):
                 raise RuntimeError(f"MM2S failed to start: CR=0x{cr_rb:08X}")
             self.wait_stream_ready() # Wait for TPU to be ready for the stream
-            time.sleep(0.001)
             # 3. Set source address
             self.dma.write(0x18, buf.physical_address & 0xFFFFFFFF)
             self.dma.write(0x1C, (buf.physical_address >> 32) & 0xFFFFFFFF)
-            print(f"DEBUG SEND: phys=0x{buf.physical_address:x} nbytes={nbytes}")
+            self._debug(f"DEBUG SEND: phys=0x{buf.physical_address:x} nbytes={nbytes}")
             # 4. Set transfer length (triggers MM2S)
             self.dma.write(0x28, nbytes)
 
@@ -390,21 +427,23 @@ class MemDriver:
 
             # Acknowledge interrupt
             self.dma.write(0x04, 0x1000)
-            mm2s_sr = hex(self.dma.read(0x04))
-            print(f"DEBUG SEND: MM2S_SR={mm2s_sr} BYTES={nbytes}")
+            if self.debug_dma:
+                mm2s_sr = hex(self.dma.read(0x04))
+                self._debug(f"DEBUG SEND: MM2S_SR={mm2s_sr} BYTES={nbytes}")
             self.wait_dma_idle()
         finally:
-            buf.freebuffer()
+            pass
 
     def _read_dma(self, addr, length):
         """Read from system memory via AXI-Stream DMA."""
         beat_length = (length + 7) // 8
         padded_len = beat_length * 8
         nbytes = padded_len * 4  # float32 = 4 bytes
-        buf = allocate(shape=(padded_len,), dtype=np.float32, cacheable=False)
-        buf[:] = 42.42
-        buf.sync_to_device()
-        print(f"DEBUG READ: addr={addr} len={length} padded={padded_len} phys={hex(buf.physical_address)}")
+        buf = self._get_dma_buffer("_dma_rx_buf", padded_len, np.float32)
+        if self.debug_dma:
+            buf[:padded_len] = 42.42
+            self._sync_to_device_if_needed(buf)
+        self._debug(f"DEBUG READ: addr={addr} len={length} padded={padded_len} phys={hex(buf.physical_address)}")
         try:
             self.wait_dma_idle()
 
@@ -417,19 +456,19 @@ class MemDriver:
 
             # 2. Clear reset, enable IOC interrupt
             self.dma.write(0x34, DMA_SR_IRQS)  # clear stale status IRQs
-            self.dma.write(0x30, 0x1)  # RS=1
-            time.sleep(0.001)
             self.dma.write(0x30, 0x10001)  # RS=1, IOC_IrqEn=1
-            time.sleep(0.001)
+            for _ in range(100):
+                if not (self.dma.read(0x34) & 0x1): break
+                time.sleep(0.00001)
             # 3. Set destination address
             self.dma.write(0x48, buf.physical_address & 0xFFFFFFFF)
             self.dma.write(0x4C, (buf.physical_address >> 32) & 0xFFFFFFFF)
             # 4. Set transfer length (triggers S2MM)
             self.dma.write(0x58, nbytes)
-            time.sleep(0.001)
 
-            s2mm_sr = self.dma.read(0x34)
-            print(f"DEBUG READ: S2MM started, SR=0x{s2mm_sr:08X}")
+            if self.debug_dma:
+                s2mm_sr = self.dma.read(0x34)
+                self._debug(f"DEBUG READ: S2MM started, SR=0x{s2mm_sr:08X}")
 
             # Now tell FPGA to start streaming
             self._write_reg("addr_sys", addr)
@@ -460,21 +499,23 @@ class MemDriver:
                 time.sleep(0.0001)
 
             # Acknowledge interrupt
-            debug_stream = self.mmio.read(REG_ADDR["debug_stream"])
-            debug_mc     = self.mmio.read(REG_ADDR["debug_mc"])
-            print(
-                f"DEBUG READ DONE: S2MM_SR=0x{sr:08X} | "
-                f"Stream: state={(debug_stream>>20)&0x3} empty={(debug_stream>>13)&1} full={(debug_stream>>12)&1} sent={debug_stream&0xFF} | "
-                f"MC: state={(debug_mc>>16)&0x7} issued={debug_mc&0xFF}"
-            )
+            if self.debug_dma:
+                debug_stream = self.mmio.read(REG_ADDR["debug_stream"])
+                debug_mc     = self.mmio.read(REG_ADDR["debug_mc"])
+                self._debug(
+                    f"DEBUG READ DONE: S2MM_SR=0x{sr:08X} | "
+                    f"Stream: state={(debug_stream>>20)&0x3} empty={(debug_stream>>13)&1} full={(debug_stream>>12)&1} sent={debug_stream&0xFF} | "
+                    f"MC: state={(debug_mc>>16)&0x7} issued={debug_mc&0xFF}"
+                )
             self.dma.write(0x34, 0x1000)
 
-            buf.invalidate()
-            buf.sync_from_device()
+            if hasattr(buf, "invalidate") and getattr(buf, "cacheable", True):
+                buf.invalidate()
+            self._sync_from_device_if_needed(buf)
             self.wait_dma_idle()
             return np.copy(buf[:length])
         finally:
-            buf.freebuffer()
+            pass
 
     # ── MMIO transfer methods ────────────────────────────────────────────
 

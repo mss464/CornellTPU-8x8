@@ -1,13 +1,23 @@
 #!/usr/bin/env python3
+import argparse
 import sys
 import os
 import numpy as np
 import time
 
-# Add runtime to path (handles both local and board deployment)
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'runtime'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'runtime'))
+# Prefer the runtime deployed beside this test over stale copies in $HOME/runtime.
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+for _path in (
+    os.path.join(_THIS_DIR, '..', '..', 'runtime'),
+    os.path.join(_THIS_DIR, 'runtime'),
+    os.path.join(_THIS_DIR, '..', 'runtime'),
+):
+    _path = os.path.abspath(_path)
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
 from pynq_host import MemDriver
+import pynq_host as _pynq_host
+print(f"Using pynq_host from: {_pynq_host.__file__}")
 
 def make_instr(mode, addr_a, addr_b, addr_out, length, opcode):
     # mode[1:0], addr_a[12:0], addr_b[12:0], addr_out[12:0], len[22:0], opcode[9:0]
@@ -21,11 +31,19 @@ def make_instr(mode, addr_a, addr_b, addr_out, length, opcode):
     return instr
 
 def main():
+    parser = argparse.ArgumentParser(description="Concurrent TPU execution board test")
+    parser.add_argument("--bitstream", default="mem_bd.bit", help="Bitstream to test")
+    parser.add_argument("--program", action="store_true",
+                        help="Re-flash FPGA bitstream before running test")
+    parser.add_argument("--latency", type=int, default=0,
+                        help="BRAM read latency selection (0=1 cycle, 1=2 cycles). Default=0.")
+    args = parser.parse_args()
+
     print("Concurrent TPU Execution Test")
     
     # Initialize driver
     try:
-        drv = MemDriver(bitstream="mem_bd.bit")
+        drv = MemDriver(bitstream=args.bitstream, program=args.program, latency_mode=args.latency)
     except Exception as e:
         print(f"Failed to initialize driver: {e}")
         sys.exit(1)

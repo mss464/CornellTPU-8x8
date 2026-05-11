@@ -316,4 +316,4 @@ concurrency-test:
 	@$(MAKE) board-test \
 		PROGRAM_ABSPATH="$(abspath board_tests/test_concurrency.py)" \
 		EXTRA_FILES="$(ULTRA96_OUTPUT_DIR)/artifacts/mem_bd.bit $(ULTRA96_OUTPUT_DIR)/artifacts/mem_bd.hwh" \
-		PROGRAM_ABSPATH_ARGS="--bitstream mem_bd.bit $(BOARD_TEST_ARGS)"
+		PROGRAM_ABSPATH_ARGS="--bitstream mem_bd.bit --program --latency 0 $(BOARD_TEST_ARGS)"

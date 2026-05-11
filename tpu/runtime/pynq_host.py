@@ -344,18 +344,24 @@ class MemDriver:
             # ── Manual MM2S setup ──
             # 1. Reset MM2S and wait for it to clear
             self.dma.write(0x00, 0x4)
-            for _ in range(100):
+            for _ in range(200):
                 if not (self.dma.read(0x00) & 0x4): break
                 time.sleep(0.0001)
+            else:
+                raise RuntimeError("MM2S reset did not clear")
 
             # 2. Clear reset, enable IOC, run
             self.dma.write(0x04, DMA_SR_IRQS)  # clear stale status IRQs
             self.dma.write(0x00, 0x10001)  # RS=1, IOC_IrqEn=1
+            cr_rb = self.dma.read(0x00)
+            if not (cr_rb & 1):
+                raise RuntimeError(f"MM2S failed to start: CR=0x{cr_rb:08X}")
             self.wait_stream_ready() # Wait for TPU to be ready for the stream
             time.sleep(0.001)
             # 3. Set source address
             self.dma.write(0x18, buf.physical_address & 0xFFFFFFFF)
             self.dma.write(0x1C, (buf.physical_address >> 32) & 0xFFFFFFFF)
+            print(f"DEBUG SEND: phys=0x{buf.physical_address:x} nbytes={nbytes}")
             # 4. Set transfer length (triggers MM2S)
             self.dma.write(0x28, nbytes)
 
@@ -368,9 +374,18 @@ class MemDriver:
                 if sr & DMA_SR_ERR:
                     raise RuntimeError(f"MM2S error: SR=0x{sr:08X}")
                 if time.time() > deadline:
-                    self.dma.write(0x00, 0x4)
+                    debug_stream = self.mmio.read(REG_ADDR["debug_stream"])
+                    debug_mc     = self.mmio.read(REG_ADDR["debug_mc"])
+                    dma_idle_reg = self.mmio.read(REG_ADDR["dma_idle"])
+                    cr = self.dma.read(0x00)
+                    self.dma.write(0x00, 0x4)  # reset
                     time.sleep(0.01)
-                    raise TimeoutError(f"SEND DMA TIMEOUT: MM2S_SR=0x{sr:08X}")
+                    raise TimeoutError(
+                        f"SEND DMA TIMEOUT: MM2S_CR=0x{cr:08X} MM2S_SR=0x{sr:08X} | "
+                        f"dma_idle_reg=0x{dma_idle_reg:08X} | "
+                        f"Stream: state={(debug_stream>>20)&0x3} empty={(debug_stream>>13)&1} full={(debug_stream>>12)&1} sent={debug_stream&0xFF} | "
+                        f"MC: state={(debug_mc>>16)&0x7} issued={debug_mc&0xFF}"
+                    )
                 time.sleep(0.0001)
 
             # Acknowledge interrupt

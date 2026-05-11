@@ -83,7 +83,6 @@ module dummy_unit #(
             bram_we_b <= 1'b0;
 
             case (state)
-                // Wait for start signal
                 IDLE: begin
                     if (start) begin
                         i     <= 0;
@@ -91,16 +90,13 @@ module dummy_unit #(
                     end
                 end
 
-                // Read A[i] from BRAM
                 READ_A: begin
                     bram_en_b   <= 1'b1;
                     bram_we_b   <= 1'b0;
                     bram_addr_b <= addr_a_vadd + i;
                     state       <= READ_B;
                 end
-                
 
-                // Read B[i] from BRAM
                 READ_B: begin
                     bram_en_b   <= 1'b1;
                     bram_we_b   <= 1'b0;
@@ -109,20 +105,16 @@ module dummy_unit #(
                 end
                 
                 WAIT_1: begin
-                    state <= WAIT_2;
+                    bram_en_b   <= 1'b0;
+                    data_a      <= bram_dout_b; // Data A is valid (1 cycle after READ_A)
+                    state       <= WAIT_2;
                 end
                 
                 WAIT_2: begin
-                    state <= WAIT_3;
-                    data_a <= bram_dout_b;
-                end
-                
-                WAIT_3: begin
-                    state <= WRITE_OUT;
-                    data_b <= bram_dout_b;
+                    data_b      <= bram_dout_b; // Data B is valid (1 cycle after READ_B)
+                    state       <= WRITE_OUT;
                 end
 
-                // Write SUM to C[i] in BRAM
                 WRITE_OUT: begin
                     bram_en_b   <= 1'b1;
                     bram_we_b   <= 1'b1;
@@ -137,7 +129,6 @@ module dummy_unit #(
                     end
                 end
 
-                // Raise done and return to idle
                 DONE: begin
                     done  <= 1'b1;
                     bram_en_b <= 1'b0;

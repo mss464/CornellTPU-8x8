@@ -105,7 +105,8 @@ cp "$HWH" "$TMP/mem_bd.hwh"
 REMOTE_JSON="${VARIANT}.mem_bench.json"
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
-sshpass -p "$BOARD_PASS" ssh $SSH_OPTS "$BOARD_USER@$BOARD_IP" "mkdir -p '$DEPLOY_DIR'"
+sshpass -p "$BOARD_PASS" ssh $SSH_OPTS "$BOARD_USER@$BOARD_IP" \
+  "echo '$BOARD_PASS' | sudo -S rm -rf '$DEPLOY_DIR/runtime' '$DEPLOY_DIR/benchmarks' '$DEPLOY_DIR/mem_bd.bit' '$DEPLOY_DIR/mem_bd.hwh' && mkdir -p '$DEPLOY_DIR'"
 sshpass -p "$BOARD_PASS" scp -r $SSH_OPTS "$TMP"/* "$BOARD_USER@$BOARD_IP:$DEPLOY_DIR/"
 
 echo "== Running memory benchmark: $VARIANT =="

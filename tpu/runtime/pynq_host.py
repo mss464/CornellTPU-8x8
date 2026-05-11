@@ -34,7 +34,7 @@ REG_ADDR = {
     "stream_ready":  0x08,   # bit 1 = DMA stream ready
     "addr_sys":      0x0C,   # system memory base address (word addr)
     "addr_onchip":   0x10,   # on-chip memory base address (word addr)
-    "length":        0x18,   # transfer length (in 256-bit beats for DMA, words for copy)
+    "length":        0x18,   # transfer length in 32-bit words
     "debug_stream":  0x34,   # slv_reg13: [23:16]=state, [9]=empty, [8]=full, [7:0]=beats_sent
     "debug_mc":      0x38,   # slv_reg14: [23:16]=mc_state, [7:0]=reads_issued
 }

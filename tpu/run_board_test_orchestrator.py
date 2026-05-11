@@ -23,6 +23,7 @@ def run_test():
     user = os.environ.get("TPU_BOARD_USER", "xilinx")
     pw = os.environ.get("TPU_BOARD_PASSWORD", "xilinx")
     ssh_timeout = get_env_float("TPU_SSH_TIMEOUT", 30.0)
+    read_latency = int(get_env_float("TPU_READ_LATENCY", 0))
     
     remote_root = "/home/xilinx/minitpu_deploy"
     bitstream_name = "mem_bd.bit"
@@ -83,8 +84,11 @@ def run_test():
         
         print(f"Executing test suite on board (with sudo and --program) using bitstream: {bitstream_name}", flush=True)
         # Added --program to ensure Overlay is initialized/loaded correctly
-        # Added --latency 1 for the Ultra96 board's observed BRAM behavior
-        cmd = f"cd {remote_root} && echo {pw} | sudo -S python3 board_tests/test_mem_system.py --verbose --bitstream {bitstream_name} --program --latency 1"
+        cmd = (
+            f"cd {remote_root} && echo {pw} | sudo -S "
+            f"python3 board_tests/test_mem_system.py --verbose "
+            f"--bitstream {bitstream_name} --program --latency {read_latency}"
+        )
         stdin, stdout, stderr = ssh.exec_command(cmd)
         
         for line in stdout:

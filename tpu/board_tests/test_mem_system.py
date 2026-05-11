@@ -281,8 +281,8 @@ def main():
                         help="Show all mismatches, not just first 4")
     parser.add_argument("--program", action="store_true",
                         help="Re-flash FPGA bitstream before running tests")
-    parser.add_argument("--latency", type=int, default=1,
-                        help="BRAM read latency selection (0 or 1). Default=1 for board.")
+    parser.add_argument("--latency", type=int, default=0,
+                        help="BRAM read latency selection (0=1 cycle, 1=2 cycles). Default=0.")
     parser.add_argument("--list",    action="store_true",
                         help="List all test names and exit")
     args = parser.parse_args()

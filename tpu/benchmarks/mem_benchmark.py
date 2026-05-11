@@ -182,7 +182,9 @@ class DriverAdapter:
         )
 
     def compute_is_single_shot(self):
-        return self.legacy_module is not None
+        if self.legacy_module is None:
+            return False
+        return not bool(getattr(self.legacy_module, "RESET_PC_ON_COMPUTE", False))
 
     def is_legacy(self):
         return self.legacy_module is not None

@@ -184,6 +184,9 @@ class DriverAdapter:
     def compute_is_single_shot(self):
         return self.legacy_module is not None
 
+    def is_legacy(self):
+        return self.legacy_module is not None
+
 
 def make_instr(mode, addr_a, addr_b, addr_out, length, opcode):
     instr = (int(mode) & 0x3) << 62
@@ -194,6 +197,28 @@ def make_instr(mode, addr_a, addr_b, addr_out, length, opcode):
     if opcode:
         instr = (instr & ~0x3FF) | (int(opcode) & 0x3FF)
     return instr
+
+
+def make_vpu_simd_instr(vpu_type, addr_a=0, addr_b=0, addr_out=0,
+                        vreg_dst=0, vreg_a=0, vreg_b=0,
+                        vpu_opcode=0, scalar_b=False):
+    instr = make_instr(mode=0, addr_a=addr_a, addr_b=addr_b,
+                       addr_out=addr_out, length=0, opcode=0)
+    instr |= (int(vpu_type) & 0x7) << 20
+    instr |= (int(vreg_dst) & 0x7) << 17
+    instr |= (int(vreg_a) & 0x7) << 14
+    instr |= (int(vreg_b) & 0x7) << 11
+    instr |= (int(vpu_opcode) & 0x7) << 4
+    instr |= (1 if scalar_b else 0) << 3
+    return instr
+
+
+def split_instr64(instr64):
+    words = []
+    for instr in instr64:
+        words.append(instr & 0xFFFFFFFF)
+        words.append((instr >> 32) & 0xFFFFFFFF)
+    return words
 
 
 def make_vadd_program(vadd_len, repeats):
@@ -211,11 +236,63 @@ def make_vadd_program(vadd_len, repeats):
     halt = make_instr(mode=3, addr_a=0, addr_b=0, addr_out=0, length=0, opcode=0x3FF)
 
     instr64 = ([vadd] * repeats) + [halt]
-    words = []
-    for instr in instr64:
-        words.append(instr & 0xFFFFFFFF)
-        words.append((instr >> 32) & 0xFFFFFFFF)
-    return instr64, words, addr_a, addr_b, addr_out
+    return instr64, split_instr64(instr64), addr_a, addr_b, addr_out
+
+
+def make_vpu_scalar_add_program(elems):
+    if elems < 1:
+        raise ValueError("vpu elems must be positive")
+    if elems + 1 > 255:
+        raise ValueError("legacy scalar VPU program must fit in 8-bit IRAM PC")
+
+    addr_a = 0
+    addr_b = elems
+    addr_out = 2 * elems
+    if addr_out + elems > 8192:
+        raise ValueError("VPU arrays do not fit in the 8K-word memory")
+
+    instr64 = [
+        make_instr(mode=0, addr_a=addr_a + i, addr_b=addr_b + i,
+                   addr_out=addr_out + i, length=0, opcode=0)
+        for i in range(elems)
+    ]
+    instr64.append(make_instr(mode=3, addr_a=0, addr_b=0,
+                              addr_out=0, length=0, opcode=0x3FF))
+    return instr64, split_instr64(instr64), addr_a, addr_b, addr_out
+
+
+def make_vpu_simd_add_program(elems):
+    if elems < 8 or elems % 8 != 0:
+        raise ValueError("SIMD VPU benchmark element count must be a positive multiple of 8")
+    rows = elems // 8
+    if rows * 4 + 1 > 255:
+        raise ValueError("SIMD VPU program must fit in 8-bit IRAM PC")
+
+    addr_a = 0
+    addr_b = elems
+    addr_out = 2 * elems
+    if addr_out + elems > 8192:
+        raise ValueError("VPU arrays do not fit in the 8K-word L1 scratchpad")
+
+    VPU_VLOAD = 1
+    VPU_VSTORE = 2
+    VPU_VCOMPUTE = 3
+    VPU_ADD = 0
+    instr64 = []
+    for row in range(rows):
+        a_row = addr_a + row * 8
+        b_row = addr_b + row * 8
+        out_row = addr_out + row * 8
+        instr64.extend([
+            make_vpu_simd_instr(VPU_VLOAD, addr_a=a_row, vreg_dst=0),
+            make_vpu_simd_instr(VPU_VLOAD, addr_a=b_row, vreg_dst=1),
+            make_vpu_simd_instr(VPU_VCOMPUTE, vreg_dst=2, vreg_a=0,
+                                vreg_b=1, vpu_opcode=VPU_ADD),
+            make_vpu_simd_instr(VPU_VSTORE, addr_out=out_row, vreg_a=2),
+        ])
+    instr64.append(make_instr(mode=3, addr_a=0, addr_b=0,
+                              addr_out=0, length=0, opcode=0x3FF))
+    return instr64, split_instr64(instr64), addr_a, addr_b, addr_out
 
 
 @contextlib.contextmanager
@@ -406,6 +483,76 @@ def verify_vadd_output(drv, addr_out, expected_bits, verbose):
         raise AssertionError("VADD output mismatch: %s" % "; ".join(details))
 
 
+def prepare_vpu_add(drv, elems, verbose):
+    if drv.is_legacy():
+        instr64, words, addr_a, _addr_b, addr_out = make_vpu_scalar_add_program(elems)
+        path = "legacy_scalar_vpu"
+    else:
+        instr64, words, addr_a, _addr_b, addr_out = make_vpu_simd_add_program(elems)
+        path = "banked_8lane_vpu_simd"
+
+    data_a = np.linspace(-1.0, 1.0, elems, dtype=np.float32)
+    data_b = np.linspace(0.25, 2.25, elems, dtype=np.float32)
+    expected = (data_a + data_b).astype(np.float32)
+
+    with maybe_quiet(verbose):
+        drv.load_instructions(instr64, words)
+        drv.send_bytes(0, np.concatenate([data_a, data_b]))
+        if drv.supports_l1_copy():
+            drv.sysmem_to_onchip(0, addr_a, 2 * elems)
+    return addr_out, expected, path, len(instr64)
+
+
+def verify_vpu_output(drv, addr_out, expected, verbose):
+    result_sys = 40960
+    with maybe_quiet(verbose):
+        if drv.supports_l1_copy():
+            drv.onchip_to_sysmem(addr_out, result_sys, expected.size)
+            got = drv.read_bytes(result_sys, expected.size)
+        else:
+            got = drv.read_bytes(addr_out, expected.size)
+    if not np.allclose(got, expected, rtol=1e-5, atol=1e-6):
+        bad = np.flatnonzero(~np.isclose(got, expected, rtol=1e-5, atol=1e-6))[:8]
+        details = []
+        for idx in bad:
+            details.append("[%d] got %.8g expected %.8g" %
+                           (idx, float(got[idx]), float(expected[idx])))
+        raise AssertionError("VPU output mismatch: %s" % "; ".join(details))
+
+
+def bench_banked_vpu(records, drv, elems, repeats, warmups, verbose, verify):
+    try:
+        addr_out, expected, path, instr_count = prepare_vpu_add(drv, elems, verbose)
+    except (AttributeError, ValueError) as exc:
+        add_skipped(records, "banked_compute", "vpu_vector_add",
+                    "driver/design cannot run VPU vector add: %s" % exc,
+                    words=elems)
+        return
+
+    sample_repeats = repeats
+    sample_warmups = warmups
+    extra = {
+        "path": path,
+        "elements": int(elems),
+        "instruction_count": int(instr_count),
+        "simd_lanes": 1 if drv.is_legacy() else 8,
+    }
+    if drv.compute_is_single_shot():
+        sample_repeats = 1
+        sample_warmups = 0
+        extra["single_shot"] = True
+        extra["single_shot_reason"] = (
+            "legacy mem-base PC does not reset between COMPUTE launches"
+        )
+
+    samples = timed_call(lambda: drv.run_compute(async_run=False),
+                         sample_repeats, sample_warmups, verbose)
+    add_record(records, "banked_compute", "vpu_vector_add", samples,
+               words=elems, extra=extra)
+    if verify:
+        verify_vpu_output(drv, addr_out, expected, verbose)
+
+
 def bench_compute(records, drv, vadd_len, vadd_repeats, repeats, warmups, verbose, verify):
     try:
         addr_out, expected_bits = prepare_vadd(drv, vadd_len, vadd_repeats, verbose)
@@ -568,7 +715,10 @@ def main():
     parser.add_argument("--copy-sizes", default="256,512,1024,2048,4096")
     parser.add_argument("--vadd-len", type=int, default=1024)
     parser.add_argument("--vadd-repeats", type=int, default=128)
+    parser.add_argument("--vpu-elems", type=int, default=248)
     parser.add_argument("--dma-words", type=int, default=1024)
+    parser.add_argument("--banked-vpu-only", action="store_true",
+                        help="Run only the scalar-vs-banked VPU benchmark. Useful for legacy baselines with single-shot compute PCs.")
     parser.add_argument("--json-out", default=None)
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--no-verify", action="store_true")
@@ -587,15 +737,26 @@ def main():
                         latency_mode=args.latency)
 
     records = []
-    bench_dma(records, drv, sizes, args.repeats, args.warmups, args.verbose, verify)
-    bench_l1_copy(records, drv, copy_sizes, args.repeats, args.warmups, args.verbose, verify)
-    compute, addr_out, expected_bits = bench_compute(
-        records, drv, args.vadd_len, args.vadd_repeats,
-        args.repeats, args.warmups, args.verbose, verify)
-    bench_overlap(records, drv, args.vadd_len, args.vadd_repeats, args.dma_words,
-                  args.repeats, args.warmups, args.verbose, verify,
-                  compute_record=compute,
-                  prepared_vadd=(addr_out, expected_bits) if addr_out is not None else None)
+    if args.banked_vpu_only:
+        bench_banked_vpu(records, drv, args.vpu_elems,
+                         args.repeats, args.warmups, args.verbose, verify)
+    else:
+        bench_dma(records, drv, sizes, args.repeats, args.warmups, args.verbose, verify)
+        bench_l1_copy(records, drv, copy_sizes, args.repeats, args.warmups, args.verbose, verify)
+        compute, addr_out, expected_bits = bench_compute(
+            records, drv, args.vadd_len, args.vadd_repeats,
+            args.repeats, args.warmups, args.verbose, verify)
+        bench_overlap(records, drv, args.vadd_len, args.vadd_repeats, args.dma_words,
+                      args.repeats, args.warmups, args.verbose, verify,
+                      compute_record=compute,
+                      prepared_vadd=(addr_out, expected_bits) if addr_out is not None else None)
+        if drv.compute_is_single_shot():
+            add_skipped(records, "banked_compute", "vpu_vector_add",
+                        "legacy baseline can only run one compute program per FPGA program; rerun with --banked-vpu-only",
+                        words=args.vpu_elems)
+        else:
+            bench_banked_vpu(records, drv, args.vpu_elems,
+                             args.repeats, args.warmups, args.verbose, verify)
     add_l1_bank_model(records, copy_sizes)
 
     payload = {

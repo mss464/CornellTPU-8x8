@@ -15,6 +15,7 @@ The benchmark measures:
 - system-memory to L1 copy time
 - L1 to system-memory copy time
 - VADD compute time
+- banked 8-lane VPU vector-add time versus the legacy scalar VPU path
 - overlapped compute plus DMA time, when the runtime exposes independent DMA and compute waits
 - an analytical 1-bank vs 8-bank L1 model for wide vector-access speedup
 
@@ -130,4 +131,53 @@ bash benchmarks/run_mem_benchmark_from_checkout.sh \
 python3 benchmarks/compare_mem_benchmarks.py \
   results/mem-base-vadd2048.json \
   results/codex-system-mem-fixed-vadd2048.json
+```
+
+Strength-focused run. This keeps VADD large and uses larger DMA transfers to
+make the optimized host path and double-buffering easier to see. The current
+design also reports the 248-element banked VPU row; use the focused run below
+for the direct legacy scalar VPU comparison:
+
+```bash
+bash benchmarks/run_mem_benchmark_from_checkout.sh \
+  --checkout ~/minitpu-mem-base \
+  --variant mem-base-strength \
+  --board-ip 132.236.59.72 \
+  --out results/mem-base-strength.json \
+  --bench-args "--repeats 5 --warmups 1 --sizes 1024,4096,8192 --copy-sizes 1024,2048,4096 --vadd-len 2048 --vadd-repeats 128 --vpu-elems 248 --dma-words 8192"
+
+bash benchmarks/run_mem_benchmark_from_checkout.sh \
+  --checkout ~/minitpu/tpu \
+  --variant codex-system-mem-strength \
+  --board-ip 132.236.59.72 \
+  --out results/codex-system-mem-strength.json \
+  --bench-args "--repeats 5 --warmups 1 --sizes 1024,4096,8192 --copy-sizes 1024,2048,4096 --vadd-len 2048 --vadd-repeats 128 --vpu-elems 248 --dma-words 8192"
+
+python3 benchmarks/compare_mem_benchmarks.py \
+  results/mem-base-strength.json \
+  results/codex-system-mem-strength.json
+```
+
+Banked VPU head-to-head. The legacy baseline can only run one compute program
+per FPGA program, so use this focused mode when you want the direct scalar VPU
+versus 8-lane banked VPU result:
+
+```bash
+bash benchmarks/run_mem_benchmark_from_checkout.sh \
+  --checkout ~/minitpu-mem-base \
+  --variant mem-base-banked-vpu \
+  --board-ip 132.236.59.72 \
+  --out results/mem-base-banked-vpu.json \
+  --bench-args "--banked-vpu-only --repeats 5 --warmups 1 --vpu-elems 248"
+
+bash benchmarks/run_mem_benchmark_from_checkout.sh \
+  --checkout ~/minitpu/tpu \
+  --variant codex-system-mem-banked-vpu \
+  --board-ip 132.236.59.72 \
+  --out results/codex-system-mem-banked-vpu.json \
+  --bench-args "--banked-vpu-only --repeats 5 --warmups 1 --vpu-elems 248"
+
+python3 benchmarks/compare_mem_benchmarks.py \
+  results/mem-base-banked-vpu.json \
+  results/codex-system-mem-banked-vpu.json
 ```

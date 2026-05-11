@@ -91,6 +91,26 @@ def print_highlights(baseline, candidate, base_idx, cand_idx):
                speed, note)
         )
 
+    c_vpu = max_words(cand_records, "banked_compute", "vpu_vector_add")
+    b_vpu = same_key(base_idx, c_vpu)
+    if usable(b_vpu) and usable(c_vpu):
+        speed = b_vpu["median_ms"] / c_vpu["median_ms"]
+        note = ""
+        if b_vpu.get("single_shot"):
+            note = " (baseline single-shot)"
+        lines.append(
+            "banked VPU vector add (%d elements): candidate is %.2fx baseline; paths %s -> %s%s"
+            % (int(c_vpu.get("words", 0)), speed,
+               b_vpu.get("path", "baseline"),
+               c_vpu.get("path", "candidate"),
+               note)
+        )
+        if b_vpu.get("instruction_count") and c_vpu.get("instruction_count"):
+            lines.append(
+                "  instruction count drops from %d to %d by using 8-lane banked VLOAD/VSTORE/VCOMPUTE"
+                % (int(b_vpu["instruction_count"]), int(c_vpu["instruction_count"]))
+            )
+
     c_serial = max_words(cand_records, "double_buffer", "serial_estimate_compute_plus_dma")
     if usable(c_serial) and c_serial.get("speedup_vs_overlap"):
         lines.append(

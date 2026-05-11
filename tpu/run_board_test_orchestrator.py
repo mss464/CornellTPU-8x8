@@ -1,5 +1,6 @@
 import paramiko
 import os
+import socket
 import sys
 import time
 
@@ -8,10 +9,20 @@ def describe_artifact(path):
     mtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime))
     return f"{path} ({st.st_size} bytes, mtime={mtime})"
 
+def get_env_float(name, default):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a number, got {value!r}") from exc
+
 def run_test():
-    host = "132.236.59.68"
-    user = "xilinx"
-    pw = "xilinx"
+    host = os.environ.get("TPU_BOARD_HOST", "132.236.59.68")
+    user = os.environ.get("TPU_BOARD_USER", "xilinx")
+    pw = os.environ.get("TPU_BOARD_PASSWORD", "xilinx")
+    ssh_timeout = get_env_float("TPU_SSH_TIMEOUT", 30.0)
     
     remote_root = "/home/xilinx/minitpu_deploy"
     bitstream_name = "mem_bd.bit"
@@ -42,7 +53,15 @@ def run_test():
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
-        ssh.connect(host, username=user, password=pw, timeout=10)
+        print(f"Connecting to board at {user}@{host} (timeout={ssh_timeout:g}s)...", flush=True)
+        ssh.connect(
+            host,
+            username=user,
+            password=pw,
+            timeout=ssh_timeout,
+            banner_timeout=ssh_timeout,
+            auth_timeout=ssh_timeout,
+        )
         print("Connected to board.", flush=True)
         
         # Setup board directory structure
@@ -75,8 +94,11 @@ def run_test():
             if "[sudo]" not in err_line:
                 print(f"ERR: {err_line}", file=sys.stderr, flush=True)
             
+    except (TimeoutError, socket.timeout) as e:
+        print(f"Error: SSH connection to {user}@{host} timed out after {ssh_timeout:g}s: {e}")
+        print("Check board power/network reachability, or set TPU_BOARD_HOST/TPU_SSH_TIMEOUT before rerunning.")
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error ({type(e).__name__}): {e}")
     finally:
         ssh.close()
 

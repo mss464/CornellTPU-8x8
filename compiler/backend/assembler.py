@@ -22,6 +22,7 @@ WRITE_BRAM = 1
 READ_BRAM  = 2
 COMPUTE    = 3
 WRITE_IRAM = 4
+RESET_PC_ON_COMPUTE = True
 
 def wait_for_flag(mmio, name, expected=1, poll_delay=0.001):
     offset = REG_ADDR[name]

@@ -201,7 +201,7 @@
     wire [31:0] comp_din_b, comp_dout_b;
     wire        comp_en_b, comp_we_b;
     wire pc_enable;
-    wire pc_load;
+    reg pc_load;
     reg [7:0] pc_load_val;
     
     //  FSM State encoding
@@ -229,7 +229,10 @@
             start_compute <= 1'b0;
             start_systolic <= 1'b0;
             start_vpu <= 1'b0;
+            start_vadd <= 1'b0;
             start_stream <= 1'b0;
+            pc_load <= 1'b0;
+            pc_load_val <= 8'd0;
         end else begin
             // defaults
             data_write_en   <= 1'b0;
@@ -240,6 +243,7 @@
             start_systolic <= 1'b0;
             start_vadd <= 1'b0;
             start_stream <= 1'b0;
+            pc_load <= 1'b0;
     
             case (state)
                 //------------------------------------------------------
@@ -259,8 +263,10 @@
                     end else if (tpu_mode == 3'd3) begin // COMPUTE
                         instr_ready  <= 1'b0;
                         start_compute <= 1'b1;
+                        pc_load <= 1'b1;
+                        pc_load_val <= 8'd0;
                         stream_ready <= 1'b0;
-                        state        <= EXEC_COMPUTE;
+                        state        <= FETCH_1;
                     end else if (tpu_mode == 3'd4) begin  // WRITE_IRAM_DATA
                         instr_ready  <= 1'b0;
                         instr_write_en  <= 1'b1;

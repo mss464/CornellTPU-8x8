@@ -18,6 +18,10 @@ def key(record):
     )
 
 
+def display_key(rec_key):
+    return rec_key[0], rec_key[1], rec_key[2]
+
+
 def index(payload):
     return {key(record): record for record in payload.get("records", [])}
 
@@ -314,7 +318,7 @@ def print_highlights(baseline, candidate, base_idx, cand_idx):
 def print_skipped_rows(base_idx, cand_idx, all_keys):
     lines = []
     for rec_key in all_keys:
-        category, metric, words, _repeats = rec_key
+        category, metric, words = display_key(rec_key)
         for label, idx in (("baseline", base_idx), ("candidate", cand_idx)):
             rec = idx.get(rec_key)
             if rec and rec.get("skipped"):
@@ -358,7 +362,7 @@ def main():
     print("-" * len(header))
 
     for rec_key in all_keys:
-        category, metric, words, _repeats = rec_key
+        category, metric, words = display_key(rec_key)
         b = base_idx.get(rec_key)
         c = cand_idx.get(rec_key)
         if b and b.get("skipped"):

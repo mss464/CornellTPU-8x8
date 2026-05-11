@@ -92,6 +92,11 @@ done
 [[ -f "$HWH" ]] || { echo "Missing HWH: $HWH" >&2; exit 2; }
 [[ -d "$RUNTIME_DIR" ]] || { echo "Missing runtime dir: $RUNTIME_DIR" >&2; exit 2; }
 
+echo "Using checkout: $CHECKOUT"
+echo "Bitstream artifact: $BIT ($(stat -c%s "$BIT") bytes, mtime=$(stat -c '%y' "$BIT"))"
+echo "HWH artifact: $HWH ($(stat -c%s "$HWH") bytes, mtime=$(stat -c '%y' "$HWH"))"
+echo "Runtime dir: $RUNTIME_DIR"
+
 TMP="$(mktemp -d /tmp/tpu_mem_bench.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
 

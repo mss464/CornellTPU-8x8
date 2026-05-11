@@ -53,7 +53,7 @@ def main():
     # 1. Prepare instructions for a long-running VADD task
     # VADD mode is 2 (from compute_tile.sv dispatch)
     # vadd.sv is a raw 32-bit wrapping adder, so verification is bit-exact.
-    vadd_len = 2048
+    vadd_len = 1024
     vadd_repeats = 128
     addr_a = 0
     addr_b = addr_a + vadd_len

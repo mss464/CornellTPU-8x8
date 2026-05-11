@@ -321,7 +321,9 @@ module mem_top #(
         .slv_reg4_out  (slv_reg4_bus),
         .slv_reg5_out  (slv_reg5_bus),
         .slv_reg6_out  (slv_reg6_bus),
-        .slv_reg13_in  ({8'd0, u_stream_master.state, 6'd0, u_stream_master.fifo_empty, u_stream_master.fifo_full, 4'd0, u_stream_master.beats_sent[7:0]}),
+        .slv_reg13_in  ((latched_mode == 4'd1 || latched_mode == 4'd4) ? 
+                        {8'd0, 4'd0, stream_slave_debug, 6'd0, 2'd0, write_pointer[7:0]} :
+                        {8'd0, u_stream_master.state, 6'd0, u_stream_master.fifo_empty, u_stream_master.fifo_full, 4'd0, u_stream_master.beats_sent[7:0]}),
         .slv_reg14_in  ({8'd0, mc_state, 8'd0, u_stream_master.reads_issued[7:0]}),
         .doorbell_out  (doorbell),
         .doorbell_clear(doorbell_clear)
@@ -330,6 +332,7 @@ module mem_top #(
     // =========================================================================
     // AXI-Stream Slave (DMA write)
     // =========================================================================
+    wire [3:0] stream_slave_debug;
     wire [31:0] stream_len = {3'b000, xfer_len[31:3]}; // num 256-bit beats
     tpu_slave_axi_stream #(
         .C_S_AXIS_TDATA_WIDTH(C_S00_AXIS_TDATA_WIDTH)
@@ -347,6 +350,7 @@ module mem_top #(
         .write_pointer_stream(write_pointer),
         .done               (write_bram_done),
         .data_valid         (stream_data_valid),
+        .debug_stream       (stream_slave_debug),
         .write_en           (mc_data_write_en || dma_instr_write_en),
         .tpu_mode_stream    (latched_mode[2:0]),
         .device_mem_ready   (1'b1)

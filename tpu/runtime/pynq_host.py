@@ -383,7 +383,7 @@ class MemDriver:
                     raise TimeoutError(
                         f"SEND DMA TIMEOUT: MM2S_CR=0x{cr:08X} MM2S_SR=0x{sr:08X} | "
                         f"dma_idle_reg=0x{dma_idle_reg:08X} | "
-                        f"Stream: state={(debug_stream>>20)&0x3} empty={(debug_stream>>13)&1} full={(debug_stream>>12)&1} sent={debug_stream&0xFF} | "
+                        f"Stream(Slave): state={(debug_stream>>19)&1} t_last={(debug_stream>>18)&1} wren={(debug_stream>>17)&1} tready={(debug_stream>>16)&1} ptr={debug_stream&0xFF} | "
                         f"MC: state={(debug_mc>>16)&0x7} issued={debug_mc&0xFF}"
                     )
                 time.sleep(0.0001)

@@ -12,9 +12,9 @@ Required:
 Common options:
   --board-ip IP         Board IP address
   --out FILE            Local JSON output path
-  --bit FILE            Bitstream path (default: CHECKOUT/ultra96-v2/output/artifacts/mem_bd.bit)
-  --hwh FILE            HWH path (default: CHECKOUT/ultra96-v2/output/artifacts/mem_bd.hwh)
-  --runtime DIR         Runtime dir (default: CHECKOUT/runtime)
+  --bit FILE            Bitstream path (auto-detected if omitted)
+  --hwh FILE            HWH path (auto-detected if omitted)
+  --runtime DIR         Runtime dir (auto-detected if omitted)
   --bench-args ARGS     Extra args passed to mem_benchmark.py
 
 Environment:
@@ -58,9 +58,27 @@ if [[ -z "$CHECKOUT" || -z "$VARIANT" || -z "$BOARD_IP" ]]; then
 fi
 
 CHECKOUT="$(cd "$CHECKOUT" && pwd)"
-BIT="${BIT:-$CHECKOUT/ultra96-v2/output/artifacts/mem_bd.bit}"
-HWH="${HWH:-$CHECKOUT/ultra96-v2/output/artifacts/mem_bd.hwh}"
-RUNTIME_DIR="${RUNTIME_DIR:-$CHECKOUT/runtime}"
+if [[ -z "$BIT" ]]; then
+  if [[ -f "$CHECKOUT/ultra96-v2/output/artifacts/mem_bd.bit" ]]; then
+    BIT="$CHECKOUT/ultra96-v2/output/artifacts/mem_bd.bit"
+  elif [[ -f "$CHECKOUT/compiler/tpu_deploy/CornellTPU.bit" ]]; then
+    BIT="$CHECKOUT/compiler/tpu_deploy/CornellTPU.bit"
+  fi
+fi
+if [[ -z "$HWH" ]]; then
+  if [[ -f "$CHECKOUT/ultra96-v2/output/artifacts/mem_bd.hwh" ]]; then
+    HWH="$CHECKOUT/ultra96-v2/output/artifacts/mem_bd.hwh"
+  elif [[ -f "$CHECKOUT/compiler/tpu_deploy/CornellTPU.hwh" ]]; then
+    HWH="$CHECKOUT/compiler/tpu_deploy/CornellTPU.hwh"
+  fi
+fi
+if [[ -z "$RUNTIME_DIR" ]]; then
+  if [[ -d "$CHECKOUT/runtime" ]]; then
+    RUNTIME_DIR="$CHECKOUT/runtime"
+  elif [[ -d "$CHECKOUT/compiler/tpu_deploy" ]]; then
+    RUNTIME_DIR="$CHECKOUT/compiler/tpu_deploy"
+  fi
+fi
 OUT="${OUT:-$PWD/${VARIANT}.mem_bench.json}"
 
 for required in ssh scp sshpass; do

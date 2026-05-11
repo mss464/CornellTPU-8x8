@@ -25,25 +25,24 @@ local branch named `mem-base`:
 
 ```bash
 cd ~/minitpu/tpu
-git remote add sunwoo <SUNWOO_MINITPU_REPO_URL>
+git remote add sunwoo https://github.com/sunwookim028/mininpu.git
 git fetch sunwoo memory-system
 git switch -c mem-base sunwoo/memory-system
 git push -u origin mem-base
 ```
 
-The benchmark scripts live on the Codex branch. You can either run them from a
-separate Codex checkout against `mem-base`, or cherry-pick the benchmark-only
-commit onto `mem-base` after it is created.
+The benchmark scripts live on the Codex branch. Run them from the Codex checkout
+against the `mem-base` checkout to keep Sunwoo's branch untouched.
 
 ## Run From Separate Checkouts
 
-This keeps Sunwoo's baseline branch clean. Build each checkout's bitstream first:
+This keeps Sunwoo's baseline branch clean. Sunwoo's baseline branch already keeps
+its bitstream under `compiler/tpu_deploy/CornellTPU.bit`; the Codex branch uses
+`ultra96-v2/output/artifacts/mem_bd.bit`.
+
+Build the Codex bitstream first:
 
 ```bash
-cd ~/minitpu-mem-base/tpu
-git checkout mem-base
-make mem-bitstream
-
 cd ~/minitpu-codex/tpu
 git checkout codex/fix-system-mem-dma-read
 git pull --ff-only
@@ -56,7 +55,7 @@ Then run the same benchmark payload against each checkout:
 cd ~/minitpu-codex/tpu
 
 bash benchmarks/run_mem_benchmark_from_checkout.sh \
-  --checkout ~/minitpu-mem-base/tpu \
+  --checkout ~/minitpu-mem-base \
   --variant mem-base \
   --board-ip 132.236.59.72 \
   --out results/mem-base.json
@@ -72,30 +71,16 @@ python3 benchmarks/compare_mem_benchmarks.py \
   results/codex-system-mem-fixed.json
 ```
 
-## Run By Switching Branches
-
-If you prefer a single checkout, cherry-pick the benchmark commit onto
-`mem-base`, build/run, then switch back to the Codex branch and repeat:
-
-```bash
-cd ~/minitpu/tpu
-
-git switch mem-base
-make mem-bitstream
-make mem-benchmark BOARD_IP=132.236.59.72 \
-  BENCH_ARGS="--variant mem-base --repeats 5 --warmups 1"
-
-git switch codex/fix-system-mem-dma-read
-git pull --ff-only
-make mem-bitstream
-make mem-benchmark BOARD_IP=132.236.59.72 \
-  BENCH_ARGS="--variant codex-system-mem-fixed --repeats 5 --warmups 1"
-```
-
 If the baseline runtime lacks the async compute/DMA APIs, the double-buffer row
 will be marked as skipped for that design. That is still useful: it shows the
 feature is not exposed in the older system, while the raw DMA and copy numbers
 remain comparable.
+
+For `mem-base`, the runner auto-detects:
+
+- runtime: `compiler/tpu_deploy/host.py`
+- bitstream: `compiler/tpu_deploy/CornellTPU.bit`
+- hwh: `compiler/tpu_deploy/CornellTPU.hwh`
 
 ## Useful Options
 
@@ -103,7 +88,7 @@ Short smoke run:
 
 ```bash
 bash benchmarks/run_mem_benchmark_from_checkout.sh \
-  --checkout ~/minitpu/tpu \
+  --checkout ~/minitpu-codex/tpu \
   --variant smoke \
   --board-ip 132.236.59.72 \
   --bench-args "--repeats 1 --warmups 0 --sizes 256,1024 --copy-sizes 256,1024"
@@ -113,7 +98,7 @@ Longer run:
 
 ```bash
 bash benchmarks/run_mem_benchmark_from_checkout.sh \
-  --checkout ~/minitpu/tpu \
+  --checkout ~/minitpu-codex/tpu \
   --variant fixed-long \
   --board-ip 132.236.59.72 \
   --bench-args "--repeats 10 --warmups 2"

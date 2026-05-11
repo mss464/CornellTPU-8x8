@@ -15,21 +15,30 @@ for _path in (
     os.path.join(_THIS_DIR, "runtime"),
     os.path.join(_THIS_DIR, "..", "runtime"),
     os.path.join(_THIS_DIR, "..", "..", "runtime"),
+    os.path.join(_THIS_DIR, "compiler", "tpu_deploy"),
+    os.path.join(_THIS_DIR, "..", "compiler", "tpu_deploy"),
 ):
     _path = os.path.abspath(_path)
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
-import pynq_host as _pynq_host
+try:
+    import pynq_host as _host_module
+except ImportError:
+    import host as _host_module
 
 
 class DriverAdapter:
     def __init__(self, bitstream, program=False, latency_mode=0):
-        driver_cls = getattr(_pynq_host, "MemDriver", None)
+        self.legacy_module = None
+        driver_cls = getattr(_host_module, "MemDriver", None)
         if driver_cls is None:
-            driver_cls = getattr(_pynq_host, "TpuDriver", None)
+            driver_cls = getattr(_host_module, "TpuDriver", None)
         if driver_cls is None:
-            raise RuntimeError("pynq_host.py must expose MemDriver or TpuDriver")
+            if all(hasattr(_host_module, name) for name in ("Overlay", "write_bram", "read_bram")):
+                self._init_legacy_module(bitstream, program)
+                return
+            raise RuntimeError("host module must expose MemDriver/TpuDriver or write_bram/read_bram functions")
 
         attempts = [
             ((), {"bitstream": bitstream, "program": program, "latency_mode": latency_mode}),
@@ -47,7 +56,25 @@ class DriverAdapter:
         else:
             raise last_error
 
+    def _init_legacy_module(self, bitstream, program):
+        self.legacy_module = _host_module
+        self.overlay = _host_module.Overlay(bitstream)
+        if program and hasattr(self.overlay, "download"):
+            self.overlay.download()
+        self.dma = self.overlay.axi_dma_0
+        ctrl = None
+        for name in ("tpu_top_v6_0", "tpu_top_0", "mem_top_0", "tpu_0"):
+            if hasattr(self.overlay, name):
+                ctrl = getattr(self.overlay, name)
+                break
+        if ctrl is None:
+            raise RuntimeError("Could not find TPU control IP in overlay")
+        self.mmio = ctrl.mmio
+        self.impl = self
+
     def _call_first(self, names, *args, **kwargs):
+        if self.legacy_module is not None:
+            raise AttributeError("legacy module lacks required method: %s" % " or ".join(names))
         for name in names:
             fn = getattr(self.impl, name, None)
             if fn is not None:
@@ -55,9 +82,14 @@ class DriverAdapter:
         raise AttributeError("Driver lacks required method: %s" % " or ".join(names))
 
     def send_bytes(self, addr, data):
+        if self.legacy_module is not None:
+            return self.legacy_module.write_bram(self.mmio, self.dma, addr,
+                                                np.asarray(data, dtype=np.float32).reshape(-1))
         return self._call_first(("send_bytes", "write_bram"), addr, data)
 
     def read_bytes(self, addr, length):
+        if self.legacy_module is not None:
+            return self.legacy_module.read_bram(self.mmio, self.dma, addr, length)
         return self._call_first(("read_bytes", "read_bram"), addr, length)
 
     def sysmem_to_onchip(self, sys_addr, oc_addr, length):
@@ -69,6 +101,25 @@ class DriverAdapter:
                                 oc_addr, sys_addr, length)
 
     def load_instructions(self, instr64, instr_words):
+        if self.legacy_module is not None:
+            wait = self.legacy_module.wait_for_flag
+            reg = self.legacy_module.REG_ADDR
+            instrs_np = np.asarray(instr64, dtype=np.uint64)
+            instr_buf = self.legacy_module.allocate(shape=instrs_np.shape, dtype=np.uint64)
+            try:
+                wait(self.mmio, "instr_ready", 1)
+                self.mmio.write(reg["addr_ram"], 0)
+                self.mmio.write(reg["length"], len(instrs_np))
+                self.mmio.write(reg["tpu_mode"], self.legacy_module.WRITE_IRAM)
+                wait(self.mmio, "stream_ready", 1)
+                instr_buf[:] = instrs_np
+                self.dma.sendchannel.transfer(instr_buf)
+                self.dma.sendchannel.wait()
+                wait(self.mmio, "instr_ready", 1)
+                self.mmio.write(reg["tpu_mode"], 0)
+            finally:
+                instr_buf.freebuffer()
+            return
         if hasattr(self.impl, "load_instructions"):
             return self.impl.load_instructions(instr_words)
         if hasattr(self.impl, "write_instructions"):
@@ -76,6 +127,16 @@ class DriverAdapter:
         raise AttributeError("Driver lacks instruction loading API")
 
     def run_compute(self, async_run=False):
+        if self.legacy_module is not None:
+            if async_run:
+                raise AttributeError("Legacy host.py does not support async compute")
+            wait = self.legacy_module.wait_for_flag
+            reg = self.legacy_module.REG_ADDR
+            wait(self.mmio, "instr_ready", 1)
+            self.mmio.write(reg["tpu_mode"], self.legacy_module.COMPUTE)
+            wait(self.mmio, "instr_ready", 1)
+            self.mmio.write(reg["tpu_mode"], 0)
+            return
         if hasattr(self.impl, "run_compute"):
             try:
                 return self.impl.run_compute(async_run=async_run)
@@ -95,12 +156,24 @@ class DriverAdapter:
         return self.send_bytes(addr, data)
 
     def wait_dma_idle(self):
+        if self.legacy_module is not None:
+            return
         return self._call_first(("wait_dma_idle",))
 
     def wait_compute_idle(self):
+        if self.legacy_module is not None:
+            return
         return self._call_first(("wait_compute_idle",))
 
+    def supports_l1_copy(self):
+        return self.legacy_module is None and (
+            hasattr(self.impl, "sysmem_to_onchip")
+            or hasattr(self.impl, "devmem_to_l2")
+        )
+
     def supports_overlap(self):
+        if self.legacy_module is not None:
+            return False
         return (
             hasattr(self.impl, "send_bytes_async")
             and hasattr(self.impl, "wait_dma_idle")
@@ -258,6 +331,16 @@ def bench_dma(records, drv, sizes, repeats, warmups, verbose, verify):
 
 
 def bench_l1_copy(records, drv, sizes, repeats, warmups, verbose, verify):
+    if not drv.supports_l1_copy():
+        for words in sizes:
+            add_skipped(records, "l1_copy", "sysmem_to_l1",
+                        "driver/design does not expose a separate L1 copy path",
+                        words=words)
+            add_skipped(records, "l1_copy", "l1_to_sysmem",
+                        "driver/design does not expose a separate L1 copy path",
+                        words=words)
+        return
+
     rng = np.random.RandomState(5678)
     sys_src = 8192
     sys_dst = 24576
@@ -435,7 +518,7 @@ def main():
     print("Memory Subsystem Benchmark Suite")
     print("variant=%s bitstream=%s repeats=%d warmups=%d" %
           (args.variant, args.bitstream, args.repeats, args.warmups))
-    print("Using pynq_host from: %s" % _pynq_host.__file__)
+    print("Using host module from: %s" % _host_module.__file__)
 
     drv = DriverAdapter(bitstream=args.bitstream, program=args.program,
                         latency_mode=args.latency)
@@ -451,7 +534,7 @@ def main():
         "variant": args.variant,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "bitstream": args.bitstream,
-        "pynq_host": _pynq_host.__file__,
+        "pynq_host": _host_module.__file__,
         "repeats": args.repeats,
         "warmups": args.warmups,
         "records": records,

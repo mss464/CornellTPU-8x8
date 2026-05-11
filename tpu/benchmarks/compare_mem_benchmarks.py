@@ -33,6 +33,95 @@ def fmt_pct(value):
     return "-" if value is None else "%+.1f%%" % value
 
 
+def usable(record):
+    return record is not None and not record.get("skipped") and record.get("median_ms", 0) > 0
+
+
+def matching(records, category, metric):
+    return [
+        rec for rec in records
+        if rec.get("category") == category and rec.get("metric") == metric
+    ]
+
+
+def max_words(records, category, metric):
+    usable_records = [rec for rec in matching(records, category, metric) if usable(rec)]
+    if not usable_records:
+        return None
+    return sorted(usable_records, key=lambda rec: int(rec.get("words", 0)))[-1]
+
+
+def same_key(idx, record):
+    return idx.get(key(record)) if record else None
+
+
+def print_highlights(baseline, candidate, base_idx, cand_idx):
+    base_records = baseline.get("records", [])
+    cand_records = candidate.get("records", [])
+    lines = []
+
+    for metric, label in (
+        ("host_to_sysmem_write", "largest raw host write"),
+        ("sysmem_to_host_read", "largest raw host read"),
+    ):
+        b = max_words(base_records, "dma", metric)
+        c = same_key(cand_idx, b)
+        if usable(b) and usable(c):
+            speed = b["median_ms"] / c["median_ms"]
+            lines.append(
+                "%s (%d words): candidate is %.2fx baseline latency (%s vs %s ms)"
+                % (label, int(b.get("words", 0)), c["median_ms"] / b["median_ms"],
+                   fmt_ms(c["median_ms"]), fmt_ms(b["median_ms"]))
+            )
+            lines.append(
+                "  speedup column view: %.2fx, so values below 1.00x mean raw DMA is slower"
+                % speed
+            )
+
+    c_compute = max_words(cand_records, "compute", "vadd_program")
+    b_compute = same_key(base_idx, c_compute)
+    if usable(b_compute) and usable(c_compute):
+        speed = b_compute["median_ms"] / c_compute["median_ms"]
+        note = ""
+        if b_compute.get("single_shot"):
+            note = " (baseline single-shot: %s)" % b_compute.get("single_shot_reason", "legacy runtime")
+        lines.append(
+            "VADD compute (%d words x %d repeats): candidate is %.2fx baseline%s"
+            % (int(c_compute.get("words", 0)), int(c_compute.get("vadd_repeats", 0)),
+               speed, note)
+        )
+
+    c_serial = max_words(cand_records, "double_buffer", "serial_estimate_compute_plus_dma")
+    if usable(c_serial) and c_serial.get("speedup_vs_overlap"):
+        lines.append(
+            "double buffering: %.2fx faster than candidate serial compute+DMA estimate (%s ms -> %s ms)"
+            % (c_serial["speedup_vs_overlap"],
+               fmt_ms(c_serial.get("median_ms")),
+               fmt_ms(c_serial.get("overlap_median_ms")))
+        )
+
+    c_l1 = max_words(cand_records, "l1_copy", "sysmem_to_l1")
+    b_l1 = same_key(base_idx, c_l1)
+    if usable(c_l1) and (b_l1 is None or b_l1.get("skipped")):
+        lines.append(
+            "explicit L1 copy path exists only in candidate for this benchmark; %d-word sysmem->L1 median is %s ms"
+            % (int(c_l1.get("words", 0)), fmt_ms(c_l1.get("median_ms")))
+        )
+
+    c_model = max_words(cand_records, "model", "wide_l1_8bank_vector_add_cycles")
+    if c_model and c_model.get("ideal_bank_speedup"):
+        lines.append(
+            "8-bank model: ideal same-clock L1 bandwidth speedup is %.2fx over one-bank scalar access"
+            % c_model["ideal_bank_speedup"]
+        )
+
+    if lines:
+        print("")
+        print("Highlights:")
+        for line in lines:
+            print("- %s" % line)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Compare two memory benchmark JSON files")
     parser.add_argument("baseline_json")
@@ -91,6 +180,8 @@ def main():
             fmt_speedup(speedup),
             fmt_pct(mbps_delta),
         ))
+
+    print_highlights(baseline, candidate, base_idx, cand_idx)
 
     print("")
     print("Notes:")

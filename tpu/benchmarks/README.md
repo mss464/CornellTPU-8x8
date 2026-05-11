@@ -76,6 +76,12 @@ will be marked as skipped for that design. That is still useful: it shows the
 feature is not exposed in the older system, while the raw DMA and copy numbers
 remain comparable.
 
+The `mem-base` runtime can still run the VADD compute benchmark through
+`compiler/tpu_deploy/host.py`, so the compare script reports a measured
+non-banked VADD time against the Codex branch's banked-L1 VADD time. The
+baseline compute row is single-shot because the legacy RTL does not reset its PC
+between repeated `COMPUTE` launches.
+
 For `mem-base`, the runner auto-detects:
 
 - runtime: `compiler/tpu_deploy/host.py`
@@ -102,4 +108,26 @@ bash benchmarks/run_mem_benchmark_from_checkout.sh \
   --variant fixed-long \
   --board-ip 132.236.59.72 \
   --bench-args "--repeats 10 --warmups 2"
+```
+
+Banking-focused run with a larger VADD:
+
+```bash
+bash benchmarks/run_mem_benchmark_from_checkout.sh \
+  --checkout ~/minitpu-mem-base \
+  --variant mem-base-vadd2048 \
+  --board-ip 132.236.59.72 \
+  --out results/mem-base-vadd2048.json \
+  --bench-args "--repeats 5 --warmups 1 --vadd-len 2048 --vadd-repeats 128"
+
+bash benchmarks/run_mem_benchmark_from_checkout.sh \
+  --checkout ~/minitpu-codex/tpu \
+  --variant codex-system-mem-fixed-vadd2048 \
+  --board-ip 132.236.59.72 \
+  --out results/codex-system-mem-fixed-vadd2048.json \
+  --bench-args "--repeats 5 --warmups 1 --vadd-len 2048 --vadd-repeats 128"
+
+python3 benchmarks/compare_mem_benchmarks.py \
+  results/mem-base-vadd2048.json \
+  results/codex-system-mem-fixed-vadd2048.json
 ```

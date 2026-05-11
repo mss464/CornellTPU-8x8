@@ -181,6 +181,9 @@ class DriverAdapter:
             and hasattr(self.impl, "run_compute")
         )
 
+    def compute_is_single_shot(self):
+        return self.legacy_module is not None
+
 
 def make_instr(mode, addr_a, addr_b, addr_out, length, opcode):
     instr = (int(mode) & 0x3) << 62
@@ -380,15 +383,19 @@ def prepare_vadd(drv, vadd_len, vadd_repeats, verbose):
     with maybe_quiet(verbose):
         drv.load_instructions(instr64, words)
         drv.send_bytes(0, np.concatenate([data_a, data_b]))
-        drv.sysmem_to_onchip(0, addr_a, 2 * vadd_len)
+        if drv.supports_l1_copy():
+            drv.sysmem_to_onchip(0, addr_a, 2 * vadd_len)
     return addr_out, expected_bits
 
 
 def verify_vadd_output(drv, addr_out, expected_bits, verbose):
     result_sys = 32768
     with maybe_quiet(verbose):
-        drv.onchip_to_sysmem(addr_out, result_sys, expected_bits.size)
-        got = drv.read_bytes(result_sys, expected_bits.size)
+        if drv.supports_l1_copy():
+            drv.onchip_to_sysmem(addr_out, result_sys, expected_bits.size)
+            got = drv.read_bytes(result_sys, expected_bits.size)
+        else:
+            got = drv.read_bytes(addr_out, expected_bits.size)
     got_bits = got.view(np.uint32)
     if not np.array_equal(got_bits, expected_bits):
         bad = np.flatnonzero(got_bits != expected_bits)[:8]
@@ -399,27 +406,73 @@ def verify_vadd_output(drv, addr_out, expected_bits, verbose):
         raise AssertionError("VADD output mismatch: %s" % "; ".join(details))
 
 
+def bench_compute(records, drv, vadd_len, vadd_repeats, repeats, warmups, verbose, verify):
+    try:
+        addr_out, expected_bits = prepare_vadd(drv, vadd_len, vadd_repeats, verbose)
+    except AttributeError as exc:
+        add_skipped(records, "compute", "vadd_program",
+                    "driver/design cannot load or execute VADD program: %s" % exc,
+                    words=vadd_len,
+                    extra={"vadd_repeats": int(vadd_repeats),
+                           "vadd_ops": int(vadd_len * vadd_repeats)})
+        return None, None, None
+
+    sample_repeats = repeats
+    sample_warmups = warmups
+    extra = {
+        "vadd_repeats": int(vadd_repeats),
+        "vadd_ops": int(vadd_len * vadd_repeats),
+    }
+    if drv.compute_is_single_shot():
+        sample_repeats = 1
+        sample_warmups = 0
+        extra["single_shot"] = True
+        extra["single_shot_reason"] = (
+            "legacy mem-base PC does not reset between COMPUTE launches"
+        )
+
+    compute_samples = timed_call(lambda: drv.run_compute(async_run=False),
+                                 sample_repeats, sample_warmups, verbose)
+    compute = add_record(records, "compute", "vadd_program", compute_samples,
+                         words=vadd_len, extra=extra)
+    if verify:
+        verify_vadd_output(drv, addr_out, expected_bits, verbose)
+    return compute, addr_out, expected_bits
+
+
 def bench_overlap(records, drv, vadd_len, vadd_repeats, dma_words,
-                  repeats, warmups, verbose, verify):
+                  repeats, warmups, verbose, verify, compute_record=None,
+                  prepared_vadd=None):
     if not drv.supports_overlap():
+        add_skipped(records, "double_buffer", "dma_only_next_tile_write",
+                    "driver does not expose async DMA waits",
+                    words=dma_words)
         add_skipped(records, "double_buffer", "overlapped_compute_and_dma",
                     "driver does not expose async compute + independent DMA waits",
                     words=dma_words,
                     extra={"vadd_repeats": int(vadd_repeats),
                            "vadd_ops": int(vadd_len * vadd_repeats)})
+        add_skipped(records, "double_buffer", "serial_estimate_compute_plus_dma",
+                    "driver does not expose async compute + independent DMA waits",
+                    words=dma_words)
         return
 
     rng = np.random.RandomState(9012)
     dma_addr = 49152
     dma_data = rng.rand(dma_words).astype(np.float32)
 
-    addr_out, expected_bits = prepare_vadd(drv, vadd_len, vadd_repeats, verbose)
-    compute_samples = timed_call(lambda: drv.run_compute(async_run=False),
-                                 repeats, warmups, verbose)
-    compute = add_record(records, "compute", "vadd_program", compute_samples,
-                         words=vadd_len,
-                         extra={"vadd_repeats": int(vadd_repeats),
-                                "vadd_ops": int(vadd_len * vadd_repeats)})
+    if prepared_vadd is None:
+        addr_out, expected_bits = prepare_vadd(drv, vadd_len, vadd_repeats, verbose)
+    else:
+        addr_out, expected_bits = prepared_vadd
+    compute = compute_record
+    if compute is None:
+        compute_samples = timed_call(lambda: drv.run_compute(async_run=False),
+                                     repeats, warmups, verbose)
+        compute = add_record(records, "compute", "vadd_program", compute_samples,
+                             words=vadd_len,
+                             extra={"vadd_repeats": int(vadd_repeats),
+                                    "vadd_ops": int(vadd_len * vadd_repeats)})
 
     dma_samples = timed_call(lambda: drv.send_bytes(dma_addr, dma_data),
                              repeats, warmups, verbose)
@@ -483,6 +536,16 @@ def print_table(records):
     print(header)
     print("-" * len(header))
     for rec in records:
+        if rec.get("skipped"):
+            print("%-14s %-32s %8d %10s %10s %10s" % (
+                rec.get("category", ""),
+                rec.get("metric", ""),
+                rec.get("words", 0),
+                "SKIP",
+                "SKIP",
+                "-",
+            ))
+            continue
         print("%-14s %-32s %8d %10.3f %10.3f %10s" % (
             rec.get("category", ""),
             rec.get("metric", ""),
@@ -526,8 +589,13 @@ def main():
     records = []
     bench_dma(records, drv, sizes, args.repeats, args.warmups, args.verbose, verify)
     bench_l1_copy(records, drv, copy_sizes, args.repeats, args.warmups, args.verbose, verify)
+    compute, addr_out, expected_bits = bench_compute(
+        records, drv, args.vadd_len, args.vadd_repeats,
+        args.repeats, args.warmups, args.verbose, verify)
     bench_overlap(records, drv, args.vadd_len, args.vadd_repeats, args.dma_words,
-                  args.repeats, args.warmups, args.verbose, verify)
+                  args.repeats, args.warmups, args.verbose, verify,
+                  compute_record=compute,
+                  prepared_vadd=(addr_out, expected_bits) if addr_out is not None else None)
     add_l1_bank_model(records, copy_sizes)
 
     payload = {

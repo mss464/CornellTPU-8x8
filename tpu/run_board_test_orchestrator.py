@@ -1,6 +1,12 @@
 import paramiko
 import os
 import sys
+import time
+
+def describe_artifact(path):
+    st = os.stat(path)
+    mtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime))
+    return f"{path} ({st.st_size} bytes, mtime={mtime})"
 
 def run_test():
     host = "132.236.59.68"
@@ -48,6 +54,8 @@ def run_test():
         print("Opened SFTP session.", flush=True)
         print("Uploading test files and bitstream...", flush=True)
         print(f"Using artifacts from: {artifact_dir}", flush=True)
+        print(f"Bitstream artifact: {describe_artifact(local_bitstream)}", flush=True)
+        print(f"HWH artifact: {describe_artifact(local_hwh)}", flush=True)
         sftp.put(local_test_script, f"{remote_root}/board_tests/test_mem_system.py")
         sftp.put(local_driver, f"{remote_root}/runtime/pynq_host.py")
         sftp.put(local_bitstream, f"{remote_root}/{bitstream_name}")

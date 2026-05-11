@@ -97,6 +97,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 mkdir -p "$TMP/runtime" "$TMP/benchmarks" "$TMP/results"
 cp -r "$RUNTIME_DIR"/. "$TMP/runtime/"
+find "$TMP/runtime" \( -type d -name __pycache__ -o -type f -name '*.py[co]' \) -exec rm -rf {} +
 cp "$SCRIPT_DIR/mem_benchmark.py" "$TMP/benchmarks/"
 cp "$BIT" "$TMP/mem_bd.bit"
 cp "$HWH" "$TMP/mem_bd.hwh"

@@ -226,12 +226,8 @@ module compute_core #(
         bram_en_b   = 1'b0;
         bram_we_b   = '0;
 
-        // Feed read data to all units
-        vadd_dout_scalar = 32'd0; // Overridden by logic above, wait.
-        // Wait, vadd_dout_scalar logic above uses bram_dout_b directly.
-        // But bram_dout_b comes from the mux output? No, bram_dout_b is input to this module.
-        // Correct.
-        
+        // Feed read data to wide-port units. The VADD scalar shim gets its
+        // bank-selected read data from the continuous assignment above.
         systolic_dout_b  = bram_dout_b;
         vpu_dout_b       = bram_dout_b;
 

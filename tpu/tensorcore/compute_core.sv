@@ -49,77 +49,29 @@ module compute_core #(
 );
 
     //-------------------------------------------------------------------------
-    // Dummy Unit (Vector Add) - Scalar Interface Shim
+    // Bank-parallel Vector Add
     //-------------------------------------------------------------------------
-    logic [ADDR_WIDTH-1:0]    vadd_addr_scalar;
-    logic [DATA_WIDTH-1:0]    vadd_din_scalar;
-    logic [DATA_WIDTH-1:0]    vadd_dout_scalar;
-    logic                     vadd_en_scalar;
-    logic                     vadd_we_scalar;
-    
-    // Convert Scalar request to Wide request
     logic [ADDR_WIDTH-1:0]            vadd_addr_wide;
     logic [NUM_BANKS*DATA_WIDTH-1:0]  vadd_din_wide;
+    logic [NUM_BANKS*DATA_WIDTH-1:0]  vadd_dout_wide;
+    logic                             vadd_en_wide;
     logic [NUM_BANKS-1:0]             vadd_we_wide;
-
-    // Bank selection for Scalar Shim
-    // vadd_addr_scalar[2:0] selects the bank
-    // vadd_addr_scalar[ADDR_WIDTH-1:3] is the row address
-    logic [2:0] vadd_bank_sel;
-    assign vadd_bank_sel = vadd_addr_scalar[2:0];
-    
-    // Address Mapping (Ignore LSBs for wide address)
-    // We send [12:3] aligned address to BRAM (shifted left? or just same bits?)
-    // scratchpad expects [12:0] input but only uses [12:3].
-    // So we can just pass the scalar address, provided scratchpad logic handles masking.
-    // BUT scratchpad logic: `comp_row_addr = dma_comp_addr_b[ADDR_WIDTH-1:3];`
-    // So simply passing `vadd_addr_scalar` works for address.
-    assign vadd_addr_wide = vadd_addr_scalar;
-
-    // Mux/Demux Data
-    always_comb begin
-        vadd_din_wide = '0;
-        vadd_we_wide = '0;
-        
-        // Broadcast write data to correct lane (or all, masked by WE)
-        vadd_din_wide[(vadd_bank_sel*DATA_WIDTH) +: DATA_WIDTH] = vadd_din_scalar;
-        
-        // Write Enable only for selected bank
-        if (vadd_we_scalar) begin
-            vadd_we_wide[vadd_bank_sel] = 1'b1;
-        end
-    end
-    
-    // Read Data Mux must be registered? 
-    // Scratchpad MemWrapper has 1 cycle latency.
-    // The dummy unit expects data 2 cycles after address? Or 1?
-    // Let's check dummy_unit.sv ... It waits 3 cycles (WAIT1, WAIT2, WAIT3).
-    // So we have plenty of time. We just need to mux the return data based on the *registered* address.
-    
-    logic [2:0] vadd_bank_sel_q;
-    always_ff @(posedge clk) begin
-        if (vadd_en_scalar)
-            vadd_bank_sel_q <= vadd_bank_sel;
-    end
-    
-    assign vadd_dout_scalar = bram_dout_b[(vadd_bank_sel_q * DATA_WIDTH) +: DATA_WIDTH];
-
-
     dummy_unit #(
         .ADDR_WIDTH(ADDR_WIDTH),
-        .DATA_WIDTH(DATA_WIDTH)
+        .DATA_WIDTH(DATA_WIDTH),
+        .NUM_BANKS (NUM_BANKS)
     ) u_dummy_unit (
         .clk(clk),
         .rst_n(rst_n),
         .start(start_vadd_compute),
         .done(vadd_done_compute),
 
-        // BRAM B port (Scalar view)
-        .bram_addr_b(vadd_addr_scalar),
-        .bram_din_b (vadd_din_scalar),
-        .bram_dout_b(vadd_dout_scalar),
-        .bram_en_b  (vadd_en_scalar),
-        .bram_we_b  (vadd_we_scalar),
+        // BRAM B port (wide banked view)
+        .bram_addr_b(vadd_addr_wide),
+        .bram_din_b (vadd_din_wide),
+        .bram_dout_b(vadd_dout_wide),
+        .bram_en_b  (vadd_en_wide),
+        .bram_we_b  (vadd_we_wide),
 
         .addr_a_vadd(addr_a_compute),
         .addr_b_vadd(addr_b_compute),
@@ -226,8 +178,8 @@ module compute_core #(
         bram_en_b   = 1'b0;
         bram_we_b   = '0;
 
-        // Feed read data to wide-port units. The VADD scalar shim gets its
-        // bank-selected read data from the continuous assignment above.
+        // Feed read data to the wide-port compute units.
+        vadd_dout_wide  = bram_dout_b;
         systolic_dout_b  = bram_dout_b;
         vpu_dout_b       = bram_dout_b;
 
@@ -247,10 +199,10 @@ module compute_core #(
                 bram_we_b   = systolic_we_wide;
             end
 
-            2'b10: begin  // Vadd (via shim)
+            2'b10: begin  // Vadd
                 bram_addr_b = vadd_addr_wide;
                 bram_din_b  = vadd_din_wide;
-                bram_en_b   = vadd_en_scalar;
+                bram_en_b   = vadd_en_wide;
                 bram_we_b   = vadd_we_wide;
             end
 

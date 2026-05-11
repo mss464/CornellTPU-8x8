@@ -331,7 +331,8 @@ class MemDriver:
         try:
             self.wait_dma_idle()
             self._write_reg("addr_sys", addr)
-            self._write_reg("length", beat_length)
+            # Hardware register is in 32-bit words; mem_top converts to beats.
+            self._write_reg("length", values.size)
             reg3_rb = self.mmio.read(0x0C)
             reg6_rb = self.mmio.read(0x18)
             print(f"DEBUG WRITE: addr={addr} words={values.size} beats={beat_length} reg3_rb={reg3_rb} reg6_rb={reg6_rb}")
@@ -416,7 +417,8 @@ class MemDriver:
 
             # Now tell FPGA to start streaming
             self._write_reg("addr_sys", addr)
-            self._write_reg("length", beat_length)
+            # Hardware register is in 32-bit words; mem_top converts to beats.
+            self._write_reg("length", padded_len)
             self._doorbell(Mode.DMA_READ)
             self.wait_stream_ready()
 
@@ -442,6 +444,13 @@ class MemDriver:
                 time.sleep(0.0001)
 
             # Acknowledge interrupt
+            debug_stream = self.mmio.read(REG_ADDR["debug_stream"])
+            debug_mc     = self.mmio.read(REG_ADDR["debug_mc"])
+            print(
+                f"DEBUG READ DONE: S2MM_SR=0x{sr:08X} | "
+                f"Stream: state={(debug_stream>>20)&0x3} empty={(debug_stream>>13)&1} full={(debug_stream>>12)&1} sent={debug_stream&0xFF} | "
+                f"MC: state={(debug_mc>>16)&0x7} issued={debug_mc&0xFF}"
+            )
             self.dma.write(0x34, 0x1000)
 
             buf.invalidate()

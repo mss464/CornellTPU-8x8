@@ -5,7 +5,6 @@
 //   - scratchpad.sv (8-bank interleaved L1 with mem_wrapper BRAMs)
 //   - compute_core.sv (MXU + VPU SIMD + Vector Add)
 //   - decoder.sv (instruction decode)
-//   - pc.sv (program counter)
 //   - Instruction BRAM (blk_mem_gen_1)
 //
 // Port A of scratchpad: 32-bit scalar DMA interface (for mem_ctrl sys↔OC)
@@ -43,7 +42,9 @@ module compute_tile #(
     // Instruction RAM (Port A: DMA, Port B: PC Fetch)
     // =========================================================================
     logic [7:0]  pc_val;
+    logic [7:0]  iram_fetch_addr;
     logic [63:0] current_instr;
+    logic [63:0] instr_reg;
 
     blk_mem_gen_1 I_bram (
         .clka  (clk),
@@ -56,26 +57,9 @@ module compute_tile #(
         .clkb  (clk),
         .enb   (1'b1),
         .web   (1'b0),
-        .addrb (pc_val),
+        .addrb (iram_fetch_addr),
         .dinb  (64'b0),
         .doutb (current_instr)
-    );
-
-    // =========================================================================
-    // PC & Control FSM
-    // =========================================================================
-    logic pc_enable, pc_load;
-    logic [7:0] pc_load_val;
-
-    pc #(
-        .PC_WIDTH(8)
-    ) u_pc (
-        .clk         (clk),
-        .rst_n       (rst_n),
-        .PC_enable   (pc_enable),
-        .PC_load     (pc_load),
-        .PC_load_val (pc_load_val),
-        .PC          (pc_val)
     );
 
     // =========================================================================
@@ -89,7 +73,7 @@ module compute_tile #(
     logic        scalar_b;
 
     decoder u_decoder (
-        .instr_decode      (current_instr),
+        .instr_decode      (instr_reg),
         .len_decode        (len),
         .opcode_decode     (opcode),
         .addr_const_decode (addr_const),
@@ -144,6 +128,7 @@ module compute_tile #(
     // =========================================================================
     logic start_systolic, start_vadd, start_vpu;
     logic systolic_done, vadd_done, vpu_done;
+    logic exec_done;
 
     compute_core #(
         .ADDR_WIDTH(ADDR_WIDTH),
@@ -183,30 +168,30 @@ module compute_tile #(
     // =========================================================================
     typedef enum logic [2:0] {
         IDLE      = 3'd0,
-        FETCH     = 3'd1,
+        FETCH_CAPTURE = 3'd1,
         DECODE    = 3'd2,
         EXECUTE   = 3'd3,
-        HALT      = 3'd4,
-        FETCH_WAIT_1 = 3'd5,
-        FETCH_WAIT_2 = 3'd6
+        HALT      = 3'd4
     } state_t;
 
     state_t state;
 
+    assign exec_done = systolic_done || vpu_done || vadd_done;
+    assign iram_fetch_addr = ((state == IDLE) && start) ? 8'd0 :
+                             ((state == EXECUTE) && exec_done) ? (pc_val + 8'd1) :
+                             pc_val;
+
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state           <= IDLE;
-            pc_enable       <= 0;
-            pc_load         <= 0;
-            pc_load_val     <= 0;
+            pc_val          <= 8'd0;
+            instr_reg       <= 64'd0;
             start_systolic  <= 0;
             start_vadd      <= 0;
             start_vpu       <= 0;
             done            <= 0;
         end else begin
             // Default pulse signals
-            pc_enable       <= 0;
-            pc_load         <= 0;
             start_systolic  <= 0;
             start_vadd      <= 0;
             start_vpu       <= 0;
@@ -215,21 +200,13 @@ module compute_tile #(
             case (state)
                 IDLE: begin
                     if (start) begin
-                        pc_load     <= 1'b1;
-                        pc_load_val <= 8'd0;
-                        state       <= FETCH;
+                        pc_val <= 8'd0;
+                        state  <= FETCH_CAPTURE;
                     end
                 end
 
-                FETCH: begin
-                    state <= FETCH_WAIT_1;
-                end
-
-                FETCH_WAIT_1: begin
-                    state <= FETCH_WAIT_2;
-                end
-
-                FETCH_WAIT_2: begin
+                FETCH_CAPTURE: begin
+                    instr_reg <= current_instr;
                     state <= DECODE;
                 end
 
@@ -249,9 +226,9 @@ module compute_tile #(
                 end
 
                 EXECUTE: begin
-                    if (systolic_done || vpu_done || vadd_done) begin
-                        pc_enable <= 1'b1;
-                        state     <= FETCH;
+                    if (exec_done) begin
+                        pc_val <= pc_val + 8'd1;
+                        state  <= FETCH_CAPTURE;
                     end
                 end
 

@@ -57,6 +57,8 @@ foreach rtl_dir $rtl_dirs {
         [glob -nocomplain -directory $rtl_dir *.sv]] {
         if {[string first ":" [file tail $f]] >= 0} {
             puts "  Skipping sidecar file: [file tail $f]"
+        } elseif {[file tail $f] eq "sys_interface.sv"} {
+            puts "  Skipping unused harness: [file tail $f]"
         } else {
             lappend all_rtl_files $f
         }

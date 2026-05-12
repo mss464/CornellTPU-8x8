@@ -148,6 +148,7 @@ module mem_top #(
 
     // Compute subsystem
     reg        compute_running;
+    reg        compute_start_pulse;
     wire       compute_done;
     wire       cc_start_compute_tile;
     wire       compute_tile_done;
@@ -236,12 +237,14 @@ module mem_top #(
         if (!s00_axi_aresetn) begin
             fsm_running        <= 1'b0;
             fsm_start          <= 1'b0;
+            compute_start_pulse <= 1'b0;
             compute_running    <= 1'b0;
             doorbell_clear     <= 1'b0;
             latched_mode       <= 4'd0;
             iram_wr_addr       <= 8'd0;
         end else begin
             fsm_start          <= 1'b0;
+            compute_start_pulse <= 1'b0;
             doorbell_clear     <= 1'b0;
 
             if (fsm_done) fsm_running <= 1'b0;
@@ -262,8 +265,9 @@ module mem_top #(
                     end
                     MODE_COMPUTE: begin
                         if (!compute_running || compute_done) begin
-                            compute_running <= 1'b1;
-                            doorbell_clear  <= 1'b1;
+                            compute_running     <= 1'b1;
+                            compute_start_pulse <= 1'b1;
+                            doorbell_clear      <= 1'b1;
                         end
                     end
                     MODE_WRITE_IRAM: begin
@@ -505,7 +509,7 @@ module mem_top #(
     compute_ctrl u_compute_ctrl (
         .clk                (s00_axi_aclk),
         .rst_n              (s00_axi_aresetn),
-        .start              (compute_running && !cc_start_compute_tile && !compute_tile_done),
+        .start              (compute_start_pulse),
         .done               (compute_done),
         .start_compute_tile (cc_start_compute_tile),
         .compute_tile_done  (compute_tile_done)

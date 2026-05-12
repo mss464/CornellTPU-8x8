@@ -94,6 +94,7 @@ module vpu_simd #(
     logic [NUM_LANES*DATA_W-1:0]  bram_din_simd;
     logic                         bram_en_simd;
     logic [NUM_LANES-1:0]         bram_we_simd;
+    logic                         active_scalar;
 
     assign start_simd = start && (vpu_type != VPU_SCALAR);
 
@@ -101,7 +102,7 @@ module vpu_simd #(
     // Output mux
     //---------------------------------------------------------------------
     always_comb begin
-        if (vpu_type == VPU_SCALAR) begin
+        if (active_scalar) begin
             bram_addr = bram_addr_sc;
             bram_din  = {NUM_LANES{bram_din_sc}};
             bram_en   = bram_en_sc;
@@ -197,6 +198,7 @@ module vpu_simd #(
             rf_rd_addr_a   <= '0;
             rf_rd_addr_b   <= '0;
             done_simd      <= 1'b0;
+            active_scalar  <= 1'b1;
             load_buf       <= '0;
             saved_addr_a   <= '0;
             saved_addr_out <= '0;
@@ -213,6 +215,10 @@ module vpu_simd #(
             case (state)
                 //----------------------------------------------------------
                 IDLE: begin
+                    if (start) begin
+                        active_scalar <= (vpu_type == VPU_SCALAR);
+                    end
+
                     if (start_simd) begin
                         saved_addr_a   <= addr_a;
                         saved_addr_out <= addr_out;

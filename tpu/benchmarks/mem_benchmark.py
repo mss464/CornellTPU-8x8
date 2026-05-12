@@ -772,10 +772,9 @@ def bench_overlap(records, drv, vadd_len, vadd_repeats, dma_words,
     dma_addr = 49152
     dma_data = rng.rand(dma_words).astype(np.float32)
 
-    if prepared_vadd is None:
-        addr_out, expected_bits = prepare_vadd(drv, vadd_len, vadd_repeats, verbose)
-    else:
-        addr_out, expected_bits = prepared_vadd
+    # Earlier compute benchmarks can overwrite IRAM and L1. Reload the VADD
+    # program/data so the overlap run measures the intended workload.
+    addr_out, expected_bits = prepare_vadd(drv, vadd_len, vadd_repeats, verbose)
     compute = compute_record
     if compute is None:
         compute_samples = timed_call(lambda: drv.run_compute(async_run=False),

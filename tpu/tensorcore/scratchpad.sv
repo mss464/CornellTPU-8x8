@@ -44,15 +44,10 @@ module scratchpad #(
     // Internal signals
     logic [ADDR_WIDTH-1:0] dma_addr;
     
-    // Address counters (DMA Logic)
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n)
-            dma_addr <= '0;
-        else if (dma_wr_en)
-            dma_addr <= base_addr + dma_write_pointer;
-        else if (dma_rd_en)
-            dma_addr <= base_addr + dma_read_pointer;
-    end
+    // Combinational address calculation (DMA Logic)
+    // base_addr is the start of the current segment in the scratchpad.
+    // dma_write_pointer/dma_read_pointer are the offsets within that segment.
+    assign dma_addr = base_addr + (dma_wr_en ? dma_write_pointer : dma_read_pointer);
 
     // DMA Banking Logic
     // Bank select = dma_addr[2:0]

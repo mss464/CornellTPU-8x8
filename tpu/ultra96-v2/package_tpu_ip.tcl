@@ -140,8 +140,8 @@ set_property -dict [list \
     CONFIG.Read_Width_B                               {32} \
     CONFIG.Enable_A                                   {Use_ENA_Pin} \
     CONFIG.Enable_B                                   {Use_ENB_Pin} \
-    CONFIG.Register_PortA_Output_of_Memory_Primitives {true} \
-    CONFIG.Register_PortB_Output_of_Memory_Primitives {true} \
+    CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
+    CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
     CONFIG.Use_Byte_Write_Enable                      {false} \
     CONFIG.Byte_Size                                  {9} \
     CONFIG.Operating_Mode_A                           {WRITE_FIRST} \
@@ -162,8 +162,8 @@ set_property -dict [list \
     CONFIG.Read_Width_B                               {64} \
     CONFIG.Enable_A                                   {Use_ENA_Pin} \
     CONFIG.Enable_B                                   {Use_ENB_Pin} \
-    CONFIG.Register_PortA_Output_of_Memory_Primitives {true} \
-    CONFIG.Register_PortB_Output_of_Memory_Primitives {true} \
+    CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
+    CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
     CONFIG.Use_Byte_Write_Enable                      {false} \
     CONFIG.Byte_Size                                  {9} \
     CONFIG.Operating_Mode_A                           {WRITE_FIRST} \
@@ -171,6 +171,28 @@ set_property -dict [list \
 ] [get_ips blk_mem_gen_1]
 generate_target all [get_ips blk_mem_gen_1]
 export_ip_user_files -of_objects [get_ips blk_mem_gen_1] -no_script -force
+
+puts "  blk_mem_gen_3 (L2 SRAM 32-bit x 32768)..."
+create_ip -name blk_mem_gen -vendor xilinx.com -library ip -version 8.4 \
+    -module_name blk_mem_gen_3
+set_property -dict [list \
+    CONFIG.Memory_Type                                {True_Dual_Port_RAM} \
+    CONFIG.Write_Width_A                              {32} \
+    CONFIG.Write_Depth_A                              {32768} \
+    CONFIG.Read_Width_A                               {32} \
+    CONFIG.Write_Width_B                              {32} \
+    CONFIG.Read_Width_B                               {32} \
+    CONFIG.Enable_A                                   {Use_ENA_Pin} \
+    CONFIG.Enable_B                                   {Use_ENB_Pin} \
+    CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
+    CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
+    CONFIG.Use_Byte_Write_Enable                      {false} \
+    CONFIG.Byte_Size                                  {9} \
+    CONFIG.Operating_Mode_A                           {WRITE_FIRST} \
+    CONFIG.Operating_Mode_B                           {WRITE_FIRST} \
+] [get_ips blk_mem_gen_3]
+generate_target all [get_ips blk_mem_gen_3]
+export_ip_user_files -of_objects [get_ips blk_mem_gen_3] -no_script -force
 puts "  BRAM IPs created."
 
 ################################################################################
@@ -265,7 +287,7 @@ foreach fg [ipx::get_file_groups xilinx_anylanguagesynthesis -of_objects $core] 
 # Step 9: Verify AXI interfaces
 ################################################################################
 puts "\n>>> Step 9: Verifying AXI interfaces..."
-foreach req {s00_axi s00_axis m00_axis} {
+foreach req {s00_axi s00_axis m00_axis m_axi} {
     if {[llength [ipx::get_bus_interfaces $req -of_objects $core -quiet]] == 0} {
         puts "  WARNING: '$req' NOT found"
     } else {
@@ -293,7 +315,7 @@ if {$axi_lite ne "" && \
 }
 
 ################################################################################
-# Step 11: Display names
+# Step 11: Display names and Master Address Space
 ################################################################################
 catch { set_property display_name "S00_AXI"  \
             [ipx::get_bus_interfaces s00_axi  -of_objects $core] }
@@ -301,6 +323,22 @@ catch { set_property display_name "S00_AXIS" \
             [ipx::get_bus_interfaces s00_axis -of_objects $core] }
 catch { set_property display_name "M00_AXIS" \
             [ipx::get_bus_interfaces m00_axis -of_objects $core] }
+catch { set_property display_name "M_AXI_MEM" \
+            [ipx::get_bus_interfaces m_axi -of_objects $core] }
+catch { set_property value 128 [ipx::get_bus_parameters DATA_WIDTH -of_objects [ipx::get_bus_interfaces m_axi -of_objects $core]] }
+
+# Ensure m_axi has an address space (required for master interfaces)
+set m_axi_if [ipx::get_bus_interfaces m_axi -of_objects $core -quiet]
+if {$m_axi_if ne ""} {
+    if {[llength [ipx::get_address_spaces m_axi -of_objects $core -quiet]] == 0} {
+        ipx::add_address_space m_axi $core
+        set as [ipx::get_address_spaces m_axi -of_objects $core]
+        set_property range 4G $as
+        set_property width 32 $as
+        set_property master_address_space_ref m_axi $m_axi_if
+        puts "  Added master address space for m_axi (4GB, 32-bit)"
+    }
+}
 
 ################################################################################
 # Step 12: Finalise

@@ -15,14 +15,23 @@
 	)
 	(
 		// Users to add ports here
-		
+
 		input  wire instr_ready_ext,
         input  wire stream_ready_ext,
+        input wire [15:0] debug_reg,
         output wire [31:0] slv_reg0_out,
         output wire [31:0] slv_reg3_out,
         output wire [31:0] slv_reg4_out,
         output wire [31:0] slv_reg5_out,
         output wire [31:0] slv_reg6_out,
+        output wire [31:0] slv_reg7_out,
+        output wire [31:0] slv_reg10_out,
+
+        // Doorbell mechanism (P1.8)
+        // doorbell_out: slv_reg0[4] — host writes 1 to trigger; hardware clears on acceptance
+        output wire        doorbell_out,
+        // doorbell_clear: when asserted by tpu.sv, clears slv_reg0[4] on next posedge
+        input  wire        doorbell_clear,
 
 		// User ports ends
 		// Do not modify the ports beyond this line
@@ -138,77 +147,72 @@
 	assign S_AXI_RRESP	= axi_rresp;
 	assign S_AXI_RVALID	= axi_rvalid;
 	 //state machine varibles 
-	 reg [1:0] state_write;
 	 reg [1:0] state_read;
 	 //State machine local parameters
-	 localparam Idle = 2'b00,Raddr = 2'b10,Rdata = 2'b11 ,Waddr = 2'b10,Wdata = 2'b11;
-	// Implement Write state machine
-	// Outstanding write transactions are not supported by the slave i.e., master should assert bready to receive response on or before it starts sending the new transaction
-	always @(posedge S_AXI_ACLK)                                 
-	  begin                                 
-	     if (S_AXI_ARESETN == 1'b0)                                 
-	       begin                                 
-	         axi_awready <= 0;                                 
-	         axi_wready <= 0;                                 
-	         axi_bvalid <= 0;                                 
-	         axi_bresp <= 0;                                 
-	         axi_awaddr <= 0;                                 
-	         state_write <= Idle;                                 
-	       end                                 
-	     else                                  
-	       begin                                 
-	         case(state_write)                                 
-	           Idle:                                      
-	             begin                                 
-	               if(S_AXI_ARESETN == 1'b1)                                  
-	                 begin                                 
-	                   axi_awready <= 1'b1;                                 
-	                   axi_wready <= 1'b1;                                 
-	                   state_write <= Waddr;                                 
-	                 end                                 
-	               else state_write <= state_write;                                 
-	             end                                 
-	           Waddr:        //At this state, slave is ready to receive address along with corresponding control signals and first data packet. Response valid is also handled at this state                                 
-	             begin                                 
-	               if (S_AXI_AWVALID && S_AXI_AWREADY)                                 
-	                  begin                                 
-	                    axi_awaddr <= S_AXI_AWADDR;                                 
-	                    if(S_AXI_WVALID)                                  
-	                      begin                                   
-	                        axi_awready <= 1'b1;                                 
-	                        state_write <= Waddr;                                 
-	                        axi_bvalid <= 1'b1;                                 
-	                      end                                 
-	                    else                                  
-	                      begin                                 
-	                        axi_awready <= 1'b0;                                 
-	                        state_write <= Wdata;                                 
-	                        if (S_AXI_BREADY && axi_bvalid) axi_bvalid <= 1'b0;                                 
-	                      end                                 
-	                  end                                 
-	               else                                  
-	                  begin                                 
-	                    state_write <= state_write;                                 
-	                    if (S_AXI_BREADY && axi_bvalid) axi_bvalid <= 1'b0;                                 
-	                   end                                 
-	             end                                 
-	          Wdata:        //At this state, slave is ready to receive the data packets until the number of transfers is equal to burst length                                 
-	             begin                                 
-	               if (S_AXI_WVALID)                                 
-	                 begin                                 
-	                   state_write <= Waddr;                                 
-	                   axi_bvalid <= 1'b1;                                 
-	                   axi_awready <= 1'b1;                                 
-	                 end                                 
-	                else                                  
-	                 begin                                 
-	                   state_write <= state_write;                                 
-	                   if (S_AXI_BREADY && axi_bvalid) axi_bvalid <= 1'b0;                                 
-	                 end                                              
-	             end                                 
-	          endcase                                 
-	        end                                 
-	      end                                 
+	 localparam Idle = 2'b00, Raddr = 2'b10, Rdata = 2'b11;
+
+	// Truly Decoupled AXI-Lite Write Logic
+	reg aw_received;
+	reg w_received;
+	reg [C_S_AXI_DATA_WIDTH-1:0] axi_wdata;
+	reg [(C_S_AXI_DATA_WIDTH/8)-1:0] axi_wstrb;
+	wire slv_reg_wren;
+
+	assign slv_reg_wren = aw_received && w_received && ~axi_bvalid;
+
+	always @(posedge S_AXI_ACLK) begin
+		if (S_AXI_ARESETN == 1'b0) begin
+			axi_awready <= 1'b0;
+			aw_received <= 1'b0;
+			axi_awaddr  <= 0;
+		end else begin
+			if (~axi_awready && S_AXI_AWVALID && ~aw_received) begin
+				axi_awready <= 1'b1;
+				aw_received <= 1'b1;
+				axi_awaddr  <= S_AXI_AWADDR;
+			end else if (axi_bvalid && S_AXI_BREADY) begin
+				aw_received <= 1'b0;
+				axi_awready <= 1'b0;
+			end else begin
+				axi_awready <= 1'b0;
+			end
+		end
+	end
+
+	always @(posedge S_AXI_ACLK) begin
+		if (S_AXI_ARESETN == 1'b0) begin
+			axi_wready <= 1'b0;
+			w_received <= 1'b0;
+			axi_wdata  <= 0;
+			axi_wstrb  <= 0;
+		end else begin
+			if (~axi_wready && S_AXI_WVALID && ~w_received) begin
+				axi_wready <= 1'b1;
+				w_received <= 1'b1;
+				axi_wdata  <= S_AXI_WDATA;
+				axi_wstrb  <= S_AXI_WSTRB;
+			end else if (axi_bvalid && S_AXI_BREADY) begin
+				w_received <= 1'b0;
+				axi_wready <= 1'b0;
+			end else begin
+				axi_wready <= 1'b0;
+			end
+		end
+	end
+
+	always @(posedge S_AXI_ACLK) begin
+		if (S_AXI_ARESETN == 1'b0) begin
+			axi_bvalid  <= 0;
+			axi_bresp   <= 2'b0;
+		end else begin
+			if (slv_reg_wren) begin
+				axi_bvalid <= 1'b1;
+				axi_bresp  <= 2'b0;
+			end else if (S_AXI_BREADY && axi_bvalid) begin
+				axi_bvalid <= 1'b0;
+			end
+		end
+	end
 
 	// Implement memory mapped register select and write logic generation
 	// The write data is accepted and written to memory mapped registers when
@@ -240,15 +244,15 @@
 	      slv_reg14 <= 0;
 	    end 
 	  else begin
-	    if (S_AXI_WVALID)
+	    if (slv_reg_wren)
 	      begin
-	        case ( (S_AXI_AWVALID) ? S_AXI_AWADDR[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] : axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] )
+	        case ( axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB] )
 	          4'h0:
 	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
+	              if ( axi_wstrb[byte_index] == 1 ) begin
 	                // Respective byte enables are asserted as per write strobes 
 	                // Slave register 0
-	                slv_reg0[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
+	                slv_reg0[(byte_index*8) +: 8] <= axi_wdata[(byte_index*8) +: 8];
 	              end  
 //	          4'h1:
 //	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
@@ -266,92 +270,91 @@
 //	              end  
 	          4'h3:
 	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
+	              if ( axi_wstrb[byte_index] == 1 ) begin
 	                // Respective byte enables are asserted as per write strobes 
 	                // Slave register 3
-	                slv_reg3[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
+	                slv_reg3[(byte_index*8) +: 8] <= axi_wdata[(byte_index*8) +: 8];
 	              end  
 	          4'h4:
 	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
+	              if ( axi_wstrb[byte_index] == 1 ) begin
 	                // Respective byte enables are asserted as per write strobes 
 	                // Slave register 4
-	                slv_reg4[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
+	                slv_reg4[(byte_index*8) +: 8] <= axi_wdata[(byte_index*8) +: 8];
 	              end  
 	          4'h5:
 	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
+	              if ( axi_wstrb[byte_index] == 1 ) begin
 	                // Respective byte enables are asserted as per write strobes 
 	                // Slave register 5
-	                slv_reg5[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
+	                slv_reg5[(byte_index*8) +: 8] <= axi_wdata[(byte_index*8) +: 8];
 	              end  
 	          4'h6:
 	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
+	              if ( axi_wstrb[byte_index] == 1 ) begin
 	                // Respective byte enables are asserted as per write strobes 
 	                // Slave register 6
-	                slv_reg6[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
+	                slv_reg6[(byte_index*8) +: 8] <= axi_wdata[(byte_index*8) +: 8];
 	              end  
 	          4'h7:
 	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
+	              if ( axi_wstrb[byte_index] == 1 ) begin
 	                // Respective byte enables are asserted as per write strobes 
 	                // Slave register 7
-	                slv_reg7[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
+	                slv_reg7[(byte_index*8) +: 8] <= axi_wdata[(byte_index*8) +: 8];
 	              end  
 	          4'h8:
 	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
+	              if ( axi_wstrb[byte_index] == 1 ) begin
 	                // Respective byte enables are asserted as per write strobes 
 	                // Slave register 8
-	                slv_reg8[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
+	                slv_reg8[(byte_index*8) +: 8] <= axi_wdata[(byte_index*8) +: 8];
 	              end  
 	          4'h9:
 	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
+	              if ( axi_wstrb[byte_index] == 1 ) begin
 	                // Respective byte enables are asserted as per write strobes 
 	                // Slave register 9
-	                slv_reg9[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
+	                slv_reg9[(byte_index*8) +: 8] <= axi_wdata[(byte_index*8) +: 8];
 	              end  
 	          4'hA:
 	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
+	              if ( axi_wstrb[byte_index] == 1 ) begin
 	                // Respective byte enables are asserted as per write strobes 
 	                // Slave register 10
-	                slv_reg10[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
+	                slv_reg10[(byte_index*8) +: 8] <= axi_wdata[(byte_index*8) +: 8];
 	              end  
 	          4'hB:
 	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
+	              if ( axi_wstrb[byte_index] == 1 ) begin
 	                // Respective byte enables are asserted as per write strobes 
 	                // Slave register 11
-	                slv_reg11[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
+	                slv_reg11[(byte_index*8) +: 8] <= axi_wdata[(byte_index*8) +: 8];
 	              end  
 	          4'hC:
 	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
+	              if ( axi_wstrb[byte_index] == 1 ) begin
 	                // Respective byte enables are asserted as per write strobes 
 	                // Slave register 12
-	                slv_reg12[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
+	                slv_reg12[(byte_index*8) +: 8] <= axi_wdata[(byte_index*8) +: 8];
 	              end  
 	          4'hD:
 	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
+	              if ( axi_wstrb[byte_index] == 1 ) begin
 	                // Respective byte enables are asserted as per write strobes 
 	                // Slave register 13
-	                slv_reg13[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
+	                slv_reg13[(byte_index*8) +: 8] <= axi_wdata[(byte_index*8) +: 8];
 	              end  
 	          4'hE:
 	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
+	              if ( axi_wstrb[byte_index] == 1 ) begin
 	                // Respective byte enables are asserted as per write strobes 
 	                // Slave register 14
-	                slv_reg14[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
+	                slv_reg14[(byte_index*8) +: 8] <= axi_wdata[(byte_index*8) +: 8];
 	              end  
 	          default : begin
 	                      slv_reg0 <= slv_reg0;
-	                      slv_reg1 <= slv_reg1;
-	                      slv_reg2 <= slv_reg2;
+	                      // slv_reg1 and slv_reg2 are driven by separate status blocks
 	                      slv_reg3 <= slv_reg3;
 	                      slv_reg4 <= slv_reg4;
 	                      slv_reg5 <= slv_reg5;
@@ -367,6 +370,10 @@
 	                    end
 	        endcase
 	      end
+	    // Doorbell auto-clear: hardware clears bit 4 after tpu.sv latches the command.
+	    // Last NBA wins — doorbell_clear overrides any host write in the same cycle.
+	    if (doorbell_clear)
+	      slv_reg0[4] <= 1'b0;
 	  end
 	end    
 
@@ -425,7 +432,7 @@
         if (!S_AXI_ARESETN)
             slv_reg1 <= 32'b0;
         else
-            slv_reg1 <= {31'b0, instr_ready_ext};  // bit 0 = instr_ready
+            slv_reg1 <= {debug_reg, 15'b0, instr_ready_ext};  // bit 0 = instr_ready
     end
     
     always @(posedge S_AXI_ACLK) begin
@@ -440,6 +447,12 @@
     assign slv_reg4_out = slv_reg4;
     assign slv_reg5_out = slv_reg5;
     assign slv_reg6_out = slv_reg6;
+    assign slv_reg7_out = slv_reg7;
+    assign slv_reg10_out = slv_reg10;
+
+    // Doorbell: slv_reg0[4] auto-clear when tpu.sv asserts doorbell_clear
+    // doorbell_clear is handled inside the main register write always block below.
+    assign doorbell_out = slv_reg0[4];
 
 	// User logic ends
 

@@ -67,25 +67,52 @@
 # IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_19/bd_252b_sbn_0.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
-# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_20/bd_252b_m00s2a_0.xci
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_20/bd_252b_s02mmu_0.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
-# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_21/bd_252b_m00arn_0.xci
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_21/bd_252b_s02tr_0.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
-# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_22/bd_252b_m00rn_0.xci
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_22/bd_252b_s02sic_0.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
-# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_23/bd_252b_m00awn_0.xci
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_23/bd_252b_s02a2s_0.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
-# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_24/bd_252b_m00wn_0.xci
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_24/bd_252b_sarn_1.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
-# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_25/bd_252b_m00bn_0.xci
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_25/bd_252b_srn_1.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
-# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_26/bd_252b_m00e_0.xci
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_26/bd_252b_sawn_1.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_27/bd_252b_swn_1.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_28/bd_252b_sbn_1.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_29/bd_252b_m00s2a_0.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_30/bd_252b_m00arn_0.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_31/bd_252b_m00rn_0.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_32/bd_252b_m00awn_0.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_33/bd_252b_m00wn_0.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_34/bd_252b_m00bn_0.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_35/bd_252b_m00e_0.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
 # XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_1/bd_252b_psr_aclk_0_board.xdc
@@ -133,31 +160,58 @@
 # XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_19/bd_252b_sbn_0_clocks.xdc
 # DONT_TOUCH constraint suppressed by parent sub-design file.
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_20/bd_252b_m00s2a_0_ooc.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_23/bd_252b_s02a2s_0_ooc.xdc
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_21/bd_252b_m00arn_0_ooc.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_24/bd_252b_sarn_1_ooc.xdc
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_21/bd_252b_m00arn_0_clocks.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_24/bd_252b_sarn_1_clocks.xdc
 # DONT_TOUCH constraint suppressed by parent sub-design file.
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_22/bd_252b_m00rn_0_ooc.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_25/bd_252b_srn_1_ooc.xdc
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_22/bd_252b_m00rn_0_clocks.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_25/bd_252b_srn_1_clocks.xdc
 # DONT_TOUCH constraint suppressed by parent sub-design file.
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_23/bd_252b_m00awn_0_ooc.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_26/bd_252b_sawn_1_ooc.xdc
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_23/bd_252b_m00awn_0_clocks.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_26/bd_252b_sawn_1_clocks.xdc
 # DONT_TOUCH constraint suppressed by parent sub-design file.
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_24/bd_252b_m00wn_0_ooc.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_27/bd_252b_swn_1_ooc.xdc
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_24/bd_252b_m00wn_0_clocks.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_27/bd_252b_swn_1_clocks.xdc
 # DONT_TOUCH constraint suppressed by parent sub-design file.
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_25/bd_252b_m00bn_0_ooc.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_28/bd_252b_sbn_1_ooc.xdc
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_25/bd_252b_m00bn_0_clocks.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_28/bd_252b_sbn_1_clocks.xdc
+# DONT_TOUCH constraint suppressed by parent sub-design file.
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_29/bd_252b_m00s2a_0_ooc.xdc
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_30/bd_252b_m00arn_0_ooc.xdc
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_30/bd_252b_m00arn_0_clocks.xdc
+# DONT_TOUCH constraint suppressed by parent sub-design file.
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_31/bd_252b_m00rn_0_ooc.xdc
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_31/bd_252b_m00rn_0_clocks.xdc
+# DONT_TOUCH constraint suppressed by parent sub-design file.
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_32/bd_252b_m00awn_0_ooc.xdc
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_32/bd_252b_m00awn_0_clocks.xdc
+# DONT_TOUCH constraint suppressed by parent sub-design file.
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_33/bd_252b_m00wn_0_ooc.xdc
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_33/bd_252b_m00wn_0_clocks.xdc
+# DONT_TOUCH constraint suppressed by parent sub-design file.
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_34/bd_252b_m00bn_0_ooc.xdc
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_34/bd_252b_m00bn_0_clocks.xdc
 # DONT_TOUCH constraint suppressed by parent sub-design file.
 
 # XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/ooc.xdc
@@ -234,25 +288,52 @@ set_property KEEP_HIERARCHY SOFT [get_cells inst -quiet] -quiet
 # IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_19/bd_252b_sbn_0.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
-# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_20/bd_252b_m00s2a_0.xci
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_20/bd_252b_s02mmu_0.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
-# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_21/bd_252b_m00arn_0.xci
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_21/bd_252b_s02tr_0.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
-# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_22/bd_252b_m00rn_0.xci
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_22/bd_252b_s02sic_0.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
-# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_23/bd_252b_m00awn_0.xci
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_23/bd_252b_s02a2s_0.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
-# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_24/bd_252b_m00wn_0.xci
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_24/bd_252b_sarn_1.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
-# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_25/bd_252b_m00bn_0.xci
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_25/bd_252b_srn_1.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
-# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_26/bd_252b_m00e_0.xci
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_26/bd_252b_sawn_1.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_27/bd_252b_swn_1.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_28/bd_252b_sbn_1.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_29/bd_252b_m00s2a_0.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_30/bd_252b_m00arn_0.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_31/bd_252b_m00rn_0.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_32/bd_252b_m00awn_0.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_33/bd_252b_m00wn_0.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_34/bd_252b_m00bn_0.xci
+# DONT_TOUCH constraint suppressed by (parent) sub-design file.
+
+# IP: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_35/bd_252b_m00e_0.xci
 # DONT_TOUCH constraint suppressed by (parent) sub-design file.
 
 # XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_1/bd_252b_psr_aclk_0_board.xdc
@@ -300,31 +381,58 @@ set_property KEEP_HIERARCHY SOFT [get_cells inst -quiet] -quiet
 # XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_19/bd_252b_sbn_0_clocks.xdc
 # DONT_TOUCH constraint suppressed by parent sub-design file.
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_20/bd_252b_m00s2a_0_ooc.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_23/bd_252b_s02a2s_0_ooc.xdc
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_21/bd_252b_m00arn_0_ooc.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_24/bd_252b_sarn_1_ooc.xdc
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_21/bd_252b_m00arn_0_clocks.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_24/bd_252b_sarn_1_clocks.xdc
 # DONT_TOUCH constraint suppressed by parent sub-design file.
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_22/bd_252b_m00rn_0_ooc.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_25/bd_252b_srn_1_ooc.xdc
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_22/bd_252b_m00rn_0_clocks.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_25/bd_252b_srn_1_clocks.xdc
 # DONT_TOUCH constraint suppressed by parent sub-design file.
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_23/bd_252b_m00awn_0_ooc.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_26/bd_252b_sawn_1_ooc.xdc
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_23/bd_252b_m00awn_0_clocks.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_26/bd_252b_sawn_1_clocks.xdc
 # DONT_TOUCH constraint suppressed by parent sub-design file.
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_24/bd_252b_m00wn_0_ooc.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_27/bd_252b_swn_1_ooc.xdc
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_24/bd_252b_m00wn_0_clocks.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_27/bd_252b_swn_1_clocks.xdc
 # DONT_TOUCH constraint suppressed by parent sub-design file.
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_25/bd_252b_m00bn_0_ooc.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_28/bd_252b_sbn_1_ooc.xdc
 
-# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_25/bd_252b_m00bn_0_clocks.xdc
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_28/bd_252b_sbn_1_clocks.xdc
+# DONT_TOUCH constraint suppressed by parent sub-design file.
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_29/bd_252b_m00s2a_0_ooc.xdc
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_30/bd_252b_m00arn_0_ooc.xdc
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_30/bd_252b_m00arn_0_clocks.xdc
+# DONT_TOUCH constraint suppressed by parent sub-design file.
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_31/bd_252b_m00rn_0_ooc.xdc
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_31/bd_252b_m00rn_0_clocks.xdc
+# DONT_TOUCH constraint suppressed by parent sub-design file.
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_32/bd_252b_m00awn_0_ooc.xdc
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_32/bd_252b_m00awn_0_clocks.xdc
+# DONT_TOUCH constraint suppressed by parent sub-design file.
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_33/bd_252b_m00wn_0_ooc.xdc
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_33/bd_252b_m00wn_0_clocks.xdc
+# DONT_TOUCH constraint suppressed by parent sub-design file.
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_34/bd_252b_m00bn_0_ooc.xdc
+
+# XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/bd_0/ip/ip_34/bd_252b_m00bn_0_clocks.xdc
 # DONT_TOUCH constraint suppressed by parent sub-design file.
 
 # XDC: /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_axi_smc_0/ooc.xdc

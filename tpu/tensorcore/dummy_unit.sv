@@ -1,146 +1,131 @@
 `timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 11/05/2025 12:56:43 AM
-// Design Name: 
-// Module Name: dummy_unit
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
 
+// Bank-parallel vector add unit.
+//
+// The previous implementation walked one scalar word at a time through a shim
+// in compute_core. That kept the old VADD behavior correct, but it did not
+// exercise the 8-bank L1 datapath. This version reads and writes one 8-word
+// row per loop iteration through the wide compute port.
 
 module dummy_unit #(
     parameter ADDR_WIDTH = 13,
-    parameter DATA_WIDTH = 32
+    parameter DATA_WIDTH = 32,
+    parameter NUM_BANKS  = 8
 )(
-    input  logic                     clk,
-    input  logic                     rst_n,
-    input  logic                     start,
-    input  logic [ADDR_WIDTH-1:0]    addr_a_vadd,
-    input  logic [ADDR_WIDTH-1:0]    addr_b_vadd,
-    input  logic [ADDR_WIDTH-1:0]    addr_out_vadd,
-    input  logic [22:0]              len_vadd,
-    output logic                     done,
+    input  logic                             clk,
+    input  logic                             rst_n,
+    input  logic                             start,
+    input  logic [ADDR_WIDTH-1:0]            addr_a_vadd,
+    input  logic [ADDR_WIDTH-1:0]            addr_b_vadd,
+    input  logic [ADDR_WIDTH-1:0]            addr_out_vadd,
+    input  logic [22:0]                      len_vadd,
+    output logic                             done,
 
-    // BRAM Port B Interface
-    output logic [ADDR_WIDTH-1:0]    bram_addr_b,
-    output logic [DATA_WIDTH-1:0]    bram_din_b,
-    input  logic [DATA_WIDTH-1:0]    bram_dout_b,
-    output logic                     bram_en_b,
-    output logic                     bram_we_b
+    // Wide BRAM Port B interface: one row contains NUM_BANKS words.
+    output logic [ADDR_WIDTH-1:0]            bram_addr_b,
+    output logic [NUM_BANKS*DATA_WIDTH-1:0]  bram_din_b,
+    input  logic [NUM_BANKS*DATA_WIDTH-1:0]  bram_dout_b,
+    output logic                             bram_en_b,
+    output logic [NUM_BANKS-1:0]             bram_we_b
 );
 
-    // FSM state definitions
-    typedef enum logic [4:0] {
+    typedef enum logic [2:0] {
         IDLE,
         READ_A,
         READ_B,
-        WAIT_1,
-        WAIT_2,
-        WAIT_3,
+        WAIT_A,
+        WAIT_B,
         WRITE_OUT,
         DONE
     } state_t;
 
-    state_t state = IDLE;
+    state_t state;
 
-    // Loop counter and temporary storage
     logic [31:0] i;
-    logic [DATA_WIDTH-1:0] data_a, data_b, data_sum;
+    logic [NUM_BANKS-1:0][DATA_WIDTH-1:0] row_a;
+    logic [NUM_BANKS-1:0][DATA_WIDTH-1:0] row_b;
+    logic [NUM_BANKS-1:0][DATA_WIDTH-1:0] row_sum;
+    logic [NUM_BANKS-1:0]                 write_mask;
 
-    // Instantiate the compute unit. here- (vadd)
-    vadd #(.DATA_WIDTH(DATA_WIDTH)) u_vadd (
-        .a(data_a),
-        .b(data_b),
-        .sum(data_sum)
-    );
+    always_comb begin
+        for (int lane = 0; lane < NUM_BANKS; lane++) begin
+            row_sum[lane] = row_a[lane] + row_b[lane];
+            write_mask[lane] = ((i + lane) < len_vadd);
+        end
+    end
 
-    // FSM behavior
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            state        <= IDLE;
-            done         <= 1'b0;
-            i            <= '0;
-            bram_en_b    <= 1'b0;
-            bram_we_b    <= 1'b0;
-            bram_addr_b  <= '0;
-            bram_din_b   <= '0;
-            data_a       <= '0;
-            data_b       <= '0;
+            state       <= IDLE;
+            done        <= 1'b0;
+            i           <= '0;
+            bram_en_b   <= 1'b0;
+            bram_we_b   <= '0;
+            bram_addr_b <= '0;
+            bram_din_b  <= '0;
+            row_a       <= '0;
+            row_b       <= '0;
         end else begin
             done      <= 1'b0;
-            bram_we_b <= 1'b0;
+            bram_we_b <= '0;
+            bram_en_b <= 1'b0;
 
             case (state)
-                // Wait for start signal
                 IDLE: begin
                     if (start) begin
                         i     <= 0;
-                        state <= READ_A;
+                        state <= (len_vadd == 0) ? DONE : READ_A;
                     end
                 end
 
-                // Read A[i] from BRAM
                 READ_A: begin
                     bram_en_b   <= 1'b1;
-                    bram_we_b   <= 1'b0;
-                    bram_addr_b <= addr_a_vadd + i;
+                    bram_addr_b <= addr_a_vadd + i[ADDR_WIDTH-1:0];
                     state       <= READ_B;
                 end
-                
 
-                // Read B[i] from BRAM
                 READ_B: begin
                     bram_en_b   <= 1'b1;
-                    bram_we_b   <= 1'b0;
-                    bram_addr_b <= addr_b_vadd + i;
-                    state       <= WAIT_1;
-                end
-                
-                WAIT_1: begin
-                    state <= WAIT_2;
-                end
-                
-                WAIT_2: begin
-                    state <= WAIT_3;
-                    data_a <= bram_dout_b;
-                end
-                
-                WAIT_3: begin
-                    state <= WRITE_OUT;
-                    data_b <= bram_dout_b;
+                    bram_addr_b <= addr_b_vadd + i[ADDR_WIDTH-1:0];
+                    state       <= WAIT_A;
                 end
 
-                // Write SUM to C[i] in BRAM
+                WAIT_A: begin
+                    for (int lane = 0; lane < NUM_BANKS; lane++) begin
+                        row_a[lane] <= bram_dout_b[lane*DATA_WIDTH +: DATA_WIDTH];
+                    end
+                    state <= WAIT_B;
+                end
+
+                WAIT_B: begin
+                    for (int lane = 0; lane < NUM_BANKS; lane++) begin
+                        row_b[lane] <= bram_dout_b[lane*DATA_WIDTH +: DATA_WIDTH];
+                    end
+                    state <= WRITE_OUT;
+                end
+
                 WRITE_OUT: begin
                     bram_en_b   <= 1'b1;
-                    bram_we_b   <= 1'b1;
-                    bram_addr_b <= addr_out_vadd + i;
-                    bram_din_b  <= data_sum;
+                    bram_we_b   <= write_mask;
+                    bram_addr_b <= addr_out_vadd + i[ADDR_WIDTH-1:0];
+                    for (int lane = 0; lane < NUM_BANKS; lane++) begin
+                        bram_din_b[lane*DATA_WIDTH +: DATA_WIDTH] <= row_sum[lane];
+                    end
 
-                    if (i >= len_vadd - 1) begin
+                    if (i + NUM_BANKS >= len_vadd) begin
                         state <= DONE;
                     end else begin
-                        i     <= i + 1;
+                        i     <= i + NUM_BANKS;
                         state <= READ_A;
                     end
                 end
 
-                // Raise done and return to idle
                 DONE: begin
                     done  <= 1'b1;
-                    bram_en_b <= 1'b0;
+                    state <= IDLE;
+                end
+
+                default: begin
                     state <= IDLE;
                 end
             endcase

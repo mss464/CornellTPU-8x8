@@ -2,7 +2,7 @@
 //Copyright 2022-2023 Advanced Micro Devices, Inc. All Rights Reserved.
 //--------------------------------------------------------------------------------
 //Tool Version: Vivado v.2023.2 (lin64) Build 4029153 Fri Oct 13 20:13:54 MDT 2023
-//Date        : Tue Feb 17 00:07:48 2026
+//Date        : Fri Apr 24 04:16:18 2026
 //Host        : brg-zhang-xcel.ece.cornell.edu running 64-bit Red Hat Enterprise Linux 9.1 (Plow)
 //Command     : generate_target minitpu.bd
 //Design      : minitpu
@@ -285,7 +285,7 @@ endmodule
 module minitpu
    ();
 
-  wire [63:0]axi_dma_0_M_AXIS_MM2S_TDATA;
+  wire [255:0]axi_dma_0_M_AXIS_MM2S_TDATA;
   wire axi_dma_0_M_AXIS_MM2S_TLAST;
   wire axi_dma_0_M_AXIS_MM2S_TREADY;
   wire axi_dma_0_M_AXIS_MM2S_TVALID;
@@ -297,7 +297,7 @@ module minitpu
   wire axi_dma_0_M_AXI_MM2S_ARREADY;
   wire [2:0]axi_dma_0_M_AXI_MM2S_ARSIZE;
   wire axi_dma_0_M_AXI_MM2S_ARVALID;
-  wire [63:0]axi_dma_0_M_AXI_MM2S_RDATA;
+  wire [255:0]axi_dma_0_M_AXI_MM2S_RDATA;
   wire axi_dma_0_M_AXI_MM2S_RLAST;
   wire axi_dma_0_M_AXI_MM2S_RREADY;
   wire [1:0]axi_dma_0_M_AXI_MM2S_RRESP;
@@ -313,10 +313,10 @@ module minitpu
   wire axi_dma_0_M_AXI_S2MM_BREADY;
   wire [1:0]axi_dma_0_M_AXI_S2MM_BRESP;
   wire axi_dma_0_M_AXI_S2MM_BVALID;
-  wire [31:0]axi_dma_0_M_AXI_S2MM_WDATA;
+  wire [255:0]axi_dma_0_M_AXI_S2MM_WDATA;
   wire axi_dma_0_M_AXI_S2MM_WLAST;
   wire axi_dma_0_M_AXI_S2MM_WREADY;
-  wire [3:0]axi_dma_0_M_AXI_S2MM_WSTRB;
+  wire [31:0]axi_dma_0_M_AXI_S2MM_WSTRB;
   wire axi_dma_0_M_AXI_S2MM_WVALID;
   wire [39:0]axi_interconnect_0_M00_AXI_ARADDR;
   wire axi_interconnect_0_M00_AXI_ARREADY;
@@ -388,10 +388,40 @@ module minitpu
   wire axi_smc_M00_AXI_WVALID;
   wire [0:0]proc_sys_reset_0_interconnect_aresetn;
   wire [0:0]proc_sys_reset_0_peripheral_aresetn;
-  wire [31:0]tpu_0_m00_axis_TDATA;
+  wire [255:0]tpu_0_m00_axis_TDATA;
+  wire [31:0]tpu_0_m00_axis_TKEEP;
   wire tpu_0_m00_axis_TLAST;
   wire tpu_0_m00_axis_TREADY;
   wire tpu_0_m00_axis_TVALID;
+  wire [31:0]tpu_0_m_axi_ARADDR;
+  wire [1:0]tpu_0_m_axi_ARBURST;
+  wire [3:0]tpu_0_m_axi_ARCACHE;
+  wire [7:0]tpu_0_m_axi_ARLEN;
+  wire [2:0]tpu_0_m_axi_ARPROT;
+  wire tpu_0_m_axi_ARREADY;
+  wire [2:0]tpu_0_m_axi_ARSIZE;
+  wire tpu_0_m_axi_ARVALID;
+  wire [31:0]tpu_0_m_axi_AWADDR;
+  wire [1:0]tpu_0_m_axi_AWBURST;
+  wire [3:0]tpu_0_m_axi_AWCACHE;
+  wire [7:0]tpu_0_m_axi_AWLEN;
+  wire [2:0]tpu_0_m_axi_AWPROT;
+  wire tpu_0_m_axi_AWREADY;
+  wire [2:0]tpu_0_m_axi_AWSIZE;
+  wire tpu_0_m_axi_AWVALID;
+  wire tpu_0_m_axi_BREADY;
+  wire [1:0]tpu_0_m_axi_BRESP;
+  wire tpu_0_m_axi_BVALID;
+  wire [127:0]tpu_0_m_axi_RDATA;
+  wire tpu_0_m_axi_RLAST;
+  wire tpu_0_m_axi_RREADY;
+  wire [1:0]tpu_0_m_axi_RRESP;
+  wire tpu_0_m_axi_RVALID;
+  wire [127:0]tpu_0_m_axi_WDATA;
+  wire tpu_0_m_axi_WLAST;
+  wire tpu_0_m_axi_WREADY;
+  wire [15:0]tpu_0_m_axi_WSTRB;
+  wire tpu_0_m_axi_WVALID;
   wire [39:0]zynq_ps_M_AXI_HPM0_LPD_ARADDR;
   wire [1:0]zynq_ps_M_AXI_HPM0_LPD_ARBURST;
   wire [3:0]zynq_ps_M_AXI_HPM0_LPD_ARCACHE;
@@ -487,7 +517,7 @@ module minitpu
         .s_axi_lite_wready(axi_interconnect_0_M00_AXI_WREADY),
         .s_axi_lite_wvalid(axi_interconnect_0_M00_AXI_WVALID),
         .s_axis_s2mm_tdata(tpu_0_m00_axis_TDATA),
-        .s_axis_s2mm_tkeep({1'b1,1'b1,1'b1,1'b1}),
+        .s_axis_s2mm_tkeep(tpu_0_m00_axis_TKEEP),
         .s_axis_s2mm_tlast(tpu_0_m00_axis_TLAST),
         .s_axis_s2mm_tready(tpu_0_m00_axis_TREADY),
         .s_axis_s2mm_tvalid(tpu_0_m00_axis_TVALID));
@@ -639,6 +669,39 @@ module minitpu
         .S01_AXI_wready(axi_dma_0_M_AXI_S2MM_WREADY),
         .S01_AXI_wstrb(axi_dma_0_M_AXI_S2MM_WSTRB),
         .S01_AXI_wvalid(axi_dma_0_M_AXI_S2MM_WVALID),
+        .S02_AXI_araddr(tpu_0_m_axi_ARADDR),
+        .S02_AXI_arburst(tpu_0_m_axi_ARBURST),
+        .S02_AXI_arcache(tpu_0_m_axi_ARCACHE),
+        .S02_AXI_arlen(tpu_0_m_axi_ARLEN),
+        .S02_AXI_arlock(1'b0),
+        .S02_AXI_arprot(tpu_0_m_axi_ARPROT),
+        .S02_AXI_arqos({1'b0,1'b0,1'b0,1'b0}),
+        .S02_AXI_arready(tpu_0_m_axi_ARREADY),
+        .S02_AXI_arsize(tpu_0_m_axi_ARSIZE),
+        .S02_AXI_arvalid(tpu_0_m_axi_ARVALID),
+        .S02_AXI_awaddr(tpu_0_m_axi_AWADDR),
+        .S02_AXI_awburst(tpu_0_m_axi_AWBURST),
+        .S02_AXI_awcache(tpu_0_m_axi_AWCACHE),
+        .S02_AXI_awlen(tpu_0_m_axi_AWLEN),
+        .S02_AXI_awlock(1'b0),
+        .S02_AXI_awprot(tpu_0_m_axi_AWPROT),
+        .S02_AXI_awqos({1'b0,1'b0,1'b0,1'b0}),
+        .S02_AXI_awready(tpu_0_m_axi_AWREADY),
+        .S02_AXI_awsize(tpu_0_m_axi_AWSIZE),
+        .S02_AXI_awvalid(tpu_0_m_axi_AWVALID),
+        .S02_AXI_bready(tpu_0_m_axi_BREADY),
+        .S02_AXI_bresp(tpu_0_m_axi_BRESP),
+        .S02_AXI_bvalid(tpu_0_m_axi_BVALID),
+        .S02_AXI_rdata(tpu_0_m_axi_RDATA),
+        .S02_AXI_rlast(tpu_0_m_axi_RLAST),
+        .S02_AXI_rready(tpu_0_m_axi_RREADY),
+        .S02_AXI_rresp(tpu_0_m_axi_RRESP),
+        .S02_AXI_rvalid(tpu_0_m_axi_RVALID),
+        .S02_AXI_wdata(tpu_0_m_axi_WDATA),
+        .S02_AXI_wlast(tpu_0_m_axi_WLAST),
+        .S02_AXI_wready(tpu_0_m_axi_WREADY),
+        .S02_AXI_wstrb(tpu_0_m_axi_WSTRB),
+        .S02_AXI_wvalid(tpu_0_m_axi_WVALID),
         .aclk(zynq_ps_pl_clk0),
         .aresetn(proc_sys_reset_0_interconnect_aresetn));
   minitpu_proc_sys_reset_0_0 proc_sys_reset_0
@@ -653,9 +716,41 @@ module minitpu
        (.m00_axis_aclk(zynq_ps_pl_clk0),
         .m00_axis_aresetn(proc_sys_reset_0_peripheral_aresetn),
         .m00_axis_tdata(tpu_0_m00_axis_TDATA),
+        .m00_axis_tkeep(tpu_0_m00_axis_TKEEP),
         .m00_axis_tlast(tpu_0_m00_axis_TLAST),
         .m00_axis_tready(tpu_0_m00_axis_TREADY),
         .m00_axis_tvalid(tpu_0_m00_axis_TVALID),
+        .m_axi_aclk(zynq_ps_pl_clk0),
+        .m_axi_araddr(tpu_0_m_axi_ARADDR),
+        .m_axi_arburst(tpu_0_m_axi_ARBURST),
+        .m_axi_arcache(tpu_0_m_axi_ARCACHE),
+        .m_axi_aresetn(proc_sys_reset_0_peripheral_aresetn),
+        .m_axi_arlen(tpu_0_m_axi_ARLEN),
+        .m_axi_arprot(tpu_0_m_axi_ARPROT),
+        .m_axi_arready(tpu_0_m_axi_ARREADY),
+        .m_axi_arsize(tpu_0_m_axi_ARSIZE),
+        .m_axi_arvalid(tpu_0_m_axi_ARVALID),
+        .m_axi_awaddr(tpu_0_m_axi_AWADDR),
+        .m_axi_awburst(tpu_0_m_axi_AWBURST),
+        .m_axi_awcache(tpu_0_m_axi_AWCACHE),
+        .m_axi_awlen(tpu_0_m_axi_AWLEN),
+        .m_axi_awprot(tpu_0_m_axi_AWPROT),
+        .m_axi_awready(tpu_0_m_axi_AWREADY),
+        .m_axi_awsize(tpu_0_m_axi_AWSIZE),
+        .m_axi_awvalid(tpu_0_m_axi_AWVALID),
+        .m_axi_bready(tpu_0_m_axi_BREADY),
+        .m_axi_bresp(tpu_0_m_axi_BRESP),
+        .m_axi_bvalid(tpu_0_m_axi_BVALID),
+        .m_axi_rdata(tpu_0_m_axi_RDATA),
+        .m_axi_rlast(tpu_0_m_axi_RLAST),
+        .m_axi_rready(tpu_0_m_axi_RREADY),
+        .m_axi_rresp(tpu_0_m_axi_RRESP),
+        .m_axi_rvalid(tpu_0_m_axi_RVALID),
+        .m_axi_wdata(tpu_0_m_axi_WDATA),
+        .m_axi_wlast(tpu_0_m_axi_WLAST),
+        .m_axi_wready(tpu_0_m_axi_WREADY),
+        .m_axi_wstrb(tpu_0_m_axi_WSTRB),
+        .m_axi_wvalid(tpu_0_m_axi_WVALID),
         .s00_axi_aclk(zynq_ps_pl_clk0),
         .s00_axi_araddr(axi_interconnect_0_M01_AXI_ARADDR[5:0]),
         .s00_axi_aresetn(proc_sys_reset_0_peripheral_aresetn),
@@ -682,7 +777,7 @@ module minitpu
         .s00_axis_tdata(axi_dma_0_M_AXIS_MM2S_TDATA),
         .s00_axis_tlast(axi_dma_0_M_AXIS_MM2S_TLAST),
         .s00_axis_tready(axi_dma_0_M_AXIS_MM2S_TREADY),
-        .s00_axis_tstrb({1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1}),
+        .s00_axis_tstrb({1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1,1'b1}),
         .s00_axis_tvalid(axi_dma_0_M_AXIS_MM2S_TVALID));
   minitpu_zynq_ps_0 zynq_ps
        (.maxigp2_araddr(zynq_ps_M_AXI_HPM0_LPD_ARADDR),

@@ -61,7 +61,7 @@ module mxu #(
     // Index for load progress (indexes loading beats)
     logic [5:0] load_idx;  // Changed from integer for better synthesis/sim compatibility
     wire [ADDRESS_WIDTH-1:0] load_idx_addr =
-        {{(ADDRESS_WIDTH-$bits(load_idx)){1'b0}}, load_idx};
+        {{(ADDRESS_WIDTH-$bits(load_idx)){1'b0}}, load_idx} * BANKING_FACTOR;
 
     // Timer for memory fixed latency
     logic [$clog2(MEM_LATENCY+1)-1:0] mem_latency_timer;

@@ -2,7 +2,7 @@
 -- Copyright 2022-2023 Advanced Micro Devices, Inc. All Rights Reserved.
 -- --------------------------------------------------------------------------------
 -- Tool Version: Vivado v.2023.2 (lin64) Build 4029153 Fri Oct 13 20:13:54 MDT 2023
--- Date        : Tue Feb 17 00:10:41 2026
+-- Date        : Fri Apr 24 04:17:49 2026
 -- Host        : brg-zhang-xcel.ece.cornell.edu running 64-bit Red Hat Enterprise Linux 9.1 (Plow)
 -- Command     : write_vhdl -force -mode funcsim
 --               /home/mss464/minitpu/tpu/ultra96-v2/output/tpu_system/tpu_system.gen/sources_1/bd/minitpu/ip/minitpu_proc_sys_reset_0_0/minitpu_proc_sys_reset_0_0_sim_netlist.vhdl

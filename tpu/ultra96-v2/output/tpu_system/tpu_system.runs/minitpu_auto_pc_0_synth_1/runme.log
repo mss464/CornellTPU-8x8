@@ -1,4 +1,0 @@
-
-*** Running vivado
-    with args -log minitpu_auto_pc_0.vds -m64 -product Vivado -mode batch -messageDb vivado.pb -notrace -source minitpu_auto_pc_0.tcl
-

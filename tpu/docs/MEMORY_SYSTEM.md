@@ -1,51 +1,38 @@
-# Mini-TPU Memory Subsystem Performance & Architecture
+# Memory System Notes
 
-This document describes the performance specifications and data flow of the current Mini-TPU memory subsystem on the Ultra96-v2 board.
+This document summarizes the hardware contract used by the runtime, board
+tests, and benchmark suite.
 
-## Performance Specifications
+## Control Registers
 
-| Component | Bit Width | Clock Speed | Max Throughput |
-| :--- | :--- | :--- | :--- |
-| **AXI-DMA** | 128-bit | 100 MHz | 1.6 GB/s |
-| **Stream Interconnect** | 128-bit | 100 MHz | 1.6 GB/s |
-| **Internal Data Path** | 256-bit | 100 MHz | 3.2 GB/s |
-| **LPDDR4 Memory** | 64-bit (32-bit x 2) | 533 MHz | ~4.2 GB/s |
+| Offset | Register | Description |
+| ------ | -------- | ----------- |
+| `0x00` | mode/doorbell | Mode in bits `[3:0]`; doorbell trigger in bit `[4]`; latency selection in bit `[7]`. |
+| `0x04` | status | `compute_idle`, `dma_idle`, and stream status bits. |
+| `0x0C` | addr_sys | 32-bit word address in system memory. |
+| `0x10` | addr_onchip | 32-bit word address in L1 scratchpad. |
+| `0x18` | length | Transfer length in bytes. |
 
-## Data Flow & Path
+## Data Paths
 
-### 1. Host-to-TPU (DMA Write)
-1.  **Host CPU**: Writes data to a contiguous `pynq.allocate` buffer in System RAM.
-2.  **AXI-DMA (MM2S)**: Reads the buffer from System RAM and streams it to the FPGA at **128 bits per clock**.
-3.  **TPU Slave Stream**:
-    - Receives two 128-bit beats from the AXI-DMA.
-    - Concatenates them into a single **256-bit word**.
-    - Passes the 256-bit word to the memory controller.
-4.  **Device Mem (AXI Master)**:
-    - Receives the 256-bit word.
-    - Issues an AXI4-Full write burst of length 2 (each beat is 128 bits) to the **PS LPDDR4** controller via the HP0 port.
+- Host DMA write: PYNQ buffer -> AXI DMA MM2S -> `tpu_slave_axi_stream.v` ->
+  `device_mem.sv`.
+- Host DMA read: `device_mem.sv` -> `tpu_master_axi_stream.v` -> AXI DMA S2MM
+  -> PYNQ buffer.
+- MMIO: host AXI4-Full reads/writes go through `axi_full_slave.sv` into the
+  scalar port of `device_mem.sv`.
+- Internal copy: `mem_ctrl.sv` moves 32-bit words between system memory and the
+  L1 scratchpad.
+- Compute: `compute_ctrl.sv` launches `compute_tile.sv`, which fetches
+  instructions and drives the TensorCore modules.
 
-### 2. TPU-to-Host (DMA Read)
-1.  **Device Mem (AXI Master)**:
-    - Issues an AXI4-Full read burst of length 2 from LPDDR4.
-    - Concatenates the two 128-bit beats into a single **256-bit word**.
-2.  **TPU Master Stream**:
-    - Receives the 256-bit word.
-    - Splits it into two **128-bit beats**.
-    - Sends the beats to the AXI-DMA (S2MM) port.
-3.  **AXI-DMA (S2MM)**: Receives the 128-bit stream and writes it back to the Host CPU's buffer in System RAM.
+## Benchmark-Relevant Behavior
 
-## Critical Handshaking & Synchronization
-
--   **Doorbell Mechanism**: The host triggers an operation by writing to `slv_reg0`. The hardware clears the doorbell bit immediately after latching the command to signal it has started.
--   **One-Shot Streams**: Both stream modules implement a `running` flag that ensures they only execute once per doorbell trigger. This prevents race conditions where a stream might re-trigger if the doorbell hasn't been cleared fast enough.
--   **Word Alignment**: The hardware expects transfer lengths to be multiples of 32 bytes (one 256-bit word).
-
-## Memory Map
-
-| Register | Address | Description |
-| :--- | :--- | :--- |
-| `slv_reg0` | `0x00` | Doorbell [31] + Mode [3:0] |
-| `slv_reg1` | `0x04` | Debug Status (FSM States, Pointers, IRDY) |
-| `slv_reg4` | `0x10` | Base System Address (offset in DDR) |
-| `slv_reg6` | `0x18` | Transfer Length (bytes) |
-| `slv_reg10` | `0x28` | DDR Physical Base Address |
+- DMA uses 256-bit internal rows, exposed through a 128-bit AXI DMA boundary in
+  the Vivado block design.
+- System memory and L1 both expose banked rows, enabling the SIMD VPU benchmark
+  to exercise the 8-lane path.
+- Compute and DMA have separate idle signals. The benchmark uses those signals
+  to measure overlapped compute plus next-tile DMA when supported.
+- Program state is reset/fetched before benchmark launches so repeated runs can
+  report stable median timing.

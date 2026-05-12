@@ -1,221 +1,124 @@
 # Memory Benchmark Comparison
 
-This directory contains a board benchmark flow for comparing memory-system
-designs across separate MiniTPU branches or checkouts.
+This directory contains the board benchmark flow used to compare the optimized
+memory design against a separate baseline checkout.
 
-The intended A/B setup is:
+The current A/B setup is:
 
-- baseline: Sunwoo's MiniTPU `memory-system` branch copied into `mem-base`
-- candidate: this repository on `codex/fix-system-mem-dma-read`
+- baseline: a checkout of Sunwoo's memory-system design with the legacy compute
+  PC reset fix, usually `~/minitpu-mem-base-pc-reset`
+- candidate: this cleaned optimized-memory branch, `opt-mem`
 
-The benchmark measures:
+The scripts measure:
 
-- host to system-memory DMA write bandwidth
-- system-memory to host DMA read bandwidth
-- combined host write+read round-trip time
-- system-memory to L1 copy time
-- L1 to system-memory copy time
+- host-to-system-memory DMA write latency and bandwidth
+- system-memory-to-host DMA read latency and bandwidth
+- host write/read round-trip latency
+- system-memory to L1 copy latency
+- L1 to system-memory copy latency
 - VADD compute time
 - MXU 4x4 matrix-multiply compute time
-- banked 8-lane VPU vector-add time versus the legacy scalar VPU path
-- overlapped compute plus DMA time, when the runtime exposes independent DMA and compute waits
-- an analytical 1-bank vs 8-bank L1 model for wide vector-access speedup
+- measured banked 8-lane VPU vector add versus the legacy scalar VPU path
+- overlapped compute plus DMA time when the runtime exposes independent waits
+- an analytical 1-bank versus 8-bank L1 transaction model
 
-## Create The Baseline Branch
-
-Add Sunwoo's repository as a remote, then copy its `memory-system` branch into a
-local branch named `mem-base`:
+## Build The Candidate
 
 ```bash
 cd ~/minitpu/tpu
-git remote add sunwoo https://github.com/sunwookim028/mininpu.git
-git fetch sunwoo memory-system
-git switch -c mem-base sunwoo/memory-system
-git push -u origin mem-base
-```
-
-The benchmark scripts live on the Codex branch. Run them from the Codex checkout
-against the `mem-base` checkout to keep Sunwoo's branch untouched.
-
-## Run From Separate Checkouts
-
-This keeps Sunwoo's baseline branch clean. Sunwoo's baseline branch already keeps
-its bitstream under `compiler/tpu_deploy/CornellTPU.bit`; the Codex branch uses
-`ultra96-v2/output/artifacts/mem_bd.bit`.
-
-Build the Codex bitstream first:
-
-```bash
-cd ~/minitpu-codex/tpu
-git checkout codex/fix-system-mem-dma-read
+git checkout opt-mem
 git pull --ff-only
+source /opt/xilinx/Vitis/2023.2/settings64.sh
 make mem-bitstream
 ```
 
-Then run the same benchmark payload against each checkout:
+The optimized checkout stores its artifacts under:
 
-```bash
-cd ~/minitpu-codex/tpu
-
-bash benchmarks/run_mem_benchmark_from_checkout.sh \
-  --checkout ~/minitpu-mem-base \
-  --variant mem-base \
-  --board-ip 132.236.59.72 \
-  --out results/mem-base.json
-
-bash benchmarks/run_mem_benchmark_from_checkout.sh \
-  --checkout ~/minitpu-codex/tpu \
-  --variant codex-system-mem-fixed \
-  --board-ip 132.236.59.72 \
-  --out results/codex-system-mem-fixed.json
-
-python3 benchmarks/compare_mem_benchmarks.py \
-  results/mem-base.json \
-  results/codex-system-mem-fixed.json
+```text
+ultra96-v2/output/artifacts/mem_bd.bit
+ultra96-v2/output/artifacts/mem_bd.hwh
 ```
 
-If the baseline runtime lacks the async compute/DMA APIs, the double-buffer row
-will be marked as skipped for that design. That is still useful: it shows the
-feature is not exposed in the older system, while the raw DMA and copy numbers
-remain comparable.
+The legacy baseline runner also supports checkouts that store artifacts under:
 
-The `mem-base` runtime can still run the VADD compute benchmark through
-`compiler/tpu_deploy/host.py`, so the compare script reports a measured
-non-banked VADD time against the Codex branch's banked-L1 VADD time. The
-baseline compute row is single-shot because the legacy RTL does not reset its PC
-between repeated `COMPUTE` launches.
-
-The benchmark also includes an MXU 4x4 matrix multiply row. In the full
-strength run, the legacy baseline skips this row after VADD because that design
-can only launch one compute program per FPGA programming. Use the focused MXU
-run below for a direct measured MXU comparison.
-
-For `mem-base`, the runner auto-detects:
-
-- runtime: `compiler/tpu_deploy/host.py`
-- bitstream: `compiler/tpu_deploy/CornellTPU.bit`
-- hwh: `compiler/tpu_deploy/CornellTPU.hwh`
-
-## Useful Options
-
-Short smoke run:
-
-```bash
-bash benchmarks/run_mem_benchmark_from_checkout.sh \
-  --checkout ~/minitpu-codex/tpu \
-  --variant smoke \
-  --board-ip 132.236.59.72 \
-  --bench-args "--repeats 1 --warmups 0 --sizes 256,1024 --copy-sizes 256,1024"
+```text
+compiler/tpu_deploy/CornellTPU.bit
+compiler/tpu_deploy/CornellTPU.hwh
 ```
 
-Longer run:
+## Strength Run
 
 ```bash
-bash benchmarks/run_mem_benchmark_from_checkout.sh \
-  --checkout ~/minitpu-codex/tpu \
-  --variant fixed-long \
-  --board-ip 132.236.59.72 \
-  --bench-args "--repeats 10 --warmups 2"
-```
-
-Banking-focused run with a larger VADD:
-
-```bash
-bash benchmarks/run_mem_benchmark_from_checkout.sh \
-  --checkout ~/minitpu-mem-base \
-  --variant mem-base-vadd2048 \
-  --board-ip 132.236.59.72 \
-  --out results/mem-base-vadd2048.json \
-  --bench-args "--repeats 5 --warmups 1 --vadd-len 2048 --vadd-repeats 128"
+cd ~/minitpu/tpu
 
 bash benchmarks/run_mem_benchmark_from_checkout.sh \
-  --checkout ~/minitpu-codex/tpu \
-  --variant codex-system-mem-fixed-vadd2048 \
+  --checkout ~/minitpu-mem-base-pc-reset \
+  --variant mem-base-pc-reset-strength \
   --board-ip 132.236.59.72 \
-  --out results/codex-system-mem-fixed-vadd2048.json \
-  --bench-args "--repeats 5 --warmups 1 --vadd-len 2048 --vadd-repeats 128"
-
-python3 benchmarks/compare_mem_benchmarks.py \
-  results/mem-base-vadd2048.json \
-  results/codex-system-mem-fixed-vadd2048.json
-```
-
-Strength-focused run. This keeps VADD large and uses larger DMA transfers to
-make the optimized host path and double-buffering easier to see. The current
-design also reports the 248-element banked VPU row; use the focused run below
-for the direct legacy scalar VPU comparison:
-
-```bash
-bash benchmarks/run_mem_benchmark_from_checkout.sh \
-  --checkout ~/minitpu-mem-base \
-  --variant mem-base-strength \
-  --board-ip 132.236.59.72 \
-  --out results/mem-base-strength.json \
+  --out results/mem-base-pc-reset-strength.json \
   --bench-args "--repeats 5 --warmups 1 --sizes 1024,4096,8192 --copy-sizes 1024,2048,4096 --vadd-len 2048 --vadd-repeats 128 --mxu-repeats 128 --vpu-elems 248 --dma-words 8192"
 
 bash benchmarks/run_mem_benchmark_from_checkout.sh \
   --checkout ~/minitpu/tpu \
-  --variant codex-system-mem-strength \
+  --variant opt-mem-strength \
   --board-ip 132.236.59.72 \
-  --out results/codex-system-mem-strength.json \
+  --out results/opt-mem-strength.json \
   --bench-args "--repeats 5 --warmups 1 --sizes 1024,4096,8192 --copy-sizes 1024,2048,4096 --vadd-len 2048 --vadd-repeats 128 --mxu-repeats 128 --vpu-elems 248 --dma-words 8192"
 
 python3 benchmarks/compare_mem_benchmarks.py \
-  results/mem-base-strength.json \
-  results/codex-system-mem-strength.json
+  results/mem-base-pc-reset-strength.json \
+  results/opt-mem-strength.json
 ```
 
-The comparison prints a `Strength Scorecard` above the detailed table. That
-scorecard is the easiest output to use in a report: it summarizes host DMA,
-host round-trip, VADD compute, MXU matrix multiply, overlapped compute+DMA,
-explicit L1 copy support, and the 8-bank L1 transaction model.
+## Focused Runs
 
-MXU head-to-head. This is a second compute benchmark besides VADD. It runs the
-4x4 systolic matrix multiply program by itself so the legacy baseline and the
-current design can both launch a fresh compute program after FPGA programming:
+MXU only:
 
 ```bash
 bash benchmarks/run_mem_benchmark_from_checkout.sh \
-  --checkout ~/minitpu-mem-base \
-  --variant mem-base-mxu \
+  --checkout ~/minitpu-mem-base-pc-reset \
+  --variant mem-base-pc-reset-mxu \
   --board-ip 132.236.59.72 \
-  --out results/mem-base-mxu.json \
+  --out results/mem-base-pc-reset-mxu.json \
   --bench-args "--mxu-only --repeats 5 --warmups 1 --mxu-repeats 128"
 
 bash benchmarks/run_mem_benchmark_from_checkout.sh \
   --checkout ~/minitpu/tpu \
-  --variant codex-system-mem-mxu \
+  --variant opt-mem-mxu \
   --board-ip 132.236.59.72 \
-  --out results/codex-system-mem-mxu.json \
+  --out results/opt-mem-mxu.json \
   --bench-args "--mxu-only --repeats 5 --warmups 1 --mxu-repeats 128"
-
-python3 benchmarks/compare_mem_benchmarks.py \
-  results/mem-base-mxu.json \
-  results/codex-system-mem-mxu.json
 ```
 
-Banked VPU head-to-head. The legacy baseline can only run one compute program
-per FPGA program, so use this focused mode when you want the direct scalar VPU
-versus 8-lane banked VPU result. If the current bitstream does not complete the
-experimental SIMD VPU program, the benchmark still writes a JSON file with a
-skipped measured row and a modeled 1-bank versus 8-bank L1 row:
+Banked VPU only:
 
 ```bash
 bash benchmarks/run_mem_benchmark_from_checkout.sh \
-  --checkout ~/minitpu-mem-base \
-  --variant mem-base-banked-vpu \
+  --checkout ~/minitpu-mem-base-pc-reset \
+  --variant mem-base-pc-reset-banked-vpu \
   --board-ip 132.236.59.72 \
-  --out results/mem-base-banked-vpu.json \
+  --out results/mem-base-pc-reset-banked-vpu.json \
   --bench-args "--banked-vpu-only --repeats 5 --warmups 1 --vpu-elems 248"
 
 bash benchmarks/run_mem_benchmark_from_checkout.sh \
   --checkout ~/minitpu/tpu \
-  --variant codex-system-mem-banked-vpu \
+  --variant opt-mem-banked-vpu \
   --board-ip 132.236.59.72 \
-  --out results/codex-system-mem-banked-vpu.json \
+  --out results/opt-mem-banked-vpu.json \
   --bench-args "--banked-vpu-only --repeats 5 --warmups 1 --vpu-elems 248"
-
-python3 benchmarks/compare_mem_benchmarks.py \
-  results/mem-base-banked-vpu.json \
-  results/codex-system-mem-banked-vpu.json
 ```
+
+## Current Result Summary
+
+The latest full comparison against `mem-base-pc-reset-strength` reported:
+
+- VADD compute: 17.470 ms baseline, 2.473 ms candidate, 7.06x faster.
+- MXU 4x4 matmul: 1.315 ms baseline, 0.315 ms candidate, 4.18x faster.
+- Banked VPU vector add: 1.315 ms baseline, 0.314 ms candidate, 4.18x faster.
+- 8192-word host write: 1.147 ms baseline, 1.000 ms candidate, 1.15x faster.
+- 8192-word host read: 1.309 ms baseline, 1.228 ms candidate, 1.07x faster.
+- Candidate double buffering: 3.474 ms serial estimate, 2.253 ms overlapped,
+  1.54x faster.
+
+The comparison script prints a `Strength Scorecard` above the detailed table.
+That section is the easiest output to paste into a report.

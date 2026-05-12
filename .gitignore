@@ -1,19 +1,27 @@
-# Symlinked agent config (source of truth is AGENTS.md)
+# Local assistant/editor files
 CLAUDE.md
 
-# FPGA build artifacts
-fpga/ip_repo/
-fpga/output/
-fpga/pkg_*_proj/
-fpga/.Xil/
-fpga/*.log
-fpga/*.jou
-fpga/build.log
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
 
-*.txt
-*.xml
+# Vivado and FPGA build artifacts
+.Xil/
+vivado*.log
+vivado*.jou
 *.vcd
 *.zip
-.DS_Store
+tpu/ultra96-v2/ip_repo/
+tpu/ultra96-v2/output/
+tpu/ultra96-v2/.Xil/
+tpu/build/
+tpu/ip_repo/
+tpu/tensorcore/ip_repo/
+tpu/results/
+results/
+*.mem_bench.json
 
-*__pycache__*
+# OS/editor noise
+.DS_Store
+Thumbs.db

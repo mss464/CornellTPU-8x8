@@ -1,129 +1,85 @@
-# Mini-TPU
+# CornellTPU Optimized Memory Design
 
-A compact ML stack built by Cornell students, taking a bottom-up approach from a Tensor Processing Unit implementation featuring a systolic array architecture, supporting FPGA prototyping and ASIC tapeout workflows.
+This branch is a cleaned hardware-focused snapshot of the optimized Mini-TPU
+memory subsystem. It keeps the files needed to build the Ultra96-v2 bitstream,
+run the board tests, run the evaluation benchmarks, and document the design.
 
-## Project Structure
+Large generated Vivado outputs, old compiler/runtime experiments, unrelated
+simulation harnesses, ASIC collateral, and stale frontend code were removed so
+the branch is easier to review.
+
+## What Is Included
+
 ```text
-mini-tpu/
-├── tpu/                # TPU Hardware
-|   ├── tensorcore/     # Core RTL (SystemVerilog)
-|   ├── ultra96-v2/     # Ultra96-v2 (Pynq FPGA) specific RTL and build scripts
-|   ├── v80/            # V80 (PCIe FPGA) specific RTL and build scripts
-|   ├── u280/           # U280 (PCIe FPGA) specific RTL and build scripts
-|   ├── asic/           # TinyTapeoutASIC-specific source and build scripts
-|   └── allo-tpu/       # TPU design in a high-level language Allo
-├── compiler/           # Compiler & Runtime
-│   ├── hal/            # Hardware Abstraction Layer (PYNQ, Sim)
-│   └── runtime/        # Execution Runtime & Allocators
-├── docs/               # Design Contracts and Documentation
-├── tests/              # Verification
-│   ├── tensorcore/     # RTL simulation tests
-│   └── ultra96-v2/     # Ultra96-v2 FPGA board deployment tests
-├── torch/              # PyTorch Frontend
-└── agent-skills/       # Agentic workflows
+tpu/
+  Makefile                         Build, deploy, board-test, and benchmark targets
+  src/system/                      Memory subsystem RTL and AXI interfaces
+  src/compute_tile/                Compute tile wrapper used by the memory design
+  tensorcore/                      MXU, VPU, scratchpad, decoder, and PC RTL
+  runtime/pynq_host.py             PYNQ runtime used on the Ultra96-v2 board
+  board_tests/                     Hardware smoke and memory/concurrency tests
+  benchmarks/                      Benchmark runner and comparison scripts
+  scripts/                         Vivado IP packaging and bitstream build scripts
+  docs/                            Architecture, test, and benchmark documentation
 ```
-
-## Architecture Overview
-
-The design follows a **two-tier architecture** separating portable compute logic from platform-specific system integration:
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        System Integration Layer                          │
-│  (Platform-specific: fpga/ or asic/)                                     │
-│                                                                          │
-│   FPGA (fpga/):                      ASIC (asic/):                       │
-│   ├─ Xilinx AXI DMA IP               ├─ tensorcore.sv (valid/ready I/O)    │
-│   ├─ Zynq PS (hard processor)        ├─ SPI bridge (Tiny Tapeout)        │
-│   └─ Block design integration        └─ Blackboxed SRAMs                 │
-└────────────────────────────┬────────────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         TensorCore Layer (tpu/TensorCore/)                            │
-│  (Portable: vendor-agnostic SystemVerilog)                               │
-│                                                                          │
-│   ├─ tpu.sv         # Top wrapper with AXI interfaces (hand-coded)  │
-│   ├─ compute_core.sv    # Systolic + VPU control                        │
-│   ├─ systolic.sv        # 8x8 weight-stationary array                   │
-│   ├─ mem_wrapper.sv     # Portable BRAM (ifdef FPGA/ASIC)               │
-│   └─ ...                                                                 │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### What's Portable (tpu/)
-- All compute RTL (systolic array, VPU, decoder, PC)
-- AXI-Lite and AXI-Stream **interface logic** (hand-coded Verilog, no vendor IP)
-- Memory abstraction via `mem_wrapper.sv` with `TARGET_FPGA`/`TARGET_ASIC` ifdefs
-
-### What's Platform-Specific
-| Component | FPGA (Xilinx) | ASIC |
-|-----------|---------------|------|
-| **DMA Engine** | Xilinx `axi_dma` IP | Not used (direct FIFO interface) |
-| **Host Interface** | Zynq PS via AXI | GPIO/SPI bridge |
-| **Memory** | Inferred BRAM/URAM | Blackboxed SRAM macros |
-| **Top Wrapper** | `tpu.sv` | `tensorcore.sv` |
-
-> [!IMPORTANT]
-> The `tpu/` directory contains AXI interface *implementations* in RTL, but the **DMA controller** that drives them is a Xilinx IP instantiated in `fpga/`. For ASIC, `asic/tensorcore.sv` replaces AXI-Stream with simple valid/ready handshaking.
-
-## Pending Decisions
-
-Architectural decisions deferred for future consideration:
-
-| Decision | Current Choice | Alternatives | Notes |
-|----------|---------------|--------------|-------|
-| **Compilation Mode** | AOT (Ahead-of-Time) | JIT (Just-in-Time) | JIT would enable dynamic graph compilation like XLA. Useful if supporting frameworks that generate graphs at runtime (e.g., PyTorch eager mode). |
-| **FPGA Runtime API** | OpenCL-compatible | XRT Native | OpenCL adds overhead but ensures portability across Xilinx/Intel FPGAs. XRT native gives lower latency and better Versal AI Engine support. |
-| **Multi-Device** | Single device | Multi-device orchestration | IREE-style instance/session model would enable running across multiple FPGAs or distributed ASIC test setups. Adds complexity. |
-| **ASIC Test Interface** | GPIO (8-in/8-out/8-bidir) | JTAG, SPI, UART | GPIO chosen for simplicity; may revisit if bring-up reveals bandwidth limitations. |
-| **Compiler IR** | Direct-to-assembly | MLIR dialect | MLIR would enable optimization passes (fusion, tiling) but adds toolchain complexity. Current approach is simpler. |
-| **Memory Layout** | Baked into module | Separate metadata | Embedding addresses in compiled module is simpler; separate metadata allows runtime relocation. |
-| **Error Handling** | Timeout-based | Hardware interrupts | GPIO-based ASIC lacks interrupt support; timeout polling is the fallback. |
-| **HAL Testing** | Simulator as golden reference | Mock interfaces | Using simulator output as ground truth for all HAL implementations. |
-
-## Software Stack
-
-The software follows a 4-layer architecture:
-
-```
-torch/     → User API (tensors, nn layers)
-compiler/  → IR, encoding, TPUModule packaging  
-runtime/   → TPUExecutor, memory allocation
-hal/       → Device drivers (Simulator, PYNQ, XRT)
-```
-
-### Design Decisions
-
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| **Simulator accuracy** | numpy float32 | Functional verification, not bit-accurate IEEE 754 |
-| **Matmul dimensions** | Fixed 4×4 in HW | Variable sizes via software tiling |
-| **Serialization** | Binary TPUModule | No code generation; generic deployment scripts |
-
 
 ## Quick Start
 
-See [docs/quickstart.md](docs/quickstart.md) for setup instructions.
+From the `tpu/` directory:
 
-## Documentation
+```bash
+source /opt/xilinx/Vitis/2023.2/settings64.sh
+make mem-bitstream
 
-| Document | Description |
-|----------|-------------|
-| [System Overview](docs/system.md) | Top-level architecture |
-| [Systolic Array](docs/systolic.md) | Compute core design |
-| [Memory](docs/memory.md) | Memory subsystem |
+make mem-board-tests BOARD_IP=132.236.59.72
+make concurrency-test BOARD_IP=132.236.59.72
+make mem-benchmark BOARD_IP=132.236.59.72 BENCH_ARGS="--repeats 5 --warmups 1"
+```
 
-## AI Agent Setup
+The bitstream artifacts are generated under:
 
-This repo includes configuration for AI coding assistants:
+```text
+tpu/ultra96-v2/output/artifacts/mem_bd.bit
+tpu/ultra96-v2/output/artifacts/mem_bd.hwh
+```
 
-- **`AGENTS.md`** — Primary agent instructions (scope rules, directory boundaries)
-- **`CLAUDE.md`** — Symlink to `AGENTS.md` for tool compatibility (gitignored)
-- **`agent-skills/<subfolder>/SKILL.md`** — Specialized skills mirroring the project structure
+## Benchmark Flow
 
-The `agent-skills/` directory contains standard-compliant skill definitions for each domain (e.g., `agent-skills/asic/SKILL.md`).
+The benchmark runner can compare this optimized design against a separate
+baseline checkout:
 
-## License
+```bash
+cd tpu
 
-[Add license information]
+bash benchmarks/run_mem_benchmark_from_checkout.sh \
+  --checkout ~/minitpu-mem-base-pc-reset \
+  --variant mem-base-pc-reset-strength \
+  --board-ip 132.236.59.72 \
+  --out results/mem-base-pc-reset-strength.json \
+  --bench-args "--repeats 5 --warmups 1 --sizes 1024,4096,8192 --copy-sizes 1024,2048,4096 --vadd-len 2048 --vadd-repeats 128 --mxu-repeats 128 --vpu-elems 248 --dma-words 8192"
+
+bash benchmarks/run_mem_benchmark_from_checkout.sh \
+  --checkout ~/minitpu/tpu \
+  --variant opt-mem-strength \
+  --board-ip 132.236.59.72 \
+  --out results/opt-mem-strength.json \
+  --bench-args "--repeats 5 --warmups 1 --sizes 1024,4096,8192 --copy-sizes 1024,2048,4096 --vadd-len 2048 --vadd-repeats 128 --mxu-repeats 128 --vpu-elems 248 --dma-words 8192"
+
+python3 benchmarks/compare_mem_benchmarks.py \
+  results/mem-base-pc-reset-strength.json \
+  results/opt-mem-strength.json
+```
+
+## Validated Results
+
+The latest board comparison against the PC-reset baseline showed:
+
+- 4.18x faster MXU 4x4 matmul benchmark.
+- 7.06x faster 2048-word VADD benchmark with 128 repeats.
+- 4.18x faster measured 248-element banked VPU vector add.
+- 1.14x to 1.15x faster 8192-word host write DMA.
+- 1.07x faster 8192-word host read DMA.
+- 1.54x candidate double-buffer speedup over its serial estimate.
+
+See `tpu/benchmarks/README.md` for the detailed benchmark recipes and
+`tpu/docs/` for the memory architecture notes.

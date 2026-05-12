@@ -1,5 +1,0 @@
-<?xml version="1.0"?>
-<ProcessHandle Version="1" Minor="0">
-    <Process Command="vivado" Owner="mss464" Host="brg-zhang-xcel.ece.cornell.edu" Pid="2015832" HostCore="48" HostMemory="230207844">
-    </Process>
-</ProcessHandle>

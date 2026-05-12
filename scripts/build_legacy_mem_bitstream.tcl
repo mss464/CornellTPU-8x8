@@ -89,6 +89,7 @@ set dma [create_bd_cell -type ip -vlnv xilinx.com:ip:axi_dma:7.1 axi_dma_0]
 set_property -dict [list \
     CONFIG.c_include_sg {0} \
     CONFIG.c_sg_include_stscntrl_strm {0} \
+    CONFIG.c_sg_length_width {26} \
     CONFIG.c_include_mm2s {1} \
     CONFIG.c_include_s2mm {1} \
     CONFIG.c_mm2s_burst_size {16} \

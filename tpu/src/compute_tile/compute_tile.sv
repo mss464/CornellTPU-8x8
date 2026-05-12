@@ -186,7 +186,8 @@ module compute_tile #(
         FETCH     = 3'd1,
         DECODE    = 3'd2,
         EXECUTE   = 3'd3,
-        HALT      = 3'd4
+        HALT      = 3'd4,
+        FETCH_WAIT = 3'd5
     } state_t;
 
     state_t state;
@@ -220,6 +221,10 @@ module compute_tile #(
                 end
 
                 FETCH: begin
+                    state <= FETCH_WAIT;
+                end
+
+                FETCH_WAIT: begin
                     state <= DECODE;
                 end
 

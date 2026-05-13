@@ -1,24 +1,359 @@
-# Mini-TPU Memory Subsystem (`system-mem` branch)
+# Optimized Mini-TPU Memory Subsystem (`opt-mem`)
 
-The `system-mem` branch implements the full memory hierarchy for the Cornell Mini-TPU on the **Ultra96-v2** (Xilinx Zynq UltraScale+ ZU3EG). This document explains every level of the memory hierarchy, the data paths between them, and the control mechanisms that orchestrate data movement.
+A cleaned, optimized, and benchmarked memory hierarchy for the Cornell Mini-TPU on the **Ultra96-v2** (Xilinx Zynq UltraScale+ ZU3EG). This branch connects AXI-Lite control, AXI DMA streams, AXI4-Full MMIO, 8-bank L2 system BRAM, 8-bank L1 scratchpad, and the TensorCore compute tile into one board-runnable flow with independently controllable DMA and compute channels.
+
+## Contribution
+
+This branch upgrades the baseline `memory-system` design in three phases:
+
+1. **Baseline Repair** — Fixed compute relaunch semantics by correctly resetting the program counter between iterations. Without this fix the baseline appeared artificially slow on repeated benchmarks because only the first launch executed the full program.
+
+2. **8-Bank L1/L2 Memory Hierarchy** — Replaced the scalar memory path with a multi-banked, 256-bit-wide datapath for both the L2 bulk storage and the L1 scratchpad. The VPU now uses 8-lane banked `VLOAD`/`VSTORE`/`VCOMPUTE` instructions instead of scalar element-at-a-time accesses, reducing L1 transactions from 744 to 93 for a 248-element vector operation.
+
+3. **Double Buffering / Overlapped Execution** — Exposed separate `compute_idle` and `dma_idle` status bits and independent DMA/compute wait paths in both hardware and the PYNQ runtime. This lets the host overlap the next tile's DMA transfer with the current tile's compute, achieving measurable 1.54× speedup over serial execution.
+
+### Key Results (vs. corrected baseline)
+
+| Benchmark | Baseline | Optimized | Speedup |
+|:----------|:---------|:----------|:--------|
+| VADD (2048 words × 128 repeats) | 17.470 ms | 2.473 ms | **7.06×** |
+| MXU 4×4 matmul (128 repeats) | 1.315 ms | 0.315 ms | **4.18×** |
+| Banked VPU vector add (248 elems) | 1.315 ms | 0.314 ms | **4.18×** |
+| Host write (8192 words) | 1.147 ms | 1.000 ms | **1.15×** |
+| Host read (8192 words) | 1.309 ms | 1.228 ms | **1.07×** |
+| Double buffering (serial → overlap) | 3.474 ms | 2.253 ms | **1.54×** |
 
 ---
 
-## Overall Architecture
+## Architecture
 
-![Memory Hierarchy Overview](docs/images/memory_hierarchy_overview.png)
+```mermaid
+graph LR
+    subgraph Host ["Host (PS)"]
+        CPU["ARM Cortex-A53<br/>LPDDR4 2 GB"]
+    end
 
-The Mini-TPU memory subsystem is organized in three tiers:
+    subgraph DMA ["DMA Engine"]
+        AXILITE["AXI-Lite<br/>Control Regs"]
+        STREAM_W["AXI-Stream Slave<br/>(Host → FPGA)"]
+        STREAM_R["AXI-Stream Master<br/>(FPGA → Host)"]
+    end
 
-| Tier | Component | Width | Capacity | Clock | Peak Throughput |
-|:-----|:----------|:------|:---------|:------|:----------------|
-| **Host (PS)** | LPDDR4 System RAM | 64-bit | 2 GB | 533 MHz | ~4.2 GB/s |
-| **Interconnect** | AXI DMA / Stream | 128-bit | — | 100 MHz | 1.6 GB/s |
-| **Bulk Storage (L2 Cache)** | 8-Bank BRAM | 256-bit | 256 KB | 100 MHz | 3.2 GB/s |
-| **Scratchpad (L1)** | 8-Bank Interleaved | 256-bit (compute) / 32-bit (scalar) | 32 KB | 100 MHz | 3.2 GB/s |
-| **Instruction RAM** | Dual-Port BRAM | 64-bit | 2 KB (256 entries) | 100 MHz | — |
+    subgraph L2 ["L2 Bulk Storage"]
+        DEVMEM["device_mem.sv<br/>8 Banks × 8K × 32b<br/>= 256 KB"]
+    end
 
-### FPGA Resource Utilization
+    subgraph Compute ["Compute Tile"]
+        L1["scratchpad.sv<br/>8 Banks × 1K × 32b<br/>= 32 KB"]
+        IRAM["IRAM<br/>256 × 64-bit"]
+        MXU["MXU 4×4<br/>Systolic Array"]
+        VPU["VPU SIMD<br/>8-Lane"]
+        VADD["Vector Add"]
+    end
+
+    CPU --> AXILITE
+    CPU --> STREAM_W
+    STREAM_R --> CPU
+
+    STREAM_W -->|"256-bit DMA write"| DEVMEM
+    DEVMEM -->|"256-bit DMA read"| STREAM_R
+    STREAM_W -->|"64-bit instr"| IRAM
+
+    DEVMEM <-->|"32-bit scalar copy<br/>(modes 5/6)"| L1
+
+    L1 <-->|"256-bit Port B"| MXU
+    L1 <-->|"256-bit Port B"| VPU
+    L1 <-->|"256-bit Port B"| VADD
+    IRAM -->|fetch| MXU
+    IRAM -->|fetch| VPU
+```
+
+### Memory Tiers
+
+| Tier | Module | Width | Capacity | Interface |
+|:-----|:-------|:------|:---------|:----------|
+| Host | LPDDR4 | 64-bit | 2 GB | PYNQ DMA / CMA buffers |
+| Interconnect | AXI DMA | 128-bit (at DMA) / 256-bit (internal) | — | AXI-Stream |
+| L2 Bulk Storage | `device_mem.sv` | 256-bit (Port A) / 32-bit (Port B) | 256 KB | 8-bank BRAM |
+| L1 Scratchpad | `scratchpad.sv` | 256-bit (Port B) / 32-bit (Port A) | 32 KB | 8-bank BRAM |
+| IRAM | `compute_tile.sv` | 64-bit | 2 KB (256 entries) | Dual-port BRAM |
+
+### Operating Modes
+
+| Mode | Name | Direction | Description |
+|:-----|:-----|:----------|:------------|
+| 1 | `DMA_WRITE` | Host → L2 | AXI-Stream bulk write to system memory |
+| 2 | `DMA_READ` | L2 → Host | AXI-Stream bulk read from system memory |
+| 3 | `COMPUTE` | — | Execute program from IRAM on compute tile |
+| 4 | `WRITE_IRAM` | Host → IRAM | Load instruction program via AXI-Stream |
+| 5 | `SYS_TO_OC` | L2 → L1 | Scalar copy from bulk storage to scratchpad |
+| 6 | `OC_TO_SYS` | L1 → L2 | Scalar copy from scratchpad to bulk storage |
+
+### Dual-Channel Arbiter
+
+The top-level arbiter (`mem_top.sv`) runs two independent FSMs:
+
+- **DMA channel** (modes 1, 2, 4, 5, 6) — controls `fsm_running`, dispatches to `mem_ctrl`
+- **Compute channel** (mode 3) — controls `compute_running`, dispatches to `compute_ctrl` → `compute_tile`
+
+Both channels complete independently. The host polls `compute_idle` and `dma_idle` separately, enabling true overlapped execution and double buffering.
+
+---
+
+## Design Files
+
+### System-Level RTL (`src/system/`)
+
+| File | Purpose |
+|:-----|:--------|
+| [`mem_top.sv`](src/system/mem_top.sv) | **Top-level integration.** Wires all subsystems together, implements the dual-channel doorbell arbiter, muxes the scalar memory port between `mem_ctrl` and AXI-Full. |
+| [`mem_ctrl.sv`](src/system/mem_ctrl.sv) | **Memory controller FSM.** Handles DMA write/read handshakes (modes 1/2) and 2-phase scalar copy pipeline for `SYS_TO_OC`/`OC_TO_SYS` (modes 5/6). |
+| [`device_mem.sv`](src/system/device_mem.sv) | **8-bank L2 bulk storage.** Instantiates 8 BRAM banks with a 256-bit wide Port A (DMA) and a 32-bit muxed Port B (scalar/MMIO). |
+| [`compute_ctrl.sv`](src/system/compute_ctrl.sv) | **Compute controller.** Bridges the arbiter's `compute_start_pulse` to the compute tile's `start`/`done` handshake. |
+| [`tpu_slave_axi_lite.v`](src/system/tpu_slave_axi_lite.v) | **AXI-Lite control registers.** Doorbell, mode, addresses, transfer length, and status readback (`compute_idle`, `dma_idle`, `stream_ready`). |
+| [`tpu_slave_axi_stream.v`](src/system/tpu_slave_axi_stream.v) | **AXI-Stream slave (DMA write).** Receives 256-bit beats from the DMA engine, tracks the write pointer, asserts `done` on `TLAST`. |
+| [`tpu_master_axi_stream.v`](src/system/tpu_master_axi_stream.v) | **AXI-Stream master (DMA read).** Reads from L2 Port A via a FWFT FIFO, sends 256-bit beats to DMA, asserts `TLAST`. |
+| [`axi_full_slave.sv`](src/system/axi_full_slave.sv) | **AXI4-Full MMIO.** Direct 32-bit register-style read/write to L2 Port B. Supports burst transactions. |
+| [`dma_engine.sv`](src/system/dma_engine.sv) | DMA helper logic. |
+| [`fifo4.sv`](src/system/fifo4.sv) | 4-entry FWFT FIFO used by the master stream. |
+
+### Compute Tile RTL (`src/compute_tile/` and `tensorcore/`)
+
+| File | Purpose |
+|:-----|:--------|
+| [`compute_tile.sv`](src/compute_tile/compute_tile.sv) | **Compute tile wrapper.** Contains scratchpad, IRAM, PC, decoder, and compute core. Exposes Port A (scalar DMA) and Port B (256-bit compute). |
+| [`scratchpad.sv`](tensorcore/scratchpad.sv) | **8-bank L1 scratchpad.** Port A: 32-bit scalar for `mem_ctrl` copies. Port B: 256-bit wide for parallel compute access. |
+| [`compute_core.sv`](tensorcore/compute_core.sv) | **Compute orchestration.** Arbitrates Port B between MXU, VPU, and VADD based on instruction `mode[1:0]`. |
+| [`mxu.sv`](tensorcore/mxu.sv) | **Matrix Multiply Unit.** 4×4 systolic array, 32-bit fixed-point. Reads weight/activation rows from scratchpad, writes output rows back. |
+| [`systolic.sv`](tensorcore/systolic.sv) | Systolic array grid of processing elements. |
+| [`pe.sv`](tensorcore/pe.sv) | Individual processing element (multiply-accumulate). |
+| [`vpu_simd.sv`](tensorcore/vpu_simd.sv) | **8-lane SIMD vector unit.** Banked `VLOAD`/`VSTORE`/`VCOMPUTE` ops that access all 8 scratchpad banks in one cycle. |
+| [`vpu_op.sv`](tensorcore/vpu_op.sv) | VPU ALU operations. |
+| [`decoder.sv`](tensorcore/decoder.sv) | Instruction decoder — extracts opcode, addresses, VPU fields from 64-bit instruction word. Halt opcode = `0x3FF`. |
+| [`pc.sv`](tensorcore/pc.sv) | Program counter with reset support. |
+| [`fp32_add.sv`](tensorcore/fp32_add.sv) | FP32 adder. |
+| [`fp32_mul.sv`](tensorcore/fp32_mul.sv) | FP32 multiplier. |
+| [`vec_regfile.sv`](tensorcore/vec_regfile.sv) | VPU register file. |
+
+### Runtime (`runtime/`)
+
+| File | Purpose |
+|:-----|:--------|
+| [`pynq_host.py`](runtime/pynq_host.py) | **PYNQ host driver.** `MemDriver` class providing `send_bytes()`, `read_bytes()`, `sysmem_to_onchip()`, `onchip_to_sysmem()`, `load_instructions()`, `run_compute()`, `send_bytes_async()`. Separate `wait_compute_idle()` and `wait_dma_idle()` for double buffering. |
+
+### Board Tests (`board_tests/`)
+
+| File | Purpose |
+|:-----|:--------|
+| [`test_mem_system.py`](board_tests/test_mem_system.py) | **Functional test suite.** 10 tests covering DMA roundtrips, MMIO, cross-path verification, L2↔L1 copies, and bit-exact patterns. |
+| [`test_concurrency.py`](board_tests/test_concurrency.py) | **Concurrency test.** Validates overlapped DMA + compute execution. |
+
+### Benchmarks (`benchmarks/`)
+
+| File | Purpose |
+|:-----|:--------|
+| [`mem_benchmark.py`](benchmarks/mem_benchmark.py) | **Board benchmark suite.** Measures DMA bandwidth, L1 copy latency, VADD compute, MXU matmul, VPU banked ops, double-buffering overlap. Outputs JSON. |
+| [`compare_mem_benchmarks.py`](benchmarks/compare_mem_benchmarks.py) | **A/B comparison tool.** Reads two JSON result files and prints a formatted scorecard with speedup columns. |
+| [`run_mem_benchmark_from_checkout.sh`](benchmarks/run_mem_benchmark_from_checkout.sh) | **Checkout runner.** Deploys a specific git checkout's bitstream + runtime to the board and runs the benchmark. |
+
+### Build Scripts (`scripts/`)
+
+| File | Purpose |
+|:-----|:--------|
+| [`package_mem_ip.tcl`](scripts/package_mem_ip.tcl) | Vivado TCL script to package the memory subsystem as a Vivado IP core. |
+| [`build_mem_bitstream.tcl`](scripts/build_mem_bitstream.tcl) | Vivado TCL script to create the block design, connect PS/PL, and run synthesis + implementation + bitstream generation. |
+
+### Documentation (`docs/`)
+
+| File | Purpose |
+|:-----|:--------|
+| [`system_architecture.md`](docs/system_architecture.md) | High-level block diagram and signal descriptions. |
+| [`memory_design.md`](docs/memory_design.md) | Memory hierarchy detail, AXI interfaces, register map, and doorbell protocol. |
+| [`MEMORY_SYSTEM.md`](docs/MEMORY_SYSTEM.md) | Compact register/data-path reference. |
+| [`test_explanation.md`](docs/test_explanation.md) | Board test descriptions and expected output. |
+| [`interactive_memory_flow.html`](docs/interactive_memory_flow.html) | Interactive animated data-flow visualization (open in browser). |
+
+---
+
+## Build & Deploy
+
+### Prerequisites
+
+- Xilinx Vivado 2023.2
+- Ultra96-v2 board with PYNQ image
+- `sshpass` installed on the build host
+- Board accessible via SSH (default: `BOARD_IP=132.236.59.68`)
+
+### Quick Start
+
+```bash
+# Source Vivado
+source /opt/xilinx/Vitis/2023.2/settings64.sh
+
+# See all available commands
+make help
+
+# Package the memory subsystem IP
+make mem-ip
+
+# Build the bitstream (includes IP packaging)
+make mem-bitstream
+
+# Run board-level functional tests
+make mem-board-tests BOARD_IP=<your-board-ip>
+
+# Run the concurrency / double-buffering test
+make concurrency-test BOARD_IP=<your-board-ip>
+
+# Run the full benchmark suite
+make mem-benchmark BOARD_IP=<your-board-ip> BENCH_ARGS="--repeats 5 --warmups 1"
+```
+
+### Makefile Reference
+
+```
+make help                  Show all targets and usage
+make mem-ip                Package memory subsystem IP (Vivado)
+make mem-bitstream         Build block design + bitstream (Vivado)
+make mem-board-tests       Deploy and run test_mem_system.py on board
+make concurrency-test      Deploy and run test_concurrency.py on board
+make mem-benchmark         Deploy and run mem_benchmark.py on board
+make tensorcore-ip         Package TensorCore IP standalone
+make bitstream             Build full TPU bitstream
+make clean                 Remove all build artifacts
+```
+
+Build artifacts are written to:
+
+```
+ultra96-v2/output/artifacts/mem_bd.bit
+ultra96-v2/output/artifacts/mem_bd.hwh
+```
+
+---
+
+## Board Tests
+
+The test suite (`board_tests/test_mem_system.py`) validates every data path in the memory hierarchy:
+
+| Test | What It Checks |
+|:-----|:---------------|
+| `dma_write_read` | 32-word DMA write + readback roundtrip |
+| `dma_large_transfer` | 1024-word bulk DMA integrity |
+| `dma_offset_addr` | Non-zero address DMA write/read |
+| `mmio_write_read` | AXI4-Full MMIO 8-word roundtrip |
+| `mmio_random_access` | Scattered single-word MMIO reads/writes |
+| `dma_write_mmio_read` | Cross-path: write via DMA, verify via MMIO |
+| `mmio_write_dma_read` | Cross-path: write via MMIO, verify via DMA |
+| `sys_to_onchip` | L2 → L1 → L2 internal copy roundtrip |
+| `onchip_roundtrip` | Full path: Host → L2 → L1 → L2 → Host |
+| `bitpattern_deadbeef` | Bit-exact `0xDEADBEEF` pattern verification |
+
+### Running Individual Tests
+
+```bash
+make mem-board-tests BOARD_IP=<ip> BOARD_TEST_ARGS="--test dma_write_read --verbose"
+make mem-board-tests BOARD_IP=<ip> BOARD_TEST_ARGS="--test onchip --verbose"
+make mem-board-tests BOARD_IP=<ip> BOARD_TEST_ARGS="--list"
+```
+
+---
+
+## Benchmarks & Reproducing Results
+
+### Run the Strength Benchmark
+
+This is the primary evaluation configuration that produces the published results:
+
+```bash
+# Run baseline (Sunwoo's memory-system branch)
+bash benchmarks/run_mem_benchmark_from_checkout.sh \
+  --checkout ~/minitpu-mem-base \
+  --variant mem-base-pc-reset-strength \
+  --board-ip <board-ip> \
+  --out results/mem-base-pc-reset-strength.json \
+  --bench-args "--repeats 5 --warmups 1 --sizes 1024,4096,8192 \
+    --copy-sizes 1024,2048,4096 --vadd-len 2048 --vadd-repeats 128 \
+    --mxu-repeats 128 --vpu-elems 248 --dma-words 8192"
+
+# Run optimized (this branch)
+bash benchmarks/run_mem_benchmark_from_checkout.sh \
+  --checkout ~/minitpu/tpu \
+  --variant codex-system-mem-strength-fetch-pipeline \
+  --board-ip <board-ip> \
+  --out results/codex-system-mem-strength-fetch-pipeline.json \
+  --bench-args "--repeats 5 --warmups 1 --sizes 1024,4096,8192 \
+    --copy-sizes 1024,2048,4096 --vadd-len 2048 --vadd-repeats 128 \
+    --mxu-repeats 128 --vpu-elems 248 --dma-words 8192"
+
+# Compare
+python3 benchmarks/compare_mem_benchmarks.py \
+  results/mem-base-pc-reset-strength.json \
+  results/codex-system-mem-strength-fetch-pipeline.json
+```
+
+### Quick Smoke Test
+
+```bash
+make mem-benchmark BOARD_IP=<ip> BENCH_ARGS="--repeats 1 --warmups 0 --sizes 256,1024 --copy-sizes 256,1024"
+```
+
+### Focused Benchmarks
+
+```bash
+# MXU-only comparison
+bash benchmarks/run_mem_benchmark_from_checkout.sh \
+  --checkout ~/minitpu/tpu --variant mxu-test --board-ip <ip> \
+  --out results/mxu-test.json \
+  --bench-args "--mxu-only --repeats 5 --warmups 1 --mxu-repeats 128"
+
+# Banked VPU comparison
+bash benchmarks/run_mem_benchmark_from_checkout.sh \
+  --checkout ~/minitpu/tpu --variant vpu-test --board-ip <ip> \
+  --out results/vpu-test.json \
+  --bench-args "--banked-vpu-only --repeats 5 --warmups 1 --vpu-elems 248"
+```
+
+### Understanding the Scorecard
+
+The comparison script outputs a **Strength Scorecard** summarizing the key metrics:
+
+```
+Strength Scorecard:
+evaluation                            baseline                 candidate                advantage
+---------------------------------------------------------------------------------------------------------
+Host write bandwidth (8192 words)     1.147, 28.6 MB/s         1.000, 32.8 MB/s         1.15x faster
+Host read bandwidth (8192 words)      1.309, 25.0 MB/s         1.228, 26.7 MB/s         1.07x faster
+VADD compute (2048 words × 128)       17.470 ms                2.473 ms                 7.06x faster
+MXU 4×4 matmul (128 repeats)          1.315 ms                 0.315 ms                 4.18x faster
+Candidate double buffering            serial 3.474 ms          overlap 2.253 ms          1.54x faster
+8-bank VPU/L1 transaction model       744 transactions         93 transactions          8.00x faster
+```
+
+- **speedup > 1.00×** means the candidate (optimized) design has lower median latency
+- **MBps_delta > 0** means the candidate has higher median bandwidth
+- Skipped rows indicate features not exposed by the baseline driver/design (e.g., double buffering, explicit L1 copy)
+
+---
+
+## Typical Data Flow: Matrix Multiply
+
+```
+1. Host writes weight matrix A to L2              (Mode 1: DMA_WRITE)
+2. Host writes activation matrix B to L2           (Mode 1: DMA_WRITE)
+3. Host writes compute program to IRAM             (Mode 4: WRITE_IRAM)
+4. Copy A from L2 → L1 scratchpad                  (Mode 5: SYS_TO_OC)
+5. Copy B from L2 → L1 scratchpad                  (Mode 5: SYS_TO_OC)
+6. Execute compute program (MXU multiply)           (Mode 3: COMPUTE)
+7. Copy result from L1 → L2                         (Mode 6: OC_TO_SYS)
+8. Host reads result from L2                        (Mode 2: DMA_READ)
+```
+
+With double buffering, steps 1–2 for the *next* tile can overlap with step 6 for the *current* tile.
+
+---
+
+## FPGA Resource Utilization
 
 | Resource | Used | Available | Utilization |
 |:---------|:-----|:----------|:------------|
@@ -30,396 +365,64 @@ The Mini-TPU memory subsystem is organized in three tiers:
 
 ---
 
-## 1. Host Interface Layer
-
-The host communicates with the TPU through three AXI interfaces, all managed by the Zynq PS:
-
-### 1.1 AXI-Lite (Control & Status)
-- **Module:** [`tpu_slave_axi_lite.v`](src/system/tpu_slave_axi_lite.v)
-- **Bus Width:** 32-bit data, 6-bit address (16 registers)
-- **Purpose:** Register-mapped control plane for triggering operations and polling status.
-
-| Register | Offset | Description |
-|:---------|:-------|:------------|
-| `slv_reg0` | `0x00` | **Doorbell** `[4]` + **Mode** `[3:0]` — write to trigger an operation |
-| `slv_reg1` | `0x04` | **Status** — `compute_idle` `[0]`, `dma_idle` `[1]`, `stream_ready` `[2]` |
-| `slv_reg3` | `0x0C` | **System Memory Base Address** (word address) |
-| `slv_reg4` | `0x10` | **On-Chip Memory Base Address** (word address) |
-| `slv_reg6` | `0x18` | **Transfer Length** (in bytes) |
-
-**Doorbell Mechanism:** The host writes `1` to bit `[4]` of `slv_reg0` along with a mode in bits `[3:0]`. The hardware latches the mode, clears the doorbell bit, and begins execution. The host polls `slv_reg1` to wait for completion.
-
-### 1.2 AXI-Stream (DMA Bulk Transfers)
-- **Modules:** [`tpu_slave_axi_stream.v`](src/system/tpu_slave_axi_stream.v) (write), [`tpu_master_axi_stream.v`](src/system/tpu_master_axi_stream.v) (read)
-- **Bus Width:** 256-bit (internally), 128-bit at the DMA engine boundary
-- **Purpose:** High-throughput bulk data transfer between host memory and device memory.
-
-### 1.3 AXI4-Full (Direct MMIO)
-- **Module:** [`axi_full_slave.v`](src/system/axi_full_slave.v)
-- **Bus Width:** 32-bit data, 18-bit address
-- **Purpose:** Direct register-style read/write access to Bulk Storage (L2 Cache) (System Memory) without going through the DMA engine. Supports AXI burst transactions. Used for small, random-access reads/writes.
-
----
-
-## 2. Bulk Storage (L2 Cache) (System Memory)
-
-![DMA Data Flow](docs/images/dma_data_flow.png)
-
-- **Module:** [`device_mem.sv`](src/system/device_mem.sv)
-- **Architecture:** 8-bank interleaved true dual-port BRAM
-- **Capacity:** 8 banks × 8,192 words × 32 bits = **256 KB**
-- **Port A (DMA):** 256-bit wide — all 8 banks are read/written simultaneously for maximum DMA throughput
-- **Port B (Scalar):** 32-bit wide — bank-selected access for MMIO and `mem_ctrl` scalar copies
-- **BRAM Primitive:** `blk_mem_gen_2` (Xilinx Block Memory Generator, 32-bit × 8,192 depth, True Dual-Port)
-
-### How It Works
-
-Bulk Storage (L2 Cache) serves as the staging buffer between the host and the compute tile. Data flows in via DMA and is later copied to the scratchpad for computation.
-
-**Write path:** The DMA stream writes 256-bit words across all 8 banks in parallel using Port A. The `dma_write_pointer` from the stream slave module provides the sequential address.
-
-**Read path:** The master stream reads 256-bit words from Port A using the `dma_read_pointer`. A FWFT FIFO inside the master stream module buffers data before sending it over AXI-Stream.
-
-**Scalar access (Port B):** This port is muxed between:
-- **AXI4-Full slave** — for direct MMIO from the host
-- **Memory Controller** — for `sys↔onchip` copy operations (modes 5/6)
-
-The mux is controlled by `mc_owns_scalar`, which gives priority to `mem_ctrl` when the FSM is actively performing a copy.
-
-### Banking Scheme
-
-```
-Address bits:  [15:3] = BRAM row address (shared across all banks)
-               [2:0]  = Bank select (for 32-bit scalar Port B access)
-
-Port A (DMA):  All banks read/written in parallel at the same row address
-Port B (Scalar): Only the selected bank is accessed per cycle
-```
-
-
-### Double Buffering and Concurrency
-
-The Mini-TPU memory subsystem supports concurrent execution of DMA data transfers and compute operations. By utilizing **double buffering** techniques, the host can effectively hide memory transfer latency:
-
-```mermaid
-graph TD
-    Host[Host AXI-Lite Doorbell] -->|Triggers| Arbiter{Top-Level Arbiter}
-    
-    subgraph DMA Channel
-        Arbiter -->|Modes 1,2,4,5,6| MemCtrl[Memory Controller FSM]
-        MemCtrl <-->|Scalar & DMA| L2[Bulk Storage L2]
-        MemCtrl <-->|Port A| L1[Scratchpad L1]
-    end
-    
-    subgraph Compute Channel
-        Arbiter -->|Mode 3| CompCtrl[Compute Controller FSM]
-        CompCtrl -->|Execution| ComputeTile[Compute Units]
-        ComputeTile <-->|Port B Wide| L1
-    end
-```
-
-Because the memory subsystem separates the DMA AXI-Stream channel from the internal `sys↔onchip` scalar copy channel, these independent data paths can be fully overlapped. This allows continuous, uninterrupted compute execution.
-
-#### Dual FSM Architecture
-
-The concurrency is driven by two independent state machines running in parallel within `mem_top`. The host can trigger DMA operations and compute operations independently, and poll their completion status separately (`dma_idle` and `compute_idle`).
-
-```mermaid
-stateDiagram-v2
-    direction LR
-    state "Memory Controller (DMA/Copy)" as DMA {
-        [*] --> IDLE_MEM
-        IDLE_MEM --> DMA_WRITE : Mode 1
-        IDLE_MEM --> DMA_READ : Mode 2
-        IDLE_MEM --> SYS_TO_OC : Mode 5
-        IDLE_MEM --> OC_TO_SYS : Mode 6
-        DMA_WRITE --> IDLE_MEM
-        DMA_READ --> IDLE_MEM
-        SYS_TO_OC --> IDLE_MEM
-        OC_TO_SYS --> IDLE_MEM
-    }
-    
-    state "Compute Controller" as COMP {
-        [*] --> IDLE_COMP
-        IDLE_COMP --> FETCH : Mode 3
-        FETCH --> DECODE
-        DECODE --> EXECUTE
-        EXECUTE --> FETCH : Loop
-        DECODE --> HALT : Op=0x3FF
-        HALT --> IDLE_COMP
-    }
-```
-
-1. **Ping-Pong Buffering in Scratchpad (L1):** 
-   While the compute tile is actively executing operations on data located in the first half of the Scratchpad (L1), the memory controller (`mem_ctrl`) can concurrently copy the next batch of data from the Bulk Storage (L2 Cache) into the second half of the Scratchpad.
-2. **Ping-Pong Buffering in Bulk Storage (L2):** 
-   Similarly, while `mem_ctrl` is busy copying data between the Bulk Storage and the Scratchpad, the host can simultaneously use the AXI DMA engine to stream new data from LPDDR4 System RAM directly into a different address region of the Bulk Storage.
-
----
-
-## 3. Memory Controller FSM
-
-- **Module:** [`mem_ctrl.sv`](src/system/mem_ctrl.sv)
-- **Purpose:** Orchestrates all non-compute data movement operations
-
-### Supported Modes
-
-| Mode | Name | Direction | Mechanism |
-|:-----|:-----|:----------|:----------|
-| 1 | `DMA_WRITE` | Host → Bulk Storage (L2 Cache) | AXI-Stream slave receives 256-bit beats |
-| 2 | `DMA_READ` | Bulk Storage (L2 Cache) → Host | AXI-Stream master sends 256-bit beats |
-| 5 | `SYS_TO_OC` | Bulk Storage (L2 Cache) → Scratchpad | 32-bit scalar copy via Port B → Port A |
-| 6 | `OC_TO_SYS` | Scratchpad → Bulk Storage (L2 Cache) | 32-bit scalar copy via Port A → Port B |
-
-### FSM State Diagram
-
-```
-                    ┌──────────┐
-        start ──────►  S_IDLE  │
-                    └────┬─────┘
-                         │
-              ┌──────────┼──────────┬──────────┐
-              ▼          ▼          ▼          ▼
-        ┌───────────┐ ┌──────────┐ ┌─────────┐ ┌─────────┐
-        │S_DMA_WRITE│ │S_DMA_READ│ │S_SYS2OC │ │S_OC2SYS │
-        │           │ │          │ │  _RD     │ │  _RD    │
-        └─────┬─────┘ └────┬─────┘ └────┬────┘ └────┬────┘
-              │             │            │           │
-         write_bram_done  read_bram_done │           │
-              │             │        ┌───▼───┐  ┌───▼───┐
-              │             │        │S_SYS2OC│  │S_OC2SYS│
-              │             │        │  _WR   │  │  _WR  │
-              │             │        └───┬────┘  └───┬───┘
-              │             │            │           │
-              └──────┬──────┴────────────┴───────────┘
-                     ▼
-                   done → S_IDLE
-```
-
-### Scalar Copy Timing (Modes 5/6)
-
-The `sys↔onchip` copy uses a 2-phase pipeline per word to handle BRAM read latency:
-
-1. **Phase 1 (Read):** Assert address + enable on the source memory port. Wait one cycle for BRAM latency.
-2. **Phase 2 (Write):** Capture the read data and write it to the destination memory port. Increment word counter.
-
-This results in **2 cycles per 32-bit word** for inter-memory copies.
-
----
-
-## 4. Compute Tile
-
-![Compute Tile Detail](docs/images/compute_tile_detail.png)
-
-- **Module:** [`compute_tile.sv`](src/compute_tile/compute_tile.sv)
-- **Contains:** Scratchpad + Compute Core + Decoder + PC + IRAM
-
-The compute tile is a self-contained processing unit that fetches instructions from its local IRAM, decodes them, and dispatches them to one of three execution units. All execution units operate on data stored in the scratchpad.
-
-### 4.1 Scratchpad Memory (L1 On-Chip)
-
-- **Module:** [`scratchpad.sv`](tensorcore/scratchpad.sv)
-- **Architecture:** 8-bank interleaved, dual-port
-- **Capacity:** 8 banks × 1,024 words × 32 bits = **32 KB**
-- **BRAM Primitive:** `mem_wrapper` (synthesized from `blk_mem_gen_0`)
-
-#### Dual-Port Access
-
-| Port | Width | Purpose | Used By |
-|:-----|:------|:--------|:--------|
-| **Port A** | 32-bit scalar | DMA / `mem_ctrl` scalar copies | `mem_ctrl` (modes 5/6) |
-| **Port B** | 256-bit wide (8 × 32-bit) | Parallel compute access | MXU, VPU, Vector Add |
-
-**Port A Banking:** Uses address bits `[2:0]` for bank selection. Only one bank is active per cycle. Read data is returned via a registered mux (1-cycle latency).
-
-**Port B Wide Access:** All 8 banks are addressed by the same row address (`addr[12:3]`). Each bank has an independent write-enable, allowing per-lane masking from the VPU.
-
-### 4.2 Instruction RAM (IRAM)
-
-- **Capacity:** 256 entries × 64-bit = **2 KB**
-- **BRAM Primitive:** `blk_mem_gen_1` (True Dual-Port)
-- **Port A:** DMA write port — instructions are loaded from the host via mode 4
-- **Port B:** PC fetch port — the program counter reads the next instruction each cycle
-
-### 4.3 Instruction Pipeline
-
-```
-  FETCH ──► DECODE ──► EXECUTE ──► (wait for done) ──► FETCH
-                          │
-                  ┌───────┼───────┐
-                  ▼       ▼       ▼
-                 VPU    MXU    VADD
-```
-
-1. **FETCH:** PC presents address to IRAM Port B. Wait 1 cycle for BRAM latency.
-2. **DECODE:** Decoder extracts opcode, addresses, mode, and VPU fields from the 64-bit instruction word. If opcode is `0x3FF`, the program halts.
-3. **EXECUTE:** Based on `mode[1:0]`, one of three units is kicked:
-   - `00` → VPU SIMD
-   - `01` → MXU (Systolic Array)
-   - `10` → Vector Add
-4. **WAIT:** The tile waits for the dispatched unit's `done` signal, then increments PC and returns to FETCH.
-
-### 4.4 Compute Core
-
-- **Module:** [`compute_core.sv`](tensorcore/compute_core.sv)
-- **Contains:** MXU, VPU SIMD, Vector Add, Port B Arbiter
-
-#### Matrix Multiply Unit (MXU)
-- 4×4 systolic array operating on 32-bit fixed-point values
-- Reads weight matrix (A) and input matrix (B) from scratchpad via the 256-bit wide port
-- Writes output matrix back to scratchpad
-- 3-cycle memory latency model
-- Uses all 8 write-enable bits (full-row writes)
-
-#### VPU SIMD
-- 8-lane vector processing unit
-- Supports per-lane write masks for selective updates
-- Operates on 256-bit vectors (8 × 32-bit elements)
-- Instruction fields: `vpu_type`, `vreg_dst`, `vreg_a`, `vreg_b`, `vpu_opcode`
-
-#### Vector Add
-- Element-wise vector addition
-- Accesses scratchpad through a scalar-to-wide shim that maps 32-bit accesses to the banked 256-bit interface
-
-#### Port B Arbiter
-The `compute_core` module arbitrates scratchpad Port B access based on the current instruction's `mode[1:0]`:
-
-```
-mode = 00 → VPU  controls  {addr, din, en, we}
-mode = 01 → MXU  controls  {addr, din, en, we}
-mode = 10 → VADD controls  {addr, din, en, we}
-```
-
-Read data (`bram_dout_b`) is broadcast to all three units simultaneously.
-
----
-
-## 5. Top-Level Integration (`mem_top.sv`)
-
-- **Module:** [`mem_top.sv`](src/system/mem_top.sv)
-- **Purpose:** Wires together all subsystems and implements the arbiter FSM
-
-### Operating Modes
-
-| Mode | Name | What Happens |
-|:-----|:-----|:-------------|
-| 0 | IDLE | No operation |
-| 1 | DMA_WRITE | Host → Bulk Storage (L2 Cache) via AXI-Stream |
-| 2 | DMA_READ | Bulk Storage (L2 Cache) → Host via AXI-Stream |
-| 3 | COMPUTE | Execute program from IRAM on compute tile |
-| 4 | WRITE_IRAM | Host → Instruction RAM via AXI-Stream |
-| 5 | SYS_TO_OC | Bulk Storage (L2 Cache) → Scratchpad (32-bit copy) |
-| 6 | OC_TO_SYS | Scratchpad → Bulk Storage (L2 Cache) (32-bit copy) |
-
-### Arbiter FSM
-
-`mem_top` contains a two-channel arbiter:
-
-- **DMA channel** (modes 1, 2, 4, 5, 6): Controls `fsm_running` and dispatches to `mem_ctrl`.
-- **Compute channel** (mode 3): Controls `compute_running` and dispatches to `compute_ctrl` → `compute_tile`.
-
-Both channels can complete independently. The host polls `dma_idle` and `compute_idle` status bits in `slv_reg1`.
-
----
-
-## 6. Typical Data Flow: Matrix Multiply
-
-A complete matrix multiplication involves these steps:
-
-```
-1. Host writes weight matrix A to Bulk Storage (L2 Cache)        (Mode 1: DMA_WRITE)
-2. Host writes input matrix B to Bulk Storage (L2 Cache)          (Mode 1: DMA_WRITE)
-3. Host writes compute program to IRAM                  (Mode 4: WRITE_IRAM)
-4. Copy A from Bulk Storage (L2 Cache) → Scratchpad               (Mode 5: SYS_TO_OC)
-5. Copy B from Bulk Storage (L2 Cache) → Scratchpad               (Mode 5: SYS_TO_OC)
-6. Execute compute program (MXU multiply)               (Mode 3: COMPUTE)
-7. Copy result from Scratchpad → Bulk Storage (L2 Cache)          (Mode 6: OC_TO_SYS)
-8. Host reads result from Bulk Storage (L2 Cache)                  (Mode 2: DMA_READ)
-```
-
----
-
-## 7. Build & Test
-
-### Prerequisites
-- Xilinx Vivado 2023.2
-- Ultra96-v2 board with PYNQ image
-- `sshpass` for board deployment
-
-### Build Commands
-
-```bash
-# Source Vivado environment
-source /opt/xilinx/Vitis/2023.2/settings64.sh
-
-# Package the memory subsystem IP
-make mem-ip
-
-# Build the bitstream
-make mem-bitstream
-
-# Run board-level tests
-make mem-board-tests
-```
-
-### Test Suite
-
-The board tests (`board_tests/test_mem_system.py`) validate:
-
-| Test | Description |
-|:-----|:------------|
-| `mmio_write_read` | AXI4-Full MMIO write + readback |
-| `mmio_random_access` | Random address MMIO verification |
-| `dma_write_read` | DMA round-trip (write → read → verify) |
-| `sys_to_onchip` | Bulk Storage (L2 Cache) → Scratchpad copy + verify |
-| `onchip_roundtrip` | Full sys→OC→sys round-trip |
-| `bitpattern_deadbeef` | Stress test with `0xDEADBEEF` pattern |
-
----
-
 ## Directory Structure
 
 ```
 tpu/
+├── Makefile                          # Build orchestrator (make help)
+├── README.md                         # ← You are here
 ├── src/
-│   ├── system/              # System-level RTL
-│   │   ├── mem_top.sv       # Top-level integration
-│   │   ├── mem_ctrl.sv      # Memory controller FSM
-│   │   ├── device_mem.sv    # 8-bank device memory
-│   │   ├── tpu_slave_axi_lite.v    # AXI-Lite control registers
-│   │   ├── tpu_slave_axi_stream.v  # AXI-Stream slave (DMA write)
-│   │   ├── tpu_master_axi_stream.v # AXI-Stream master (DMA read)
-│   │   └── axi_full_slave.v        # AXI4-Full MMIO interface
-│   ├── compute_tile/        # Compute tile wrapper
+│   ├── system/                       # System-level RTL
+│   │   ├── mem_top.sv                #   Top-level integration + arbiter
+│   │   ├── mem_ctrl.sv               #   Memory controller FSM
+│   │   ├── device_mem.sv             #   8-bank L2 bulk storage
+│   │   ├── compute_ctrl.sv           #   Compute controller bridge
+│   │   ├── tpu_slave_axi_lite.v      #   AXI-Lite control registers
+│   │   ├── tpu_slave_axi_stream.v    #   AXI-Stream slave (DMA write)
+│   │   ├── tpu_master_axi_stream.v   #   AXI-Stream master (DMA read)
+│   │   ├── axi_full_slave.sv         #   AXI4-Full MMIO interface
+│   │   ├── dma_engine.sv             #   DMA helper
+│   │   └── fifo4.sv                  #   FWFT FIFO
+│   ├── compute_tile/                 # Compute tile wrapper
 │   │   └── compute_tile.sv
-│   └── l2_tile/             # L2 tile (stub)
-├── tensorcore/              # Compute primitives
-│   ├── scratchpad.sv        # 8-bank scratchpad (L1)
-│   ├── compute_core.sv      # MXU + VPU + VADD orchestration
-│   ├── mxu.sv               # Systolic array
-│   ├── vpu_simd.sv          # SIMD vector unit
-│   └── ...
+│   └── l2_tile/                      # L2 tile (future)
+├── tensorcore/                       # Compute primitives
+│   ├── scratchpad.sv                 #   8-bank L1 scratchpad
+│   ├── compute_core.sv              #   MXU + VPU + VADD orchestration
+│   ├── mxu.sv                       #   4×4 systolic array
+│   ├── vpu_simd.sv                  #   8-lane SIMD vector unit
+│   ├── systolic.sv                  #   Systolic grid
+│   ├── pe.sv                        #   Processing element
+│   ├── decoder.sv                   #   Instruction decoder
+│   ├── pc.sv                        #   Program counter
+│   ├── fp32_add.sv / fp32_mul.sv    #   FP32 arithmetic
+│   └── vec_regfile.sv               #   VPU register file
 ├── runtime/
-│   └── pynq_host.py         # PYNQ host driver
+│   └── pynq_host.py                 # PYNQ host driver (MemDriver)
 ├── board_tests/
-│   └── test_mem_system.py   # Board-level test suite
+│   ├── test_mem_system.py           # Functional test suite (10 tests)
+│   └── test_concurrency.py          # Overlapped execution test
+├── benchmarks/
+│   ├── mem_benchmark.py             # Board benchmark suite
+│   ├── compare_mem_benchmarks.py    # A/B comparison scorecard
+│   └── run_mem_benchmark_from_checkout.sh
+├── scripts/
+│   ├── package_mem_ip.tcl           # Vivado IP packaging
+│   └── build_mem_bitstream.tcl      # Block design + bitstream build
+├── results/                          # Benchmark JSON outputs
 ├── docs/
-│   ├── images/
-│   │   ├── memory_hierarchy_overview.png
-│   │   ├── dma_data_flow.png
-│   │   └── compute_tile_detail.png
-│   ├── interactive_memory_flow.html # Interactive visualizer
-│   └── MEMORY_SYSTEM.md     # Performance specs
-└── Makefile                  # Build orchestrator
+│   ├── system_architecture.md       # Block diagram
+│   ├── memory_design.md            # Memory hierarchy detail
+│   ├── MEMORY_SYSTEM.md            # Register/data-path reference
+│   ├── test_explanation.md          # Board test notes
+│   └── interactive_memory_flow.html # Interactive data-flow visualization
+└── ultra96-v2/                      # Target-specific files
+    ├── output/artifacts/            #   mem_bd.bit, mem_bd.hwh
+    └── ...
 ```
 
 ---
 
-## 8. Interactive Visualization
+## Interactive Visualization
 
-An interactive, animated visualization of the memory system data flow is available in the repository. It illustrates the physical movement of data through the architecture during the different DMA and copy operations.
-
-To view the interactive visualization:
-1. Open [`docs/interactive_memory_flow.html`](docs/interactive_memory_flow.html) in any modern web browser.
-2. Use the left-hand control panel to click through the different operations (DMA Write, Sys to On-Chip, Compute, On-Chip to Sys, and DMA Read).
-3. Watch the animated data packets traverse the correct architectural paths.
+An animated, interactive visualization of all data paths is available at [`docs/interactive_memory_flow.html`](docs/interactive_memory_flow.html). Open it in any modern browser and click through the operation buttons to watch data packets traverse the architecture.
